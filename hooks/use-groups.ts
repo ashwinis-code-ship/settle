@@ -79,11 +79,12 @@ export function useGroups(): UseGroupsResult {
 
         const groupIds = memberData.map((m) => m.group_id);
 
-        // Fetch group details
+        // Fetch group details (only explicit groups, not 1:1 direct groups)
         const { data: groupsData, error: groupsError } = await supabase
           .from('groups')
           .select('*')
           .in('id', groupIds)
+          .eq('type', 'group') // Filter out 'direct' (1:1) groups
           .order('updated_at', { ascending: false });
 
         if (groupsError) throw groupsError;

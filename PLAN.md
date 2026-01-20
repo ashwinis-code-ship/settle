@@ -92,7 +92,7 @@ FORGOT PASSWORD:
 | **Named Group** | Yes | Explicitly via "Create Group" |
 
 ### Tasks
-- [ ] 3.1 Groups list screen (with group cards showing balance summary)
+- [x] 3.1 Groups list screen (with group cards showing balance summary) ✅
 - [ ] 3.2 Create group screen (name, add members by phone)
 - [ ] 3.3 Group detail screen (expenses list, member balances)
 - [ ] 3.4 Add/remove members from group

@@ -6,7 +6,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { MotiView } from 'moti';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
@@ -32,6 +32,18 @@ export default function HomeScreen() {
     .join('')
     .toUpperCase()
     .slice(0, 2);
+
+  const handleAddExpense = () => {
+    Alert.alert('Coming Soon', 'Add expense functionality will be available soon.');
+  };
+
+  const handleCreateGroup = () => {
+    router.push('/(tabs)/groups');
+  };
+
+  const handleSettleUp = () => {
+    Alert.alert('Coming Soon', 'Settle up functionality will be available soon.');
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
@@ -101,6 +113,7 @@ export default function HomeScreen() {
           <Text style={[styles.sectionTitle, { color: textColor }]}>Quick Actions</Text>
           <View style={styles.actionsRow}>
             <Pressable 
+              onPress={handleAddExpense}
               style={({ pressed }) => [
                 styles.actionCard,
                 { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },
@@ -113,6 +126,7 @@ export default function HomeScreen() {
             </Pressable>
             
             <Pressable 
+              onPress={handleCreateGroup}
               style={({ pressed }) => [
                 styles.actionCard,
                 { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },
@@ -125,6 +139,7 @@ export default function HomeScreen() {
             </Pressable>
             
             <Pressable 
+              onPress={handleSettleUp}
               style={({ pressed }) => [
                 styles.actionCard,
                 { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },

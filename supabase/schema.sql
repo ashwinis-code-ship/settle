@@ -146,6 +146,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Helper function to check group membership (SECURITY DEFINER to avoid RLS recursion)
+CREATE OR REPLACE FUNCTION public.is_group_member(p_group_id UUID, p_user_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.group_members
+        WHERE group_id = p_group_id AND user_id = p_user_id
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- ============================================
 -- TRIGGERS
 -- ============================================
@@ -229,25 +240,15 @@ CREATE POLICY "Group admins can delete groups" ON public.groups
     );
 
 -- Group members policies
+-- Uses helper function to avoid infinite recursion
 CREATE POLICY "Users can view members of their groups" ON public.group_members
     FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM public.group_members AS gm
-            WHERE gm.group_id = group_members.group_id
-            AND gm.user_id = auth.uid()
-        )
+        public.is_group_member(group_id, auth.uid())
     );
 
 CREATE POLICY "Group admins can add members" ON public.group_members
     FOR INSERT WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM public.group_members
-            WHERE group_members.group_id = group_id
-            AND group_members.user_id = auth.uid()
-            AND group_members.role = 'admin'
-        )
-        OR 
-        -- Allow the trigger to add the creator
+        -- Allow group creator (for trigger and initial setup)
         EXISTS (
             SELECT 1 FROM public.groups
             WHERE groups.id = group_id
@@ -257,11 +258,11 @@ CREATE POLICY "Group admins can add members" ON public.group_members
 
 CREATE POLICY "Group admins can remove members" ON public.group_members
     FOR DELETE USING (
+        -- Group creator can remove members
         EXISTS (
-            SELECT 1 FROM public.group_members AS gm
-            WHERE gm.group_id = group_members.group_id
-            AND gm.user_id = auth.uid()
-            AND gm.role = 'admin'
+            SELECT 1 FROM public.groups
+            WHERE groups.id = group_members.group_id
+            AND groups.created_by = auth.uid()
         )
         OR user_id = auth.uid() -- Users can leave groups
     );
