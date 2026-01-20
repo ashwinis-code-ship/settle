@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView, MotiText } from 'moti';
-import { Link, router } from 'expo-router';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Input } from '@/components/ui/input';
@@ -283,13 +283,11 @@ export default function SignUpScreen() {
             <Text style={[styles.footerText, { color: secondaryTextColor }]}>
               Already have an account?{' '}
             </Text>
-            <Link href="/(auth)/sign-in" asChild>
-              <Pressable>
-                <Text style={[styles.link, { color: colors.primary[500] }]}>
-                  Sign In
-                </Text>
-              </Pressable>
-            </Link>
+            <Pressable onPress={() => router.replace('/(auth)/sign-in')}>
+              <Text style={[styles.link, { color: colors.primary[500] }]}>
+                Sign In
+              </Text>
+            </Pressable>
           </View>
         </MotiView>
         </ScrollView>

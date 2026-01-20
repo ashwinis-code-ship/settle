@@ -33,8 +33,8 @@
 **Goal**: Phone + password auth flow with beautiful UI
 
 - [x] 2.1 Sign Up screen (phone, password, name) ✅
-- [ ] 2.2 Sign In screen
-- [ ] 2.3 Auth flow navigation (redirect based on auth state)
+- [x] 2.2 Sign In screen ✅
+- [x] 2.3 Auth flow navigation (redirect based on auth state) ✅
 - [ ] 2.4 Profile setup / edit screen
 
 ---
@@ -270,6 +270,8 @@ Main App (Bottom Tabs)
 | 2026-01-20 | 1 | 1.3 Offline Storage | Created storage.ts, sync-queue.ts, sync-manager.ts, use-network-status.ts, sync-context.tsx |
 | 2026-01-20 | 1 | 1.4 Data Hooks | Created useUser, useCategories, useGroups, useGroup, useExpenses, useFriends, useSettlements |
 | 2026-01-20 | 2 | 2.1 Sign Up Screen | Created auth layout, sign-up screen, Input/Button components, colors constants |
+| 2026-01-20 | 2 | 2.2 Sign In Screen | Created sign-in screen with phone/password login |
+| 2026-01-20 | 2 | 2.3 Auth Navigation | Added auth redirect logic in root layout |
 
 ---
 

@@ -24,7 +24,7 @@ function RootLayoutNav() {
 
     if (!user && !inAuthGroup) {
       // Redirect to sign-in if not authenticated
-      router.replace('/(auth)/sign-up');
+      router.replace('/(auth)/sign-in');
     } else if (user && inAuthGroup) {
       // Redirect to home if authenticated
       router.replace('/(tabs)');
