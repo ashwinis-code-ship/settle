@@ -70,7 +70,7 @@ FORGOT PASSWORD:
 - [x] 2.4 OTP database table + Supabase Edge Functions ✅
 - [x] 2.5 Sign Up screen - Step 2 (OTP verification with timer) ✅
 - [x] 2.6 Sign Up screen - Step 3 (set password, create account) ✅
-- [ ] 2.7 Forgot Password flow (phone → OTP → reset password)
+- [x] 2.7 Forgot Password flow (phone → OTP → reset password) ✅
 - [ ] 2.8 Profile edit screen
 
 ---
@@ -329,6 +329,7 @@ Main App (Bottom Tabs)
 | 2026-01-20 | 2 | Country Picker | Added country picker component with 50 countries, India default |
 | 2026-01-20 | 2 | 2.4 OTP Setup | Created otp-schema.sql, Edge Functions (send-otp, verify-otp), otp-service.ts client |
 | 2026-01-20 | 2 | 2.5-2.6 OTP Flow | Created verify-otp.tsx (6-digit input, resend timer), set-password.tsx (strength indicator) |
+| 2026-01-20 | 2 | 2.7 Forgot Password | Created forgot-password.tsx, reset-password.tsx, reset-password Edge Function |
 
 ---
 

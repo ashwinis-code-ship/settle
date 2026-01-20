@@ -1,7 +1,7 @@
 /**
- * Sign In Screen
+ * Forgot Password Screen - Step 1
  * 
- * Login form with phone and password.
+ * Enter phone number to receive OTP for password reset.
  */
 
 import { useState, useRef } from 'react';
@@ -23,66 +23,70 @@ import { Ionicons } from '@expo/vector-icons';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { CountryPicker } from '@/components/ui/country-picker';
-import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { colors } from '@/constants/colors';
 import { DEFAULT_COUNTRY, type Country } from '@/constants/countries';
+import { sendOtp } from '@/lib/otp-service';
 
-export default function SignInScreen() {
+export default function ForgotPasswordScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
-  const { signIn } = useAuth();
 
   // Form state
   const [country, setCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [error, setError] = useState('');
 
-  // Refs for focus management
-  const passwordRef = useRef<TextInput>(null);
+  // Refs
+  const phoneRef = useRef<TextInput>(null);
 
   const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
-
     if (!phone.trim()) {
-      newErrors.phone = 'Phone number is required';
+      setError('Phone number is required');
+      return false;
     }
-
-    if (!password) {
-      newErrors.password = 'Password is required';
+    if (!/^[1-9]\d{6,14}$/.test(phone.replace(/\s/g, ''))) {
+      setError('Enter a valid phone number');
+      return false;
     }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return true;
   };
 
-  const handleSignIn = async () => {
+  const handleGetOtp = async () => {
     if (!validateForm()) return;
 
     setIsLoading(true);
-    setErrors({});
+    setError('');
 
     try {
       const fullPhone = `${country.dialCode}${phone.replace(/\s/g, '')}`;
-      const { error } = await signIn(fullPhone, password);
+      
+      // Send OTP via Edge Function
+      const result = await sendOtp(fullPhone, 'forgot_password');
 
-      if (error) {
-        setErrors({ form: error.message });
+      if (!result.success) {
+        setError(result.message);
         return;
       }
 
-      // Navigate to main app
-      router.replace('/(tabs)');
-    } catch (err) {
-      setErrors({
-        form: err instanceof Error ? err.message : 'Something went wrong',
+      // Navigate to OTP verification screen
+      router.push({
+        pathname: '/(auth)/verify-otp',
+        params: {
+          phone: fullPhone,
+          purpose: 'forgot_password',
+        },
       });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleBack = () => {
+    router.back();
   };
 
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
@@ -100,6 +104,17 @@ export default function SignInScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {/* Back Button */}
+          <MotiView
+            from={{ opacity: 0, translateX: -20 }}
+            animate={{ opacity: 1, translateX: 0 }}
+            transition={{ type: 'timing', duration: 300 }}
+          >
+            <Pressable onPress={handleBack} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color={textColor} />
+            </Pressable>
+          </MotiView>
+
           {/* Header */}
           <MotiView
             from={{ opacity: 0, translateY: -20 }}
@@ -107,31 +122,29 @@ export default function SignInScreen() {
             transition={{ type: 'timing', duration: 500 }}
             style={styles.header}
           >
-            <View style={styles.logoContainer}>
-              <MotiView
-                from={{ scale: 0, rotate: '-180deg' }}
-                animate={{ scale: 1, rotate: '0deg' }}
-                transition={{ type: 'spring', damping: 15 }}
-                style={[styles.logo, { backgroundColor: colors.primary[500] }]}
-              >
-                <Ionicons name="wallet-outline" size={40} color={colors.white} />
-              </MotiView>
-            </View>
-            <MotiText
-              from={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ type: 'timing', duration: 500, delay: 200 }}
-              style={[styles.title, { color: textColor }]}
+            <MotiView
+              from={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', damping: 15, delay: 200 }}
+              style={[styles.iconContainer, { backgroundColor: colors.warning + '20' }]}
             >
-              Settle
-            </MotiText>
+              <Ionicons name="key-outline" size={40} color={colors.warning} />
+            </MotiView>
             <MotiText
               from={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ type: 'timing', duration: 500, delay: 300 }}
+              style={[styles.title, { color: textColor }]}
+            >
+              Forgot Password?
+            </MotiText>
+            <MotiText
+              from={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ type: 'timing', duration: 500, delay: 400 }}
               style={[styles.subtitle, { color: secondaryTextColor }]}
             >
-              Split bills. Settle debts. Stay friends.
+              Enter your phone number to receive a verification code
             </MotiText>
           </MotiView>
 
@@ -139,18 +152,18 @@ export default function SignInScreen() {
           <MotiView
             from={{ opacity: 0, translateY: 20 }}
             animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 500, delay: 400 }}
+            transition={{ type: 'timing', duration: 500, delay: 500 }}
             style={styles.form}
           >
-            {/* Form Error */}
-            {errors.form && (
+            {/* Error */}
+            {error && (
               <MotiView
                 from={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                style={styles.formError}
+                style={styles.errorContainer}
               >
                 <Ionicons name="alert-circle" size={20} color={colors.error} />
-                <Text style={styles.formErrorText}>{errors.form}</Text>
+                <Text style={styles.errorText}>{error}</Text>
               </MotiView>
             )}
 
@@ -166,75 +179,39 @@ export default function SignInScreen() {
                 />
                 <View style={styles.phoneInputWrapper}>
                   <Input
+                    ref={phoneRef}
                     placeholder="98765 43210"
                     value={phone}
-                    onChangeText={setPhone}
-                    error={errors.phone}
+                    onChangeText={(text) => {
+                      setPhone(text);
+                      setError('');
+                    }}
                     keyboardType="phone-pad"
                     autoComplete="tel"
-                    returnKeyType="next"
-                    onSubmitEditing={() => passwordRef.current?.focus()}
+                    returnKeyType="done"
+                    onSubmitEditing={handleGetOtp}
                     containerStyle={styles.phoneInput}
                   />
                 </View>
               </View>
             </View>
 
-            {/* Password Input */}
-            <Input
-              ref={passwordRef}
-              label="Password"
-              placeholder="••••••••"
-              value={password}
-              onChangeText={setPassword}
-              error={errors.password}
-              secureTextEntry={!showPassword}
-              autoComplete="password"
-              returnKeyType="done"
-              onSubmitEditing={handleSignIn}
-              leftIcon={
-                <Ionicons
-                  name="lock-closed-outline"
-                  size={20}
-                  color={isDark ? colors.gray[400] : colors.gray[500]}
-                />
-              }
-              rightIcon={
-                <Pressable onPress={() => setShowPassword(!showPassword)}>
-                  <Ionicons
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={20}
-                    color={isDark ? colors.gray[400] : colors.gray[500]}
-                  />
-                </Pressable>
-              }
-            />
-
-            {/* Forgot Password Link */}
-            <View style={styles.forgotPasswordContainer}>
-              <Pressable onPress={() => router.push('/(auth)/forgot-password')}>
-                <Text style={[styles.forgotPasswordText, { color: colors.primary[500] }]}>
-                  Forgot Password?
-                </Text>
-              </Pressable>
-            </View>
-
-            {/* Sign In Button */}
+            {/* Get OTP Button */}
             <Button
-              title="Sign In"
-              onPress={handleSignIn}
+              title="Send Verification Code"
+              onPress={handleGetOtp}
               loading={isLoading}
               style={styles.button}
             />
 
-            {/* Sign Up Link */}
+            {/* Back to Sign In */}
             <View style={styles.footer}>
               <Text style={[styles.footerText, { color: secondaryTextColor }]}>
-                Don't have an account?{' '}
+                Remember your password?{' '}
               </Text>
-              <Pressable onPress={() => router.replace('/(auth)/sign-up')}>
+              <Pressable onPress={handleBack}>
                 <Text style={[styles.link, { color: colors.primary[500] }]}>
-                  Sign Up
+                  Sign In
                 </Text>
               </Pressable>
             </View>
@@ -255,27 +232,26 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 80,
+    paddingTop: 16,
     paddingBottom: 40,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginTop: 40,
+    marginBottom: 40,
   },
-  logoContainer: {
-    marginBottom: 24,
-  },
-  logo: {
+  iconContainer: {
     width: 80,
     height: 80,
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.primary[500],
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    marginBottom: 24,
   },
   title: {
     fontSize: 28,
@@ -285,11 +261,12 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
+    paddingHorizontal: 20,
   },
   form: {
     flex: 1,
   },
-  formError: {
+  errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: `${colors.error}15`,
@@ -297,37 +274,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 16,
   },
-  formErrorText: {
+  errorText: {
     color: colors.error,
     marginLeft: 8,
     flex: 1,
   },
-  forgotPasswordContainer: {
-    alignItems: 'flex-end',
-    marginBottom: 24,
-    marginTop: -8,
-  },
-  forgotPasswordText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  button: {
-    marginTop: 8,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 24,
-  },
-  footerText: {
-    fontSize: 14,
-  },
-  link: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
   phoneInputContainer: {
-    marginBottom: 16,
+    marginBottom: 24,
   },
   inputLabel: {
     fontSize: 14,
@@ -343,5 +296,20 @@ const styles = StyleSheet.create({
   },
   phoneInput: {
     marginBottom: 0,
+  },
+  button: {
+    marginTop: 8,
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 24,
+  },
+  footerText: {
+    fontSize: 14,
+  },
+  link: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

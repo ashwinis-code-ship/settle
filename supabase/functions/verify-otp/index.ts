@@ -2,6 +2,7 @@
  * Verify OTP Edge Function
  * 
  * Verifies the OTP entered by the user.
+ * For forgot_password, returns a signed reset token.
  * 
  * Request body:
  * {
@@ -15,7 +16,8 @@
  *   success: boolean,
  *   message: string,
  *   verified?: boolean,
- *   attemptsRemaining?: number
+ *   attemptsRemaining?: number,
+ *   resetToken?: string  // Only for forgot_password, used to authorize password reset
  * }
  */
 
@@ -23,6 +25,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import { getSupabaseClient } from '../_shared/supabase.ts';
 import { verifyOtpHash, OTP_CONFIG, type OtpPurpose } from '../_shared/otp.ts';
+import { createResetToken } from '../_shared/token.ts';
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -129,11 +132,18 @@ serve(async (req) => {
       );
     }
 
+    // Generate a signed token for the next step
+    const jwtSecret = Deno.env.get('SUPABASE_JWT_SECRET') || Deno.env.get('JWT_SECRET') || 'fallback-secret';
+    const token = await createResetToken(phone, purpose, jwtSecret);
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: 'OTP verified successfully',
         verified: true,
+        // Return appropriate token based on purpose
+        ...(purpose === 'forgot_password' && { resetToken: token }),
+        ...(purpose === 'signup' && { signupToken: token }),
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

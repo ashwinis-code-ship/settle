@@ -115,11 +115,25 @@ export default function VerifyOtpScreen() {
         return;
       }
 
-      // Navigate to set password screen
-      router.push({
-        pathname: '/(auth)/set-password',
-        params: { phone, name, purpose },
-      });
+      // Navigate based on purpose
+      if (purpose === 'forgot_password') {
+        router.push({
+          pathname: '/(auth)/reset-password',
+          params: { 
+            phone,
+            resetToken: result.resetToken || '',
+          },
+        });
+      } else {
+        router.push({
+          pathname: '/(auth)/set-password',
+          params: { 
+            phone, 
+            name, 
+            signupToken: result.signupToken || '',
+          },
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Verification failed');
     } finally {

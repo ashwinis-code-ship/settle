@@ -1,7 +1,7 @@
 /**
- * Set Password Screen - Step 3
+ * Reset Password Screen
  * 
- * Create password after OTP verification.
+ * Set new password after OTP verification (forgot password flow).
  */
 
 import { useState, useRef } from 'react';
@@ -26,14 +26,13 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { colors } from '@/constants/colors';
 import { supabase } from '@/lib/supabase';
 
-export default function SetPasswordScreen() {
+export default function ResetPasswordScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
-  const params = useLocalSearchParams<{ phone: string; name: string; signupToken: string }>();
+  const params = useLocalSearchParams<{ phone: string; resetToken: string }>();
 
   const phone = params.phone || '';
-  const name = params.name || '';
-  const signupToken = params.signupToken || '';
+  const resetToken = params.resetToken || '';
 
   // Form state
   const [password, setPassword] = useState('');
@@ -66,45 +65,30 @@ export default function SetPasswordScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleCreateAccount = async () => {
+  const handleResetPassword = async () => {
     if (!validateForm()) return;
 
     setIsLoading(true);
     setErrors({});
 
     try {
-      // Call Edge Function to create account with signed token
-      const { data, error } = await supabase.functions.invoke('create-account', {
-        body: { signupToken, password, name },
+      // Call Edge Function to reset password with the signed token
+      const { data, error } = await supabase.functions.invoke('reset-password', {
+        body: { resetToken, password },
       });
 
       if (error) {
-        setErrors({ form: error.message || 'Failed to create account' });
+        setErrors({ form: error.message || 'Failed to reset password' });
         return;
       }
 
       if (!data?.success) {
-        setErrors({ form: data?.message || 'Failed to create account' });
+        setErrors({ form: data?.message || 'Failed to reset password' });
         return;
       }
 
-      // Sign in the user after account creation
-      const digits = phone.replace(/\D/g, '');
-      const email = `${digits}@settle.phone`;
-      
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (signInError) {
-        // Account created but couldn't auto-sign in, redirect to sign-in
-        router.replace('/(auth)/sign-in');
-        return;
-      }
-
-      // Navigate to main app
-      router.replace('/(tabs)');
+      // Navigate to sign-in
+      router.replace('/(auth)/sign-in');
     } catch (err) {
       setErrors({
         form: err instanceof Error ? err.message : 'Something went wrong',
@@ -112,10 +96,6 @@ export default function SetPasswordScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleBack = () => {
-    router.back();
   };
 
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
@@ -151,17 +131,6 @@ export default function SetPasswordScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Back Button */}
-          <MotiView
-            from={{ opacity: 0, translateX: -20 }}
-            animate={{ opacity: 1, translateX: 0 }}
-            transition={{ type: 'timing', duration: 300 }}
-          >
-            <Pressable onPress={handleBack} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={textColor} />
-            </Pressable>
-          </MotiView>
-
           {/* Header */}
           <MotiView
             from={{ opacity: 0, translateY: -20 }}
@@ -173,9 +142,9 @@ export default function SetPasswordScreen() {
               from={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: 'spring', damping: 15, delay: 200 }}
-              style={[styles.iconContainer, { backgroundColor: colors.primary[100] }]}
+              style={[styles.iconContainer, { backgroundColor: colors.success + '20' }]}
             >
-              <Ionicons name="lock-closed-outline" size={40} color={colors.primary[500]} />
+              <Ionicons name="shield-checkmark-outline" size={40} color={colors.success} />
             </MotiView>
             <MotiText
               from={{ opacity: 0 }}
@@ -183,7 +152,7 @@ export default function SetPasswordScreen() {
               transition={{ type: 'timing', duration: 500, delay: 300 }}
               style={[styles.title, { color: textColor }]}
             >
-              Create Password
+              Reset Password
             </MotiText>
             <MotiText
               from={{ opacity: 0 }}
@@ -191,26 +160,9 @@ export default function SetPasswordScreen() {
               transition={{ type: 'timing', duration: 500, delay: 400 }}
               style={[styles.subtitle, { color: secondaryTextColor }]}
             >
-              Secure your account with a strong password
+              Create a new password for your account
             </MotiText>
           </MotiView>
-
-          {/* Step Indicator */}
-          <MotiView
-            from={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ type: 'timing', duration: 500, delay: 350 }}
-            style={styles.stepIndicator}
-          >
-            <View style={[styles.stepDot, styles.stepDotCompleted]} />
-            <View style={[styles.stepLine, { backgroundColor: colors.success }]} />
-            <View style={[styles.stepDot, styles.stepDotCompleted]} />
-            <View style={[styles.stepLine, { backgroundColor: colors.primary[500] }]} />
-            <View style={[styles.stepDot, styles.stepDotActive]} />
-          </MotiView>
-          <Text style={[styles.stepText, { color: secondaryTextColor }]}>
-            Step 3 of 3: Secure Your Account
-          </Text>
 
           {/* Form */}
           <MotiView
@@ -233,7 +185,7 @@ export default function SetPasswordScreen() {
 
             {/* Password Input */}
             <Input
-              label="Password"
+              label="New Password"
               placeholder="Create a strong password"
               value={password}
               onChangeText={setPassword}
@@ -302,7 +254,7 @@ export default function SetPasswordScreen() {
               secureTextEntry={!showPassword}
               autoComplete="new-password"
               returnKeyType="done"
-              onSubmitEditing={handleCreateAccount}
+              onSubmitEditing={handleResetPassword}
               leftIcon={
                 <Ionicons
                   name="lock-closed-outline"
@@ -317,62 +269,10 @@ export default function SetPasswordScreen() {
               }
             />
 
-            {/* Requirements */}
-            <View style={styles.requirements}>
-              <Text style={[styles.requirementsTitle, { color: secondaryTextColor }]}>
-                Password must have:
-              </Text>
-              <View style={styles.requirementItem}>
-                <Ionicons
-                  name={password.length >= 6 ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={16}
-                  color={password.length >= 6 ? colors.success : secondaryTextColor}
-                />
-                <Text
-                  style={[
-                    styles.requirementText,
-                    { color: password.length >= 6 ? colors.success : secondaryTextColor },
-                  ]}
-                >
-                  At least 6 characters
-                </Text>
-              </View>
-              <View style={styles.requirementItem}>
-                <Ionicons
-                  name={/[A-Za-z]/.test(password) ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={16}
-                  color={/[A-Za-z]/.test(password) ? colors.success : secondaryTextColor}
-                />
-                <Text
-                  style={[
-                    styles.requirementText,
-                    { color: /[A-Za-z]/.test(password) ? colors.success : secondaryTextColor },
-                  ]}
-                >
-                  At least one letter
-                </Text>
-              </View>
-              <View style={styles.requirementItem}>
-                <Ionicons
-                  name={/[0-9]/.test(password) ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={16}
-                  color={/[0-9]/.test(password) ? colors.success : secondaryTextColor}
-                />
-                <Text
-                  style={[
-                    styles.requirementText,
-                    { color: /[0-9]/.test(password) ? colors.success : secondaryTextColor },
-                  ]}
-                >
-                  At least one number
-                </Text>
-              </View>
-            </View>
-
-            {/* Create Account Button */}
+            {/* Reset Password Button */}
             <Button
-              title="Create Account"
-              onPress={handleCreateAccount}
+              title="Reset Password"
+              onPress={handleResetPassword}
               loading={isLoading}
               style={styles.button}
             />
@@ -393,18 +293,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 60,
     paddingBottom: 40,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 24,
+    marginBottom: 40,
   },
   iconContainer: {
     width: 80,
@@ -422,33 +316,6 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
-  },
-  stepIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  stepDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  stepDotActive: {
-    backgroundColor: colors.primary[500],
-  },
-  stepDotCompleted: {
-    backgroundColor: colors.success,
-  },
-  stepLine: {
-    width: 40,
-    height: 2,
-    marginHorizontal: 4,
-  },
-  stepText: {
-    textAlign: 'center',
-    fontSize: 14,
-    marginBottom: 32,
   },
   form: {
     flex: 1,
@@ -489,24 +356,7 @@ const styles = StyleSheet.create({
     width: 60,
     textAlign: 'right',
   },
-  requirements: {
-    marginBottom: 24,
-  },
-  requirementsTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  requirementItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  requirementText: {
-    fontSize: 13,
-    marginLeft: 8,
-  },
   button: {
-    marginTop: 8,
+    marginTop: 24,
   },
 });

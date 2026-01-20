@@ -28,6 +28,8 @@ export interface VerifyOtpResult {
   message: string;
   verified?: boolean;
   attemptsRemaining?: number;
+  resetToken?: string;  // Token for password reset (only for forgot_password)
+  signupToken?: string; // Token for account creation (only for signup)
 }
 
 // ============================================
