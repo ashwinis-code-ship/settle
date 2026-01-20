@@ -79,6 +79,19 @@ FORGOT PASSWORD:
 
 **Goal**: Create, view, and manage groups
 
+### Design Decision: Smart 1:1 Handling
+- **1:1 Expenses**: When adding expense with just 1 friend, auto-create/use hidden 1:1 group
+- **Group Expenses**: For 2+ people, use explicit named groups
+- **Friends Tab**: Shows net balance with each friend across ALL expenses (1:1 + group)
+- **Groups Tab**: Shows only explicitly created groups (not 1:1 groups)
+
+### Group Types
+| Type | Visible in Groups? | Created How? |
+|------|-------------------|--------------|
+| **1:1 (hidden)** | No | Auto-created when adding expense with 1 friend |
+| **Named Group** | Yes | Explicitly via "Create Group" |
+
+### Tasks
 - [ ] 3.1 Groups list screen (with group cards showing balance summary)
 - [ ] 3.2 Create group screen (name, add members by phone)
 - [ ] 3.3 Group detail screen (expenses list, member balances)
@@ -91,13 +104,19 @@ FORGOT PASSWORD:
 
 **Goal**: Add and manage expenses with splits
 
-- [ ] 4.1 Add expense screen
+### Add Expense Flow
+1. **Quick Add (1:1)**: Select a friend → Enter amount → Done (auto-uses 1:1 group)
+2. **Group Add**: Select a group → Enter amount → Choose split → Done
+
+### Tasks
+- [ ] 4.1 Add expense screen (with friend OR group selector)
 - [ ] 4.2 Split type selector (equal all / equal selected)
 - [ ] 4.3 Member selector for partial splits
 - [ ] 4.4 Category picker with icons
 - [ ] 4.5 Currency selector (INR default)
 - [ ] 4.6 Expense detail / edit screen
 - [ ] 4.7 Delete expense
+- [ ] 4.8 Auto-create 1:1 group logic
 
 ---
 
@@ -105,6 +124,12 @@ FORGOT PASSWORD:
 
 **Goal**: Individual friend balances across all groups
 
+### Balance Calculation
+- Aggregate all expenses where both you and the friend are involved
+- Include: 1:1 expenses + group expenses where you're both members
+- Net balance = What they owe you - What you owe them
+
+### Tasks
 - [ ] 5.1 Friends list screen (net balance per friend)
 - [ ] 5.2 Friend detail screen (all transactions with that person)
 - [ ] 5.3 Balance calculation logic (aggregate across groups)

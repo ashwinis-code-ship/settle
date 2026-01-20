@@ -9,6 +9,8 @@
 
 export type GroupMemberRole = 'admin' | 'member';
 
+export type GroupType = 'group' | 'direct'; // 'group' = explicit named group, 'direct' = auto-created 1:1 group
+
 export type CurrencyCode = 'INR' | 'USD' | 'EUR' | 'GBP' | 'JPY' | 'AUD' | 'CAD';
 
 export const CURRENCIES: Record<CurrencyCode, { symbol: string; name: string }> = {
@@ -68,6 +70,7 @@ export interface DbGroup {
   description: string | null;
   image_url: string | null;
   currency: CurrencyCode;
+  type: GroupType; // 'group' = explicit named group, 'direct' = auto-created 1:1 group
   created_by: string;
   created_at: string;
   updated_at: string;

@@ -28,6 +28,7 @@ CREATE TABLE public.groups (
     description TEXT,
     image_url TEXT,
     currency TEXT DEFAULT 'INR',
+    type TEXT DEFAULT 'group' CHECK (type IN ('group', 'direct')), -- 'group' = explicit named group, 'direct' = auto-created 1:1 group
     created_by UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
