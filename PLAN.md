@@ -32,7 +32,7 @@
 
 **Goal**: Phone + password auth flow with beautiful UI
 
-- [ ] 2.1 Sign Up screen (phone, password, name)
+- [x] 2.1 Sign Up screen (phone, password, name) ✅
 - [ ] 2.2 Sign In screen
 - [ ] 2.3 Auth flow navigation (redirect based on auth state)
 - [ ] 2.4 Profile setup / edit screen
@@ -269,6 +269,7 @@ Main App (Bottom Tabs)
 | 2026-01-20 | 1 | 1.2 TypeScript Types | Created `types/` folder with database.ts, models.ts, supabase.ts, index.ts |
 | 2026-01-20 | 1 | 1.3 Offline Storage | Created storage.ts, sync-queue.ts, sync-manager.ts, use-network-status.ts, sync-context.tsx |
 | 2026-01-20 | 1 | 1.4 Data Hooks | Created useUser, useCategories, useGroups, useGroup, useExpenses, useFriends, useSettlements |
+| 2026-01-20 | 2 | 2.1 Sign Up Screen | Created auth layout, sign-up screen, Input/Button components, colors constants |
 
 ---
 
