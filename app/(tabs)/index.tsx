@@ -38,7 +38,7 @@ export default function HomeScreen() {
   };
 
   const handleCreateGroup = () => {
-    router.push('/(tabs)/groups');
+    router.push('/create-group');
   };
 
   const handleSettleUp = () => {

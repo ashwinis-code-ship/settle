@@ -43,8 +43,7 @@ export default function GroupsScreen() {
   }, [refresh]);
 
   const handleCreateGroup = () => {
-    // TODO: Navigate to create group screen
-    router.push('/modal');
+    router.push('/create-group');
   };
 
   const handleGroupPress = (group: GroupListItem) => {
