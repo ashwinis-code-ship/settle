@@ -88,9 +88,8 @@ export default function SignUpScreen() {
         },
       });
     } catch (err) {
-      setErrors({
-        form: err instanceof Error ? err.message : 'Something went wrong',
-      });
+      console.error('[SignUp] Exception:', err);
+      setErrors({ form: 'Something went wrong. Please try again later.' });
     } finally {
       setIsLoading(false);
     }

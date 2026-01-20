@@ -61,16 +61,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) {
+        console.error('[Auth] Sign in error:', error);
         // Provide user-friendly error messages
         if (error.message?.includes('Invalid login credentials')) {
           return { error: new Error('Invalid phone number or password') };
         }
-        return { error: error as Error };
+        // Don't leak technical errors
+        return { error: new Error('Something went wrong. Please try again later.') };
       }
 
       return { error: null };
     } catch (error) {
-      return { error: error as Error };
+      console.error('[Auth] Sign in exception:', error);
+      return { error: new Error('Something went wrong. Please try again later.') };
     }
   };
 

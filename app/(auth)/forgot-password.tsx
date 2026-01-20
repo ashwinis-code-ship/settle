@@ -79,7 +79,8 @@ export default function ForgotPasswordScreen() {
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      console.error('[ForgotPassword] Exception:', err);
+      setError('Something went wrong. Please try again later.');
     } finally {
       setIsLoading(false);
     }

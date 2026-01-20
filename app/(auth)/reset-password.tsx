@@ -77,22 +77,24 @@ export default function ResetPasswordScreen() {
         body: { resetToken, password },
       });
 
-      if (error) {
-        setErrors({ form: error.message || 'Failed to reset password' });
-        return;
-      }
-
-      if (!data?.success) {
-        setErrors({ form: data?.message || 'Failed to reset password' });
+      // If we have valid data response, use it (includes business logic errors)
+      if (data && typeof data.success === 'boolean') {
+        if (!data.success) {
+          setErrors({ form: data.message || 'Failed to reset password. Please try again.' });
+          return;
+        }
+      } else if (error) {
+        // Technical error - don't show details to user
+        console.error('[ResetPassword] Error:', error);
+        setErrors({ form: 'Something went wrong. Please try again later.' });
         return;
       }
 
       // Navigate to sign-in
       router.replace('/(auth)/sign-in');
     } catch (err) {
-      setErrors({
-        form: err instanceof Error ? err.message : 'Something went wrong',
-      });
+      console.error('[ResetPassword] Exception:', err);
+      setErrors({ form: 'Something went wrong. Please try again later.' });
     } finally {
       setIsLoading(false);
     }

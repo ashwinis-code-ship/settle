@@ -135,7 +135,8 @@ export default function VerifyOtpScreen() {
         });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Verification failed');
+      console.error('[VerifyOtp] Exception:', err);
+      setError('Something went wrong. Please try again later.');
     } finally {
       setIsLoading(false);
     }
@@ -161,7 +162,8 @@ export default function VerifyOtpScreen() {
       setOtp(Array(OTP_LENGTH).fill(''));
       inputRefs.current[0]?.focus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to resend OTP');
+      console.error('[VerifyOtp] Resend exception:', err);
+      setError('Something went wrong. Please try again later.');
     } finally {
       setIsResending(false);
     }

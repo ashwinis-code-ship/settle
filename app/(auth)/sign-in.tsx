@@ -77,9 +77,8 @@ export default function SignInScreen() {
       // Navigate to main app
       router.replace('/(tabs)');
     } catch (err) {
-      setErrors({
-        form: err instanceof Error ? err.message : 'Something went wrong',
-      });
+      console.error('[SignIn] Exception:', err);
+      setErrors({ form: 'Something went wrong. Please try again later.' });
     } finally {
       setIsLoading(false);
     }

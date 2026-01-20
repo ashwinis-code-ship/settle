@@ -71,16 +71,12 @@ export async function sendOtp(
 
     if (error) {
       console.error('[OTP Service] Edge Function error:', error);
-      return { 
-        success: false, 
-        message: 'OTP service not available. Please try again.' 
-      };
     }
 
-    return { success: false, message: 'Invalid response from server' };
+    return { success: false, message: 'Something went wrong. Please try again later.' };
   } catch (error) {
     console.error('[OTP Service] Error:', error);
-    return { success: false, message: 'Something went wrong. Please try again.' };
+    return { success: false, message: 'Something went wrong. Please try again later.' };
   }
 }
 
@@ -114,16 +110,12 @@ export async function verifyOtp(
 
     if (error) {
       console.error('[OTP Service] Edge Function error:', error);
-      return { 
-        success: false, 
-        message: 'OTP service not available. Please try again.' 
-      };
     }
 
-    return { success: false, message: 'Invalid response from server' };
+    return { success: false, message: 'Something went wrong. Please try again later.' };
   } catch (error) {
     console.error('[OTP Service] Error:', error);
-    return { success: false, message: 'Something went wrong. Please try again.' };
+    return { success: false, message: 'Something went wrong. Please try again later.' };
   }
 }
 
