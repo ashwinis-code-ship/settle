@@ -30,12 +30,48 @@
 
 ## 🔐 Phase 2: Authentication
 
-**Goal**: Phone + password auth flow with beautiful UI
+**Goal**: Phone + OTP verification + password auth flow
 
-- [x] 2.1 Sign Up screen (phone, password, name) ✅
-- [x] 2.2 Sign In screen ✅
+### Auth Flow Overview
+
+```
+SIGN UP (3 Steps):
+┌────────────────┐    ┌────────────────┐    ┌────────────────┐
+│ Step 1: Phone  │───▶│ Step 2: OTP    │───▶│ Step 3: Password│
+│ Name + Phone   │    │ 6-digit code   │    │ Set password   │
+│ [Get OTP]      │    │ [Verify][Resend]│   │ [Create Account]│
+└────────────────┘    └────────────────┘    └────────────────┘
+
+SIGN IN:
+┌────────────────┐
+│ Phone + Pass   │───▶ Main App
+│ [Sign In]      │
+└────────────────┘
+
+FORGOT PASSWORD:
+┌────────────────┐    ┌────────────────┐    ┌────────────────┐
+│ Enter Phone    │───▶│ Verify OTP     │───▶│ Reset Password │
+│ [Get OTP]      │    │ [Verify]       │    │ [Update]       │
+└────────────────┘    └────────────────┘    └────────────────┘
+```
+
+### OTP Configuration
+- **Format**: 6-digit numeric
+- **Default OTP**: `123456` (placeholder until SMS provider integrated)
+- **Expiry**: 5 minutes
+- **Max attempts**: 3
+- **Resend cooldown**: 60 seconds
+
+### Tasks
+
+- [x] 2.1 Sign Up screen - Step 1 (name, phone, country picker) ✅
+- [x] 2.2 Sign In screen (phone + password) ✅
 - [x] 2.3 Auth flow navigation (redirect based on auth state) ✅
-- [ ] 2.4 Profile setup / edit screen
+- [ ] 2.4 OTP database table + Supabase Edge Functions
+- [ ] 2.5 Sign Up screen - Step 2 (OTP verification with timer)
+- [ ] 2.6 Sign Up screen - Step 3 (set password, create account)
+- [ ] 2.7 Forgot Password flow (phone → OTP → reset password)
+- [ ] 2.8 Profile edit screen
 
 ---
 
@@ -124,6 +160,17 @@
 ## 📊 Database Schema
 
 ```sql
+-- OTP Requests table (for phone verification)
+otp_requests
+├── id (uuid, primary key)
+├── phone (text, not null)
+├── otp_hash (text, not null)      -- Hashed OTP for security
+├── purpose (text)                  -- 'signup' | 'forgot_password'
+├── expires_at (timestamp, not null)
+├── verified (boolean, default false)
+├── attempts (int, default 0)       -- Max 3 attempts
+└── created_at (timestamp)
+
 -- Users table
 users
 ├── id (uuid, primary key)
@@ -213,8 +260,15 @@ settlements
 
 ```
 Auth
-├── Sign Up (phone + password + name)
-└── Sign In (phone + password)
+├── Sign In (phone + password)
+├── Sign Up
+│   ├── Step 1: Name + Phone → [Get OTP]
+│   ├── Step 2: OTP Verification → [Verify] [Resend 60s]
+│   └── Step 3: Set Password → [Create Account]
+└── Forgot Password
+    ├── Enter Phone → [Get OTP]
+    ├── OTP Verification → [Verify]
+    └── Reset Password → [Update]
 
 Main App (Bottom Tabs)
 ├── 🏠 Home (Dashboard)
@@ -272,6 +326,7 @@ Main App (Bottom Tabs)
 | 2026-01-20 | 2 | 2.1 Sign Up Screen | Created auth layout, sign-up screen, Input/Button components, colors constants |
 | 2026-01-20 | 2 | 2.2 Sign In Screen | Created sign-in screen with phone/password login |
 | 2026-01-20 | 2 | 2.3 Auth Navigation | Added auth redirect logic in root layout |
+| 2026-01-20 | 2 | Country Picker | Added country picker component with 50 countries, India default |
 
 ---
 
@@ -281,4 +336,10 @@ Main App (Bottom Tabs)
 2. ~~Create TypeScript types for all entities~~ ✅
 3. ~~Set up offline storage with AsyncStorage~~ ✅
 4. ~~Build data hooks~~ ✅
-5. **Next: Phase 2 - Authentication screens**
+5. ~~Basic auth screens (sign-in, sign-up with country picker)~~ ✅
+6. **Next: OTP verification flow**
+   - Create otp_requests table in Supabase
+   - Create Edge Functions (send-otp, verify-otp)
+   - Build OTP verification screen
+   - Build set password screen
+   - Update sign-up flow to 3 steps
