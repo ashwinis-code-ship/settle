@@ -22,9 +22,11 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { CountryPicker } from '@/components/ui/country-picker';
 import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { colors } from '@/constants/colors';
+import { DEFAULT_COUNTRY, type Country } from '@/constants/countries';
 
 export default function SignInScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -32,6 +34,7 @@ export default function SignInScreen() {
   const { signIn } = useAuth();
 
   // Form state
+  const [country, setCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -63,7 +66,8 @@ export default function SignInScreen() {
     setErrors({});
 
     try {
-      const { error } = await signIn(phone, password);
+      const fullPhone = `${country.dialCode}${phone.replace(/\s/g, '')}`;
+      const { error } = await signIn(fullPhone, password);
 
       if (error) {
         setErrors({ form: error.message });
@@ -151,24 +155,30 @@ export default function SignInScreen() {
             )}
 
             {/* Phone Input */}
-            <Input
-              label="Phone Number"
-              placeholder="+91 98765 43210"
-              value={phone}
-              onChangeText={setPhone}
-              error={errors.phone}
-              keyboardType="phone-pad"
-              autoComplete="tel"
-              returnKeyType="next"
-              onSubmitEditing={() => passwordRef.current?.focus()}
-              leftIcon={
-                <Ionicons
-                  name="call-outline"
-                  size={20}
-                  color={isDark ? colors.gray[400] : colors.gray[500]}
+            <View style={styles.phoneInputContainer}>
+              <Text style={[styles.inputLabel, { color: secondaryTextColor }]}>
+                Phone Number
+              </Text>
+              <View style={styles.phoneRow}>
+                <CountryPicker
+                  selectedCountry={country}
+                  onSelect={setCountry}
                 />
-              }
-            />
+                <View style={styles.phoneInputWrapper}>
+                  <Input
+                    placeholder="98765 43210"
+                    value={phone}
+                    onChangeText={setPhone}
+                    error={errors.phone}
+                    keyboardType="phone-pad"
+                    autoComplete="tel"
+                    returnKeyType="next"
+                    onSubmitEditing={() => passwordRef.current?.focus()}
+                    containerStyle={styles.phoneInput}
+                  />
+                </View>
+              </View>
+            </View>
 
             {/* Password Input */}
             <Input
@@ -315,5 +325,23 @@ const styles = StyleSheet.create({
   link: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  phoneInputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 6,
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  phoneInputWrapper: {
+    flex: 1,
+  },
+  phoneInput: {
+    marginBottom: 0,
   },
 });

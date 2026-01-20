@@ -22,9 +22,11 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { CountryPicker } from '@/components/ui/country-picker';
 import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { colors } from '@/constants/colors';
+import { DEFAULT_COUNTRY, type Country } from '@/constants/countries';
 import { supabase } from '@/lib/supabase';
 
 export default function SignUpScreen() {
@@ -34,6 +36,7 @@ export default function SignUpScreen() {
 
   // Form state
   const [name, setName] = useState('');
+  const [country, setCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -55,8 +58,8 @@ export default function SignUpScreen() {
 
     if (!phone.trim()) {
       newErrors.phone = 'Phone number is required';
-    } else if (!/^\+?[1-9]\d{9,14}$/.test(phone.replace(/\s/g, ''))) {
-      newErrors.phone = 'Enter a valid phone number (e.g., +919876543210)';
+    } else if (!/^[1-9]\d{6,14}$/.test(phone.replace(/\s/g, ''))) {
+      newErrors.phone = 'Enter a valid phone number';
     }
 
     if (!password) {
@@ -81,7 +84,8 @@ export default function SignUpScreen() {
 
     try {
       // Sign up with Supabase auth
-      const { error } = await signUp(phone, password);
+      const fullPhone = `${country.dialCode}${phone.replace(/\s/g, '')}`;
+      const { error } = await signUp(fullPhone, password);
 
       if (error) {
         setErrors({ form: error.message });
@@ -93,7 +97,7 @@ export default function SignUpScreen() {
       if (user) {
         await supabase.from('users').insert({
           id: user.id,
-          phone: phone,
+          phone: fullPhone,
           name: name.trim(),
         });
       }
@@ -199,25 +203,31 @@ export default function SignUpScreen() {
           />
 
           {/* Phone Input */}
-          <Input
-            ref={phoneRef}
-            label="Phone Number"
-            placeholder="+91 98765 43210"
-            value={phone}
-            onChangeText={setPhone}
-            error={errors.phone}
-            keyboardType="phone-pad"
-            autoComplete="tel"
-            returnKeyType="next"
-            onSubmitEditing={() => passwordRef.current?.focus()}
-            leftIcon={
-              <Ionicons
-                name="call-outline"
-                size={20}
-                color={isDark ? colors.gray[400] : colors.gray[500]}
+          <View style={styles.phoneInputContainer}>
+            <Text style={[styles.inputLabel, { color: secondaryTextColor }]}>
+              Phone Number
+            </Text>
+            <View style={styles.phoneRow}>
+              <CountryPicker
+                selectedCountry={country}
+                onSelect={setCountry}
               />
-            }
-          />
+              <View style={styles.phoneInputWrapper}>
+                <Input
+                  ref={phoneRef}
+                  placeholder="98765 43210"
+                  value={phone}
+                  onChangeText={setPhone}
+                  error={errors.phone}
+                  keyboardType="phone-pad"
+                  autoComplete="tel"
+                  returnKeyType="next"
+                  onSubmitEditing={() => passwordRef.current?.focus()}
+                  containerStyle={styles.phoneInput}
+                />
+              </View>
+            </View>
+          </View>
 
           {/* Password Input */}
           <Input
@@ -367,5 +377,23 @@ const styles = StyleSheet.create({
   link: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  phoneInputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 6,
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  phoneInputWrapper: {
+    flex: 1,
+  },
+  phoneInput: {
+    marginBottom: 0,
   },
 });
