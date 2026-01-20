@@ -21,7 +21,7 @@
 
 **Goal**: Set up database schema, types, and offline-first architecture
 
-- [ ] 1.1 Design Supabase database schema (tables, relationships, RLS policies)
+- [x] 1.1 Design Supabase database schema (tables, relationships, RLS policies) ✅
 - [ ] 1.2 Create TypeScript types for all entities
 - [ ] 1.3 Set up offline storage with AsyncStorage + sync logic
 - [ ] 1.4 Create data hooks (useGroups, useExpenses, useFriends, etc.)
@@ -265,13 +265,13 @@ Main App (Bottom Tabs)
 
 | Date | Phase | Tasks Completed | Notes |
 |------|-------|-----------------|-------|
-| | | | |
+| 2026-01-20 | 1 | 1.1 Database Schema | Created `supabase/schema.sql` with tables, indexes, RLS policies, triggers, views, and seed data |
 
 ---
 
 ## 🚀 Next Steps
 
-1. Start with Phase 1: Foundation & Data Layer
-2. Create Supabase tables via SQL
-3. Set up TypeScript types
-4. Build offline storage layer
+1. ~~Create Supabase tables via SQL~~ ✅
+2. Create TypeScript types for all entities
+3. Set up offline storage with AsyncStorage
+4. Build data hooks
