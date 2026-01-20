@@ -64,32 +64,20 @@ export async function sendOtp(
       body: { phone, purpose },
     });
 
+    // If we have valid data response, return it
+    if (data && typeof data.success === 'boolean') {
+      return data;
+    }
+
     if (error) {
       console.error('[OTP Service] Edge Function error:', error);
-      
-      // Check if it's a deployment issue
-      if (error.message?.includes('non-2xx') || error.message?.includes('FunctionsHttpError')) {
-        return { 
-          success: false, 
-          message: 'OTP service not available. Please ensure Edge Functions are deployed.' 
-        };
-      }
-      
       return { 
         success: false, 
-        message: error.message || 'Failed to send OTP. Please try again.' 
+        message: 'OTP service not available. Please try again.' 
       };
     }
 
-    // Handle null/undefined data
-    if (!data) {
-      return { 
-        success: false, 
-        message: 'Invalid response from server' 
-      };
-    }
-
-    return data;
+    return { success: false, message: 'Invalid response from server' };
   } catch (error) {
     console.error('[OTP Service] Error:', error);
     return { success: false, message: 'Something went wrong. Please try again.' };

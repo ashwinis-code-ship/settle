@@ -9,7 +9,7 @@
  *   purpose: string      // "signup" or "forgot_password"
  * }
  * 
- * Response:
+ * Response (always 200 for business logic, use success field):
  * {
  *   success: boolean,
  *   message: string,
@@ -22,6 +22,14 @@ import { corsHeaders } from '../_shared/cors.ts';
 import { getSupabaseClient } from '../_shared/supabase.ts';
 import { generateOtp, hashOtp, sendSms, OTP_CONFIG, type OtpPurpose } from '../_shared/otp.ts';
 
+// Helper to return JSON response (always 200 for business logic)
+function jsonResponse(data: Record<string, unknown>, status = 200) {
+  return new Response(
+    JSON.stringify(data),
+    { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -33,25 +41,16 @@ serve(async (req) => {
 
     // Validate inputs
     if (!phone || !purpose) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Phone and purpose are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, message: 'Phone and purpose are required' });
     }
 
     if (!['signup', 'forgot_password'].includes(purpose)) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Invalid purpose' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, message: 'Invalid purpose' });
     }
 
     // Validate phone format (basic check)
     if (!/^\+\d{10,15}$/.test(phone)) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Invalid phone format. Use +CountryCodeNumber' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, message: 'Invalid phone format. Use +CountryCodeNumber' });
     }
 
     const supabase = getSupabaseClient();
@@ -64,17 +63,17 @@ serve(async (req) => {
       .single();
 
     if (purpose === 'signup' && existingUser) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Phone number already registered. Please sign in.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ 
+        success: false, 
+        message: 'This phone number is already registered. Please sign in instead.' 
+      });
     }
 
     if (purpose === 'forgot_password' && !existingUser) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Phone number not found. Please sign up.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ 
+        success: false, 
+        message: 'No account found with this phone number. Please sign up.' 
+      });
     }
 
     // Check for recent OTP (rate limiting)
@@ -90,13 +89,10 @@ serve(async (req) => {
 
     if (recentOtp) {
       const waitTime = Math.ceil((60000 - (Date.now() - new Date(recentOtp.created_at).getTime())) / 1000);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: `Please wait ${waitTime} seconds before requesting another OTP` 
-        }),
-        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ 
+        success: false, 
+        message: `Please wait ${waitTime} seconds before requesting another OTP` 
+      });
     }
 
     // Generate OTP
@@ -125,35 +121,23 @@ serve(async (req) => {
 
     if (insertError) {
       console.error('Error storing OTP:', insertError);
-      return new Response(
-        JSON.stringify({ success: false, message: 'Failed to generate OTP' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, message: 'Failed to generate OTP. Please try again.' });
     }
 
     // Send SMS
     const smsResult = await sendSms(phone, otp);
     if (!smsResult.success) {
-      return new Response(
-        JSON.stringify({ success: false, message: smsResult.error || 'Failed to send SMS' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, message: smsResult.error || 'Failed to send SMS' });
     }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: `OTP sent to ${phone}`,
-        expiresIn: OTP_CONFIG.EXPIRY_MINUTES * 60,
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({ 
+      success: true, 
+      message: `OTP sent to ${phone}`,
+      expiresIn: OTP_CONFIG.EXPIRY_MINUTES * 60,
+    });
 
   } catch (error) {
     console.error('Error in send-otp:', error);
-    return new Response(
-      JSON.stringify({ success: false, message: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({ success: false, message: 'Something went wrong. Please try again.' });
   }
 });

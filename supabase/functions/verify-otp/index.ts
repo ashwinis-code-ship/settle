@@ -3,6 +3,7 @@
  * 
  * Verifies the OTP entered by the user.
  * For forgot_password, returns a signed reset token.
+ * For signup, returns a signed signup token.
  * 
  * Request body:
  * {
@@ -11,13 +12,14 @@
  *   purpose: string      // "signup" or "forgot_password"
  * }
  * 
- * Response:
+ * Response (always 200 for business logic):
  * {
  *   success: boolean,
  *   message: string,
  *   verified?: boolean,
  *   attemptsRemaining?: number,
- *   resetToken?: string  // Only for forgot_password, used to authorize password reset
+ *   resetToken?: string,   // Only for forgot_password
+ *   signupToken?: string   // Only for signup
  * }
  */
 
@@ -26,6 +28,14 @@ import { corsHeaders } from '../_shared/cors.ts';
 import { getSupabaseClient } from '../_shared/supabase.ts';
 import { verifyOtpHash, OTP_CONFIG, type OtpPurpose } from '../_shared/otp.ts';
 import { createResetToken } from '../_shared/token.ts';
+
+// Helper to return JSON response
+function jsonResponse(data: Record<string, unknown>) {
+  return new Response(
+    JSON.stringify(data),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -42,17 +52,11 @@ serve(async (req) => {
 
     // Validate inputs
     if (!phone || !otp || !purpose) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Phone, OTP, and purpose are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, message: 'Phone, OTP, and purpose are required' });
     }
 
     if (!/^\d{6}$/.test(otp)) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'OTP must be 6 digits' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, message: 'OTP must be 6 digits' });
     }
 
     const supabase = getSupabaseClient();
@@ -70,27 +74,21 @@ serve(async (req) => {
       .single();
 
     if (fetchError || !otpRecord) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: 'No valid OTP found. Please request a new one.',
-          verified: false,
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ 
+        success: false, 
+        message: 'No valid OTP found. Please request a new one.',
+        verified: false,
+      });
     }
 
     // Check max attempts
     if (otpRecord.attempts >= OTP_CONFIG.MAX_ATTEMPTS) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: 'Too many failed attempts. Please request a new OTP.',
-          verified: false,
-          attemptsRemaining: 0,
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ 
+        success: false, 
+        message: 'Too many failed attempts. Please request a new OTP.',
+        verified: false,
+        attemptsRemaining: 0,
+      });
     }
 
     // Verify OTP
@@ -105,17 +103,14 @@ serve(async (req) => {
 
       const attemptsRemaining = OTP_CONFIG.MAX_ATTEMPTS - (otpRecord.attempts + 1);
 
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: attemptsRemaining > 0 
-            ? `Invalid OTP. ${attemptsRemaining} attempts remaining.`
-            : 'Invalid OTP. Please request a new one.',
-          verified: false,
-          attemptsRemaining,
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ 
+        success: false, 
+        message: attemptsRemaining > 0 
+          ? `Invalid OTP. ${attemptsRemaining} attempts remaining.`
+          : 'Invalid OTP. Please request a new one.',
+        verified: false,
+        attemptsRemaining,
+      });
     }
 
     // Mark as verified
@@ -126,33 +121,24 @@ serve(async (req) => {
 
     if (updateError) {
       console.error('Error updating OTP:', updateError);
-      return new Response(
-        JSON.stringify({ success: false, message: 'Failed to verify OTP' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, message: 'Failed to verify OTP. Please try again.' });
     }
 
     // Generate a signed token for the next step
     const jwtSecret = Deno.env.get('SUPABASE_JWT_SECRET') || Deno.env.get('JWT_SECRET') || 'fallback-secret';
     const token = await createResetToken(phone, purpose, jwtSecret);
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'OTP verified successfully',
-        verified: true,
-        // Return appropriate token based on purpose
-        ...(purpose === 'forgot_password' && { resetToken: token }),
-        ...(purpose === 'signup' && { signupToken: token }),
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({ 
+      success: true, 
+      message: 'OTP verified successfully',
+      verified: true,
+      // Return appropriate token based on purpose
+      ...(purpose === 'forgot_password' && { resetToken: token }),
+      ...(purpose === 'signup' && { signupToken: token }),
+    });
 
   } catch (error) {
     console.error('Error in verify-otp:', error);
-    return new Response(
-      JSON.stringify({ success: false, message: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({ success: false, message: 'Something went wrong. Please try again.' });
   }
 });

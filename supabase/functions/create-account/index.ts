@@ -11,7 +11,7 @@
  *   name: string          // User's display name
  * }
  * 
- * Response:
+ * Response (always 200 for business logic):
  * {
  *   success: boolean,
  *   message: string,
@@ -23,6 +23,14 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { verifyResetToken } from '../_shared/token.ts';
+
+// Helper to return JSON response
+function jsonResponse(data: Record<string, unknown>) {
+  return new Response(
+    JSON.stringify(data),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -39,24 +47,15 @@ serve(async (req) => {
 
     // Validate inputs
     if (!signupToken || !password || !name) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Signup token, password, and name are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, message: 'Signup token, password, and name are required' });
     }
 
     if (password.length < 6) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Password must be at least 6 characters' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, message: 'Password must be at least 6 characters' });
     }
 
     if (name.trim().length < 2) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Name must be at least 2 characters' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, message: 'Name must be at least 2 characters' });
     }
 
     // Verify the signup token
@@ -64,13 +63,10 @@ serve(async (req) => {
     const tokenResult = await verifyResetToken(signupToken, 'signup', jwtSecret);
 
     if (!tokenResult.valid || !tokenResult.phone) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: tokenResult.error || 'Invalid or expired signup token. Please try again.' 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ 
+        success: false, 
+        message: tokenResult.error || 'Invalid or expired signup token. Please try again.' 
+      });
     }
 
     const phone = tokenResult.phone;
@@ -95,10 +91,10 @@ serve(async (req) => {
     const existingUser = existingUsers?.users.find(u => u.email === email);
     
     if (existingUser) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'This phone number is already registered. Please sign in.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ 
+        success: false, 
+        message: 'This phone number is already registered. Please sign in.' 
+      });
     }
 
     // Create user with admin API
@@ -114,10 +110,7 @@ serve(async (req) => {
 
     if (createError) {
       console.error('Error creating user:', createError);
-      return new Response(
-        JSON.stringify({ success: false, message: 'Failed to create account' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, message: 'Failed to create account. Please try again.' });
     }
 
     // Create user profile in users table
@@ -141,25 +134,19 @@ serve(async (req) => {
       .eq('phone', phone)
       .eq('purpose', 'signup');
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Account created successfully',
-        user: {
-          id: authData.user?.id,
-          email: authData.user?.email,
-          phone,
-          name: name.trim(),
-        },
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({ 
+      success: true, 
+      message: 'Account created successfully',
+      user: {
+        id: authData.user?.id,
+        email: authData.user?.email,
+        phone,
+        name: name.trim(),
+      },
+    });
 
   } catch (error) {
     console.error('Error in create-account:', error);
-    return new Response(
-      JSON.stringify({ success: false, message: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({ success: false, message: 'Something went wrong. Please try again.' });
   }
 });
