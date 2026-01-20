@@ -15,13 +15,12 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActionSheetIOS,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useUser } from '@/hooks/use-user';
@@ -34,7 +33,7 @@ export default function ProfileScreen() {
   const { user, updateUser, isLoading: isUserLoading, refresh } = useUser();
 
   // Edit mode state
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
   const [name, setName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
@@ -47,21 +46,21 @@ export default function ProfileScreen() {
     setName(userName);
   }, [user, authUser]);
 
-  const handleEdit = () => {
-    setIsEditing(true);
+  const handleEditName = () => {
+    setIsEditingName(true);
     setError('');
     setTimeout(() => nameInputRef.current?.focus(), 100);
   };
 
-  const handleCancel = () => {
-    setIsEditing(false);
+  const handleCancelNameEdit = () => {
+    setIsEditingName(false);
     setError('');
     // Reset name to original
     const userName = user?.name || authUser?.user_metadata?.name || '';
     setName(userName);
   };
 
-  const handleSave = async () => {
+  const handleSaveName = async () => {
     const trimmedName = name.trim();
     
     if (!trimmedName) {
@@ -81,16 +80,62 @@ export default function ProfileScreen() {
       const success = await updateUser({ name: trimmedName });
       
       if (success) {
-        setIsEditing(false);
+        setIsEditingName(false);
         await refresh();
       } else {
-        setError('Failed to update profile. Please try again.');
+        setError('Failed to update name. Please try again.');
       }
     } catch (err) {
       console.error('[Profile] Save error:', err);
       setError('Something went wrong. Please try again later.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleChangePhoto = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', 'Take Photo', 'Choose from Library', 'Remove Photo'],
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: 3,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) {
+            // TODO: Implement camera capture
+            Alert.alert('Coming Soon', 'Camera functionality will be available soon.');
+          } else if (buttonIndex === 2) {
+            // TODO: Implement photo library picker
+            Alert.alert('Coming Soon', 'Photo library functionality will be available soon.');
+          } else if (buttonIndex === 3) {
+            // TODO: Implement remove photo
+            Alert.alert('Coming Soon', 'Remove photo functionality will be available soon.');
+          }
+        }
+      );
+    } else {
+      // Android - use Alert as a simple alternative
+      Alert.alert(
+        'Change Profile Photo',
+        'Choose an option',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Take Photo', 
+            onPress: () => Alert.alert('Coming Soon', 'Camera functionality will be available soon.')
+          },
+          { 
+            text: 'Choose from Library', 
+            onPress: () => Alert.alert('Coming Soon', 'Photo library functionality will be available soon.')
+          },
+          { 
+            text: 'Remove Photo', 
+            style: 'destructive',
+            onPress: () => Alert.alert('Coming Soon', 'Remove photo functionality will be available soon.')
+          },
+        ]
+      );
     }
   };
 
@@ -166,14 +211,14 @@ export default function ProfileScreen() {
             transition={{ type: 'spring', damping: 15, delay: 100 }}
             style={styles.avatarSection}
           >
-            <View style={[styles.avatar, { backgroundColor: colors.primary[500] }]}>
-              <Text style={styles.avatarText}>{userInitials}</Text>
-            </View>
-            {!isEditing && (
-              <Pressable onPress={handleEdit} style={styles.editAvatarButton}>
-                <Ionicons name="pencil" size={14} color={colors.white} />
-              </Pressable>
-            )}
+            <Pressable onPress={handleChangePhoto}>
+              <View style={[styles.avatar, { backgroundColor: colors.primary[500] }]}>
+                <Text style={styles.avatarText}>{userInitials}</Text>
+              </View>
+              <View style={styles.editAvatarButton}>
+                <Ionicons name="camera" size={14} color={colors.white} />
+              </View>
+            </Pressable>
           </MotiView>
 
           {/* Profile Card */}
@@ -200,34 +245,53 @@ export default function ProfileScreen() {
               <Text style={[styles.fieldLabel, { color: secondaryTextColor }]}>
                 Full Name
               </Text>
-              {isEditing ? (
-                <Input
-                  ref={nameInputRef}
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="Enter your name"
-                  autoCapitalize="words"
-                  returnKeyType="done"
-                  onSubmitEditing={handleSave}
-                  leftIcon={
+              {isEditingName ? (
+                <View style={[styles.fieldValue, styles.fieldValueEditing, { backgroundColor: inputBg, borderColor: colors.primary[500] }]}>
+                  <Ionicons
+                    name="person-outline"
+                    size={20}
+                    color={colors.primary[500]}
+                  />
+                  <TextInput
+                    ref={nameInputRef}
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="Enter your name"
+                    placeholderTextColor={isDark ? colors.gray[500] : colors.gray[400]}
+                    autoCapitalize="words"
+                    returnKeyType="done"
+                    onSubmitEditing={handleSaveName}
+                    onBlur={handleCancelNameEdit}
+                    style={[styles.nameInput, { color: textColor }]}
+                  />
+                  {isSaving ? (
+                    <View style={styles.savingIndicator}>
+                      <Text style={[styles.savingText, { color: colors.primary[500] }]}>Saving...</Text>
+                    </View>
+                  ) : (
+                    <Pressable onPress={handleSaveName} style={styles.saveIconButton}>
+                      <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+                    </Pressable>
+                  )}
+                </View>
+              ) : (
+                <Pressable onPress={handleEditName}>
+                  <View style={[styles.fieldValue, { backgroundColor: inputBg }]}>
                     <Ionicons
                       name="person-outline"
                       size={20}
                       color={isDark ? colors.gray[400] : colors.gray[500]}
                     />
-                  }
-                />
-              ) : (
-                <View style={[styles.fieldValue, { backgroundColor: inputBg }]}>
-                  <Ionicons
-                    name="person-outline"
-                    size={20}
-                    color={isDark ? colors.gray[400] : colors.gray[500]}
-                  />
-                  <Text style={[styles.fieldValueText, { color: textColor }]}>
-                    {userName}
-                  </Text>
-                </View>
+                    <Text style={[styles.fieldValueText, { color: textColor }]}>
+                      {userName}
+                    </Text>
+                    <Ionicons
+                      name="pencil-outline"
+                      size={18}
+                      color={colors.primary[500]}
+                    />
+                  </View>
+                </Pressable>
               )}
             </View>
 
@@ -252,37 +316,6 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            {/* Edit/Save Buttons */}
-            {isEditing ? (
-              <View style={styles.editButtons}>
-                <Button
-                  title="Cancel"
-                  variant="outline"
-                  onPress={handleCancel}
-                  style={styles.cancelButton}
-                />
-                <Button
-                  title="Save Changes"
-                  onPress={handleSave}
-                  loading={isSaving}
-                  style={styles.saveButton}
-                />
-              </View>
-            ) : (
-              <Pressable
-                onPress={handleEdit}
-                style={({ pressed }) => [
-                  styles.editProfileButton,
-                  { 
-                    backgroundColor: colors.primary[500],
-                    opacity: pressed ? 0.8 : 1,
-                  },
-                ]}
-              >
-                <Ionicons name="pencil-outline" size={18} color={colors.white} />
-                <Text style={styles.editProfileText}>Edit Profile</Text>
-              </Pressable>
-            )}
           </MotiView>
 
           {/* Settings Section */}
@@ -416,8 +449,7 @@ const styles = StyleSheet.create({
   editAvatarButton: {
     position: 'absolute',
     bottom: 0,
-    right: '50%',
-    marginRight: -50,
+    right: 0,
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -468,9 +500,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 12,
   },
+  fieldValueEditing: {
+    borderWidth: 2,
+  },
   fieldValueText: {
     fontSize: 16,
     flex: 1,
+  },
+  nameInput: {
+    flex: 1,
+    fontSize: 16,
+    padding: 0,
+  },
+  saveIconButton: {
+    padding: 2,
+  },
+  savingIndicator: {
+    paddingHorizontal: 8,
+  },
+  savingText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   verifiedBadge: {
     flexDirection: 'row',
@@ -481,31 +531,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.success,
     fontWeight: '500',
-  },
-  editButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  cancelButton: {
-    flex: 1,
-  },
-  saveButton: {
-    flex: 1,
-  },
-  editProfileButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
-    marginTop: 8,
-  },
-  editProfileText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '600',
   },
   sectionTitle: {
     fontSize: 18,
