@@ -91,6 +91,17 @@ export interface Database {
         };
         Returns: number;
       };
+      check_otp_verified: {
+        Args: {
+          p_phone: string;
+          p_purpose: string;
+        };
+        Returns: boolean;
+      };
+      cleanup_expired_otps: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
     };
     Enums: {
       group_member_role: GroupMemberRole;

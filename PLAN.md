@@ -67,9 +67,9 @@ FORGOT PASSWORD:
 - [x] 2.1 Sign Up screen - Step 1 (name, phone, country picker) ✅
 - [x] 2.2 Sign In screen (phone + password) ✅
 - [x] 2.3 Auth flow navigation (redirect based on auth state) ✅
-- [ ] 2.4 OTP database table + Supabase Edge Functions
-- [ ] 2.5 Sign Up screen - Step 2 (OTP verification with timer)
-- [ ] 2.6 Sign Up screen - Step 3 (set password, create account)
+- [x] 2.4 OTP database table + Supabase Edge Functions ✅
+- [x] 2.5 Sign Up screen - Step 2 (OTP verification with timer) ✅
+- [x] 2.6 Sign Up screen - Step 3 (set password, create account) ✅
 - [ ] 2.7 Forgot Password flow (phone → OTP → reset password)
 - [ ] 2.8 Profile edit screen
 
@@ -327,6 +327,8 @@ Main App (Bottom Tabs)
 | 2026-01-20 | 2 | 2.2 Sign In Screen | Created sign-in screen with phone/password login |
 | 2026-01-20 | 2 | 2.3 Auth Navigation | Added auth redirect logic in root layout |
 | 2026-01-20 | 2 | Country Picker | Added country picker component with 50 countries, India default |
+| 2026-01-20 | 2 | 2.4 OTP Setup | Created otp-schema.sql, Edge Functions (send-otp, verify-otp), otp-service.ts client |
+| 2026-01-20 | 2 | 2.5-2.6 OTP Flow | Created verify-otp.tsx (6-digit input, resend timer), set-password.tsx (strength indicator) |
 
 ---
 
@@ -337,9 +339,8 @@ Main App (Bottom Tabs)
 3. ~~Set up offline storage with AsyncStorage~~ ✅
 4. ~~Build data hooks~~ ✅
 5. ~~Basic auth screens (sign-in, sign-up with country picker)~~ ✅
-6. **Next: OTP verification flow**
-   - Create otp_requests table in Supabase
-   - Create Edge Functions (send-otp, verify-otp)
-   - Build OTP verification screen
-   - Build set password screen
-   - Update sign-up flow to 3 steps
+6. ~~OTP database & service setup~~ ✅
+7. ~~3-step sign-up flow with OTP~~ ✅
+8. **Next: Forgot Password flow (2.7)**
+   - Reuse verify-otp screen with purpose='forgot_password'
+   - Create reset password screen

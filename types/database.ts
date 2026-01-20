@@ -28,6 +28,25 @@ export const DEFAULT_CURRENCY: CurrencyCode = 'INR';
 // ============================================
 
 /**
+ * OTP purpose type
+ */
+export type OtpPurpose = 'signup' | 'forgot_password';
+
+/**
+ * OTP request record
+ */
+export interface DbOtpRequest {
+  id: string;
+  phone: string;
+  otp_hash: string;
+  purpose: OtpPurpose;
+  expires_at: string;
+  verified: boolean;
+  attempts: number;
+  created_at: string;
+}
+
+/**
  * User profile (extends Supabase auth.users)
  */
 export interface DbUser {
