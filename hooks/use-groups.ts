@@ -153,24 +153,49 @@ export function useGroups(): UseGroupsResult {
   const createGroup = useCallback(async (data: GroupFormData): Promise<string | null> => {
     if (!user) return null;
 
+    // Verify session is active
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session) {
+      console.error('[useGroups] No active session:', sessionError);
+      setError('Please sign in again');
+      return null;
+    }
+
+    if (session.user.id !== user.id) {
+      console.error('[useGroups] Session user mismatch:', { sessionUserId: session.user.id, contextUserId: user.id });
+      setError('Session mismatch. Please sign in again');
+      return null;
+    }
+
     const groupData = {
       name: data.name,
       description: data.description || null,
       currency: data.currency,
       created_by: user.id,
+      type: 'group' as const,
     };
 
     try {
       if (isOnline) {
+        console.log('[useGroups] Creating group with data:', { ...groupData, created_by: user.id });
         const { data: newGroup, error: createError } = await supabase
           .from('groups')
           .insert(groupData)
           .select('id')
           .single();
 
-        if (createError) throw createError;
+        if (createError) {
+          console.error('[useGroups] Create error details:', {
+            code: createError.code,
+            message: createError.message,
+            details: createError.details,
+            hint: createError.hint,
+          });
+          throw createError;
+        }
 
-        // Add members by phone
+        // Note: Creator is automatically added as admin by trigger (add_creator_as_admin)
+        // Add other members by phone
         if (data.member_phones.length > 0) {
           const { data: users } = await supabase
             .from('users')
@@ -178,13 +203,18 @@ export function useGroups(): UseGroupsResult {
             .in('phone', data.member_phones);
 
           if (users && users.length > 0) {
-            const memberInserts = users.map((u) => ({
-              group_id: newGroup.id,
-              user_id: u.id,
-              role: 'member' as const,
-            }));
+            // Filter out the creator if they're somehow in the list
+            const memberInserts = users
+              .filter((u) => u.id !== user.id)
+              .map((u) => ({
+                group_id: newGroup.id,
+                user_id: u.id,
+                role: 'member' as const,
+              }));
 
-            await supabase.from('group_members').insert(memberInserts);
+            if (memberInserts.length > 0) {
+              await supabase.from('group_members').insert(memberInserts);
+            }
           }
         }
 
@@ -210,6 +240,7 @@ export function useGroups(): UseGroupsResult {
         return tempId;
       }
     } catch (err) {
+      console.error('[useGroups] createGroup error:', err);
       setError(err instanceof Error ? err.message : 'Failed to create group');
       return null;
     }

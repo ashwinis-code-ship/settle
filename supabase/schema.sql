@@ -138,7 +138,9 @@ $$ LANGUAGE plpgsql;
 
 -- Function to automatically add creator as group admin
 CREATE OR REPLACE FUNCTION add_creator_as_admin()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SECURITY DEFINER
+AS $$
 BEGIN
     INSERT INTO public.group_members (group_id, user_id, role)
     VALUES (NEW.id, NEW.created_by, 'admin');
@@ -209,6 +211,7 @@ CREATE POLICY "Users can insert own profile" ON public.users
 -- Groups policies
 CREATE POLICY "Users can view groups they are members of" ON public.groups
     FOR SELECT USING (
+        auth.uid() = created_by OR
         EXISTS (
             SELECT 1 FROM public.group_members
             WHERE group_members.group_id = id
