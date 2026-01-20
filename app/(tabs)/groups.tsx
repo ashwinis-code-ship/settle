@@ -47,8 +47,7 @@ export default function GroupsScreen() {
   };
 
   const handleGroupPress = (group: GroupListItem) => {
-    // TODO: Navigate to group detail screen
-    console.log('Navigate to group:', group.id);
+    router.push(`/group/${group.id}`);
   };
 
   const formatBalance = (balance: number, currency: string) => {
