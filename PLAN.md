@@ -71,7 +71,7 @@ FORGOT PASSWORD:
 - [x] 2.5 Sign Up screen - Step 2 (OTP verification with timer) ✅
 - [x] 2.6 Sign Up screen - Step 3 (set password, create account) ✅
 - [x] 2.7 Forgot Password flow (phone → OTP → reset password) ✅
-- [ ] 2.8 Profile edit screen
+- [x] 2.8 Profile edit screen ✅
 
 ---
 
