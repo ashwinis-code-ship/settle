@@ -269,8 +269,11 @@ export default function ProfileScreen() {
                       <Text style={[styles.savingText, { color: colors.primary[500] }]}>Saving...</Text>
                     </View>
                   ) : (
-                    <Pressable onPress={handleSaveName} style={styles.saveIconButton}>
-                      <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+                    <Pressable 
+                      onPress={handleSaveName} 
+                      style={[styles.saveButton, { backgroundColor: colors.primary[500] }]}
+                    >
+                      <Text style={styles.saveButtonText}>Save</Text>
                     </Pressable>
                   )}
                 </View>
@@ -512,8 +515,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     padding: 0,
   },
-  saveIconButton: {
-    padding: 2,
+  saveButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  saveButtonText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '600',
   },
   savingIndicator: {
     paddingHorizontal: 8,
