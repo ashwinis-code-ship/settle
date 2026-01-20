@@ -23,7 +23,7 @@
 
 - [x] 1.1 Design Supabase database schema (tables, relationships, RLS policies) ✅
 - [x] 1.2 Create TypeScript types for all entities ✅
-- [ ] 1.3 Set up offline storage with AsyncStorage + sync logic
+- [x] 1.3 Set up offline storage with AsyncStorage + sync logic ✅
 - [ ] 1.4 Create data hooks (useGroups, useExpenses, useFriends, etc.)
 
 ---
@@ -267,6 +267,7 @@ Main App (Bottom Tabs)
 |------|-------|-----------------|-------|
 | 2026-01-20 | 1 | 1.1 Database Schema | Created `supabase/schema.sql` with tables, indexes, RLS policies, triggers, views, and seed data |
 | 2026-01-20 | 1 | 1.2 TypeScript Types | Created `types/` folder with database.ts, models.ts, supabase.ts, index.ts |
+| 2026-01-20 | 1 | 1.3 Offline Storage | Created storage.ts, sync-queue.ts, sync-manager.ts, use-network-status.ts, sync-context.tsx |
 
 ---
 
@@ -274,5 +275,5 @@ Main App (Bottom Tabs)
 
 1. ~~Create Supabase tables via SQL~~ ✅
 2. ~~Create TypeScript types for all entities~~ ✅
-3. Set up offline storage with AsyncStorage
+3. ~~Set up offline storage with AsyncStorage~~ ✅
 4. Build data hooks
