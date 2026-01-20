@@ -7,3 +7,4 @@ export * from './database';
 
 // Application models (with relations)
 export * from './models';
+export * from './contacts';

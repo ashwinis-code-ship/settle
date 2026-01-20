@@ -4,27 +4,27 @@
  * Shows group information, member balances, and expenses list.
  */
 
-import { useCallback, useMemo, useRef } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
+import { MotiView } from 'moti';
+import { useCallback, useMemo } from 'react';
 import {
-  StyleSheet,
-  View,
-  Text,
+  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
-  ActivityIndicator,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MotiView } from 'moti';
-import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
 
 import { colors } from '@/constants/colors';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useGroup } from '@/hooks/use-group';
-import { useExpenses } from '@/hooks/use-expenses';
 import { useAuth } from '@/contexts/auth-context';
-import type { ExpenseListItem, GroupMemberBalance } from '@/types';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useExpenses } from '@/hooks/use-expenses';
+import { useGroup } from '@/hooks/use-group';
+import type { ExpenseListItem } from '@/types';
 
 // Utility functions
 const getInitials = (name: string) => {
@@ -58,8 +58,8 @@ const formatDate = (dateStr: string) => {
   } else if (date.toDateString() === yesterday.toDateString()) {
     return 'Yesterday';
   } else {
-    return date.toLocaleDateString('en-IN', { 
-      day: 'numeric', 
+    return date.toLocaleDateString('en-IN', {
+      day: 'numeric',
       month: 'short',
       year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined,
     });
@@ -97,7 +97,7 @@ export default function GroupDetailScreen() {
   };
 
   const handleSettings = () => {
-    // TODO: Navigate to group settings
+    router.push(`/group/${id}/settings`);
   };
 
   // Sort balances - show current user first, then by net balance
@@ -156,9 +156,9 @@ export default function GroupDetailScreen() {
                 ]}
               >
                 <View style={styles.balanceUser}>
-                  <View 
+                  <View
                     style={[
-                      styles.balanceAvatar, 
+                      styles.balanceAvatar,
                       { backgroundColor: balance.user.id === user?.id ? colors.primary[500] : colors.gray[400] }
                     ]}
                   >
@@ -175,17 +175,17 @@ export default function GroupDetailScreen() {
                     style={[
                       styles.balanceValue,
                       {
-                        color: balance.net_balance > 0 
-                          ? colors.success 
-                          : balance.net_balance < 0 
-                            ? colors.error 
+                        color: balance.net_balance > 0
+                          ? colors.success
+                          : balance.net_balance < 0
+                            ? colors.error
                             : secondaryTextColor,
                       },
                     ]}
                   >
-                    {balance.net_balance > 0 
+                    {balance.net_balance > 0
                       ? `gets back ${formatCurrency(balance.net_balance)}`
-                      : balance.net_balance < 0 
+                      : balance.net_balance < 0
                         ? `owes ${formatCurrency(balance.net_balance)}`
                         : 'settled up'}
                   </Text>
@@ -220,7 +220,7 @@ export default function GroupDetailScreen() {
 
   const renderExpenseItem = ({ item, index }: { item: ExpenseListItem; index: number }) => {
     const isYou = item.you_paid;
-    
+
     return (
       <MotiView
         from={{ opacity: 0, translateX: -20 }}
@@ -235,10 +235,10 @@ export default function GroupDetailScreen() {
         >
           {/* Category Icon */}
           <View style={[styles.expenseIcon, { backgroundColor: colors.primary[100] }]}>
-            <Ionicons 
-              name={item.category?.icon as any || 'receipt-outline'} 
-              size={20} 
-              color={colors.primary[600]} 
+            <Ionicons
+              name={item.category?.icon as any || 'receipt-outline'}
+              size={20}
+              color={colors.primary[600]}
             />
           </View>
 
