@@ -55,21 +55,25 @@ serve(async (req) => {
 
     const supabase = getSupabaseClient();
 
-    // Check if user exists (for signup, should NOT exist; for forgot_password, SHOULD exist)
+    // Check if user exists (for signup, should NOT exist as registered; for forgot_password, SHOULD exist as registered)
     const { data: existingUser } = await supabase
       .from('users')
-      .select('id')
+      .select('id, is_registered')
       .eq('phone', phone)
       .single();
 
-    if (purpose === 'signup' && existingUser) {
+    // For signup: block only if user exists AND is registered
+    // Shadow users (is_registered = false) should be allowed to sign up and claim their account
+    if (purpose === 'signup' && existingUser?.is_registered === true) {
       return jsonResponse({ 
         success: false, 
         message: 'This phone number is already registered. Please sign in instead.' 
       });
     }
 
-    if (purpose === 'forgot_password' && !existingUser) {
+    // For forgot_password: only allow if user exists AND is registered
+    // Shadow users can't reset password since they never set one
+    if (purpose === 'forgot_password' && (!existingUser || existingUser.is_registered === false)) {
       return jsonResponse({ 
         success: false, 
         message: 'No account found with this phone number. Please sign up.' 

@@ -123,8 +123,10 @@ serve(async (req) => {
         .eq('is_registered', false)
         .single();
 
+      let profileCreated = false;
+
       if (shadowUser) {
-        // Claim shadow account: Update ID to match key and set registered
+        // Claim shadow account: Update ID to match auth user and set registered
         // This relies on ON UPDATE CASCADE for foreign keys
         const { error: claimError } = await supabaseAdmin
           .from('users')
@@ -138,22 +140,40 @@ serve(async (req) => {
 
         if (claimError) {
           console.error('Error claiming shadow profile:', claimError);
-          // Try fallback insert if update failed (though likely constraints will block it)
+          // Will try fallback below
         } else {
-          console.log(`Successfully claimed shadow user ${shadowUser.id} for ${authData.user.id}`);
+          console.log(`Successfully claimed shadow user ${shadowUser.id} -> ${authData.user.id}`);
+          profileCreated = true;
         }
-      } else {
-        // Normal insert
+      }
+
+      // If no shadow user OR claiming failed, create new profile
+      if (!profileCreated) {
+        // First, delete any orphaned shadow user with this phone (in case claim failed due to constraint)
+        if (shadowUser) {
+          await supabaseAdmin
+            .from('users')
+            .delete()
+            .eq('id', shadowUser.id)
+            .eq('is_registered', false);
+        }
+
+        // Insert new user profile
         const { error: profileError } = await supabaseAdmin.from('users').insert({
           id: authData.user.id,
           phone,
           name: name.trim(),
-          is_registered: true, // Explicitly set true for new accounts
+          is_registered: true,
         });
 
         if (profileError) {
           console.error('Error creating profile:', profileError);
-          // Don't fail - user is created in auth
+          // This is a critical error - user can auth but has no profile
+          // Return error so user knows to contact support
+          return jsonResponse({ 
+            success: false, 
+            message: 'Account created but profile setup failed. Please contact support.' 
+          });
         }
       }
     }
