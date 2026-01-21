@@ -4,26 +4,26 @@
  * Create password after OTP verification.
  */
 
-import { useState, useRef } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
+import { MotiText, MotiView } from 'moti';
+import { useRef, useState } from 'react';
 import {
-  StyleSheet,
-  View,
-  Text,
-  TextInput,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MotiView, MotiText } from 'moti';
-import { router, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Input } from '@/components/ui/input';
 import { colors } from '@/constants/colors';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { supabase } from '@/lib/supabase';
 
 export default function SetPasswordScreen() {
@@ -94,7 +94,7 @@ export default function SetPasswordScreen() {
       // Sign in the user after account creation
       const digits = phone.replace(/\D/g, '');
       const email = `${digits}@settle.phone`;
-      
+
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -104,6 +104,17 @@ export default function SetPasswordScreen() {
         // Account created but couldn't auto-sign in, redirect to sign-in
         router.replace('/(auth)/sign-in');
         return;
+      }
+
+      // Claim shadow account if exists
+      try {
+        await supabase.rpc('complete_signup', {
+          p_phone: phone,
+          p_name: name,
+        });
+      } catch (claimError) {
+        console.error('[SetPassword] Claim account error:', claimError);
+        // Continue anyway, user is signed in
       }
 
       // Navigate to main app
@@ -127,7 +138,7 @@ export default function SetPasswordScreen() {
   // Password strength indicator
   const getPasswordStrength = () => {
     if (!password) return { level: 0, label: '', color: colors.gray[400] };
-    
+
     let strength = 0;
     if (password.length >= 6) strength++;
     if (password.length >= 8) strength++;
@@ -280,8 +291,8 @@ export default function SetPasswordScreen() {
                             passwordStrength.level >= level
                               ? passwordStrength.color
                               : isDark
-                              ? colors.gray[700]
-                              : colors.gray[200],
+                                ? colors.gray[700]
+                                : colors.gray[200],
                         },
                       ]}
                     />

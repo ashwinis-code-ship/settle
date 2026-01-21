@@ -4,11 +4,10 @@
  * Fetches detailed information about a specific group.
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { syncQueue } from '@/lib/sync-queue';
 import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
+import { supabase } from '@/lib/supabase';
+import { syncQueue } from '@/lib/sync-queue';
 import type {
   DbGroup,
   DbGroupUpdate,
@@ -16,6 +15,7 @@ import type {
   GroupMemberBalance,
   UserSummary,
 } from '@/types';
+import { useCallback, useEffect, useState } from 'react';
 
 interface GroupDetail extends DbGroup {
   members: GroupMember[];
@@ -27,7 +27,7 @@ interface UseGroupResult {
   isLoading: boolean;
   error: string | null;
   updateGroup: (updates: DbGroupUpdate) => Promise<boolean>;
-  addMember: (phone: string) => Promise<boolean>;
+  addMember: (phone: string, name: string) => Promise<boolean>;
   removeMember: (userId: string) => Promise<boolean>;
   leaveGroup: () => Promise<boolean>;
   deleteGroup: () => Promise<boolean>;
@@ -37,7 +37,7 @@ interface UseGroupResult {
 export function useGroup(groupId: string | undefined): UseGroupResult {
   const { user } = useAuth();
   const { isOnline } = useSync();
-  
+
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +107,7 @@ export function useGroup(groupId: string | undefined): UseGroupResult {
           total_settled_paid: Number(b.total_settled_paid),
           total_settled_received: Number(b.total_settled_received),
           net_balance: (Number(b.total_paid) - Number(b.total_owed)) -
-                       (Number(b.total_settled_paid) - Number(b.total_settled_received)),
+            (Number(b.total_settled_paid) - Number(b.total_settled_received)),
         };
       });
 
@@ -151,32 +151,51 @@ export function useGroup(groupId: string | undefined): UseGroupResult {
     }
   }, [groupId, group, isOnline, fetchGroup]);
 
-  const addMember = useCallback(async (phone: string): Promise<boolean> => {
+  const addMember = useCallback(async (phone: string, name: string): Promise<boolean> => {
     if (!groupId) return false;
 
     try {
       if (isOnline) {
         // Find user by phone
+        let userId: string;
+
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('id')
           .eq('phone', phone)
           .single();
 
-        if (userError) throw new Error('User not found');
+        if (userData) {
+          userId = userData.id;
+        } else {
+          // User not found, create shadow user
+          // Migration sets default UUID
+          const { data: shadowUser, error: shadowError } = await supabase
+            .from('users')
+            .insert({
+              phone,
+              name,
+              is_registered: false
+            })
+            .select('id')
+            .single();
+
+          if (shadowError) throw shadowError;
+          userId = shadowUser.id;
+        }
 
         const { error: addError } = await supabase
           .from('group_members')
           .insert({
             group_id: groupId,
-            user_id: userData.id,
+            user_id: userId,
             role: 'member',
           });
 
         if (addError) throw addError;
         await fetchGroup();
       } else {
-        await syncQueue.add('ADD_GROUP_MEMBER', { group_id: groupId, phone });
+        await syncQueue.add('ADD_GROUP_MEMBER', { group_id: groupId, phone, name });
       }
       return true;
     } catch (err) {

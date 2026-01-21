@@ -94,10 +94,11 @@ interface ContactPickerSheetProps {
     title?: string;
     doneText?: string; // If provided, shows a "Done" button (useful for multi-select flow dismissal)
     onClose?: () => void; // Called when "Done" is pressed or sheet is closed
+    onDone?: () => void; // Called specificallly when "Done" button is pressed
 }
 
 export const ContactPickerSheet = forwardRef<BottomSheet, ContactPickerSheetProps>(
-    ({ onContactSelect, selectedIds, title = 'Add Members', doneText, onClose }, ref) => {
+    ({ onContactSelect, selectedIds, title = 'Add Members', doneText, onClose, onDone }, ref) => {
         const colorScheme = useColorScheme() ?? 'light';
         const isDark = colorScheme === 'dark';
 
@@ -183,6 +184,13 @@ export const ContactPickerSheet = forwardRef<BottomSheet, ContactPickerSheetProp
             onContactSelect(contact);
         };
 
+        const handleDonePress = () => {
+            if (onDone) {
+                onDone();
+            }
+            (ref as any)?.current?.close();
+        };
+
         const renderEmptyState = () => (
             <View style={styles.emptyState}>
                 <Ionicons name="person-add-outline" size={48} color={colors.gray[400]} />
@@ -208,7 +216,7 @@ export const ContactPickerSheet = forwardRef<BottomSheet, ContactPickerSheetProp
                 <View style={[styles.sheetHeader, { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] }]}>
                     <Text style={[styles.sheetTitle, { color: textColor }]}>{title}</Text>
                     {doneText && (
-                        <Pressable onPress={() => (ref as any)?.current?.close()} style={styles.sheetCloseButton}>
+                        <Pressable onPress={handleDonePress} style={styles.sheetCloseButton}>
                             <Text style={[styles.sheetDoneText, { color: colors.primary[500] }]}>{doneText}</Text>
                         </Pressable>
                     )}

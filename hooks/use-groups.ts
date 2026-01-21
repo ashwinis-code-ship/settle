@@ -4,13 +4,14 @@
  * Manages list of groups the user is a member of.
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { cache } from '@/lib/storage';
-import { syncQueue } from '@/lib/sync-queue';
 import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
-import type { DbGroup, GroupFormData, GroupListItem, CurrencyCode } from '@/types';
+import { cache } from '@/lib/storage';
+import { supabase } from '@/lib/supabase';
+import { syncQueue } from '@/lib/sync-queue';
+import { formatPhoneNumber } from '@/lib/utils';
+import type { DbGroup, GroupFormData, GroupListItem } from '@/types';
+import { useCallback, useEffect, useState } from 'react';
 
 interface UseGroupsResult {
   groups: GroupListItem[];
@@ -23,7 +24,7 @@ interface UseGroupsResult {
 export function useGroups(): UseGroupsResult {
   const { user } = useAuth();
   const { isOnline } = useSync();
-  
+
   const [groups, setGroups] = useState<GroupListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +54,7 @@ export function useGroups(): UseGroupsResult {
           last_activity: g.updated_at,
         }));
         setGroups(cachedGroups);
-        
+
         if (!isOnline) {
           setIsLoading(false);
           return;
@@ -116,7 +117,7 @@ export function useGroups(): UseGroupsResult {
             return {
               groupId,
               balance: (balanceData.total_paid - balanceData.total_owed) -
-                       (balanceData.total_settled_paid - balanceData.total_settled_received),
+                (balanceData.total_settled_paid - balanceData.total_settled_received),
             };
           }
           return { groupId, balance: 0 };
@@ -194,27 +195,67 @@ export function useGroups(): UseGroupsResult {
           throw createError;
         }
 
-        // Note: Creator is automatically added as admin by trigger (add_creator_as_admin)
-        // Add other members by phone
-        if (data.member_phones.length > 0) {
-          const { data: users } = await supabase
+
+        // Handle members (find existing or create shadow users)
+        if (data.members.length > 0) {
+          const phones = data.members.map(m => {
+            const sanitized = formatPhoneNumber(m.phone);
+            return sanitized.startsWith('+') ? sanitized : `+91${sanitized.replace(/^0/, '')}`;
+          });
+
+          // 1. Find existing users
+          const { data: existingUsers, error: usersError } = await supabase
             .from('users')
-            .select('id')
-            .in('phone', data.member_phones);
+            .select('id, phone')
+            .in('phone', phones);
 
-          if (users && users.length > 0) {
-            // Filter out the creator if they're somehow in the list
-            const memberInserts = users
-              .filter((u) => u.id !== user.id)
-              .map((u) => ({
-                group_id: newGroup.id,
-                user_id: u.id,
-                role: 'member' as const,
-              }));
+          if (usersError) throw usersError;
 
-            if (memberInserts.length > 0) {
-              await supabase.from('group_members').insert(memberInserts);
+          const existingUserMap = new Map((existingUsers || []).map(u => [u.phone, u.id]));
+          const memberIds: string[] = [];
+
+          // 2. Process all members
+          for (const member of data.members) {
+            if (member.phone === user.phone) continue; // Skip creator (handled by trigger)
+
+            if (existingUserMap.has(member.phone)) {
+              memberIds.push(existingUserMap.get(member.phone)!);
+            } else {
+              // Create shadow user
+              // We rely on the migration setting default UUID
+              const { data: shadowUser, error: shadowError } = await supabase
+                .from('users')
+                .insert({
+                  phone: member.phone,
+                  name: member.name,
+                  is_registered: false
+                })
+                .select('id')
+                .single();
+
+              if (shadowError) {
+                console.error('Failed to create shadow user:', shadowError);
+                // Continue with other members? or fail? 
+                // Let's log and continue to avoid blocking entire group creation
+                continue;
+              }
+              memberIds.push(shadowUser.id);
             }
+          }
+
+          // 3. Add members to group
+          if (memberIds.length > 0) {
+            const memberInserts = memberIds.map(userId => ({
+              group_id: newGroup.id,
+              user_id: userId,
+              role: 'member' as const,
+            }));
+
+            const { error: memberAddError } = await supabase
+              .from('group_members')
+              .insert(memberInserts);
+
+            if (memberAddError) throw memberAddError;
           }
         }
 
@@ -223,7 +264,7 @@ export function useGroups(): UseGroupsResult {
       } else {
         // Queue for later sync
         await syncQueue.add('CREATE_GROUP', groupData);
-        
+
         // Create temporary local group
         const tempId = `temp_${Date.now()}`;
         const tempGroup: GroupListItem = {
@@ -231,11 +272,11 @@ export function useGroups(): UseGroupsResult {
           name: data.name,
           image_url: null,
           currency: data.currency,
-          member_count: 1,
+          member_count: data.members.length + 1,
           your_balance: 0,
           last_activity: new Date().toISOString(),
         };
-        
+
         setGroups((prev) => [tempGroup, ...prev]);
         return tempId;
       }

@@ -57,6 +57,7 @@ export interface DbUser {
   name: string;
   avatar_url: string | null;
   default_currency: CurrencyCode;
+  is_registered?: boolean; // Optional because legacy users effectively have it true
   created_at: string;
   updated_at: string;
 }

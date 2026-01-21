@@ -449,3 +449,113 @@ BEGIN
     RETURN balance;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+-- Migration to support Shadow Users (Unregistered Invites)
+
+-- 1. Remove strict FK to auth.users to allow shadow users
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_id_fkey;
+
+-- 2. Add is_registered column and Set Default UUID
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_registered BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.users ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+-- 3. Update Foreign Keys to ON UPDATE CASCADE
+-- This allows us to update the UUID of a shadow user when they claim their account
+
+-- groups
+ALTER TABLE public.groups DROP CONSTRAINT IF EXISTS groups_created_by_fkey;
+ALTER TABLE public.groups ADD CONSTRAINT groups_created_by_fkey 
+    FOREIGN KEY (created_by) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+-- group_members
+ALTER TABLE public.group_members DROP CONSTRAINT IF EXISTS group_members_user_id_fkey;
+ALTER TABLE public.group_members ADD CONSTRAINT group_members_user_id_fkey 
+    FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+-- expenses
+ALTER TABLE public.expenses DROP CONSTRAINT IF EXISTS expenses_paid_by_fkey;
+ALTER TABLE public.expenses ADD CONSTRAINT expenses_paid_by_fkey 
+    FOREIGN KEY (paid_by) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+ALTER TABLE public.expenses DROP CONSTRAINT IF EXISTS expenses_created_by_fkey;
+ALTER TABLE public.expenses ADD CONSTRAINT expenses_created_by_fkey 
+    FOREIGN KEY (created_by) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+-- expense_splits
+ALTER TABLE public.expense_splits DROP CONSTRAINT IF EXISTS expense_splits_user_id_fkey;
+ALTER TABLE public.expense_splits ADD CONSTRAINT expense_splits_user_id_fkey 
+    FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+-- settlements
+ALTER TABLE public.settlements DROP CONSTRAINT IF EXISTS settlements_paid_by_fkey;
+ALTER TABLE public.settlements ADD CONSTRAINT settlements_paid_by_fkey 
+    FOREIGN KEY (paid_by) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+ALTER TABLE public.settlements DROP CONSTRAINT IF EXISTS settlements_paid_to_fkey;
+ALTER TABLE public.settlements ADD CONSTRAINT settlements_paid_to_fkey 
+    FOREIGN KEY (paid_to) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+-- 4. Function to handle account claiming
+CREATE OR REPLACE FUNCTION public.complete_signup(
+    p_phone TEXT,
+    p_name TEXT,
+    p_avatar_url TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_shadow_id UUID;
+    v_new_id UUID;
+BEGIN
+    v_new_id := auth.uid();
+    
+    -- Check if a shadow user exists with this phone
+    SELECT id INTO v_shadow_id
+    FROM public.users
+    WHERE phone = p_phone AND is_registered = FALSE;
+
+    IF v_shadow_id IS NOT NULL AND v_shadow_id != v_new_id THEN
+        -- Shadow user exists, merge/claim it
+        
+        -- We update the shadow user row to become the real user row
+        -- Changing the ID will cascade to all related tables
+        UPDATE public.users
+        SET 
+            id = v_new_id,
+            name = p_name,
+            avatar_url = COALESCE(p_avatar_url, avatar_url),
+            is_registered = TRUE,
+            updated_at = NOW()
+        WHERE id = v_shadow_id;
+        
+        -- Delete any pre-created row for the new auth ID if it existed and was different (shouldn't happen if we use this function instead of direct insert)
+        -- But if standard signup flow inserted a row, we might have a conflict on PK if we try to update shadow_id to new_id and new_id row exists.
+        -- SO: We must check if target ID exists.
+        
+        IF FOUND THEN
+             RETURN jsonb_build_object('status', 'merged', 'old_id', v_shadow_id, 'new_id', v_new_id);
+        END IF;
+    ELSE
+        -- No shadow user
+        -- Insert new user if not exists (upsert)
+        INSERT INTO public.users (id, phone, name, avatar_url, is_registered)
+        VALUES (v_new_id, p_phone, p_name, p_avatar_url, TRUE)
+        ON CONFLICT (id) DO UPDATE
+        SET 
+            name = EXCLUDED.name,
+            avatar_url = COALESCE(EXCLUDED.avatar_url, public.users.avatar_url),
+            updated_at = NOW();
+            
+        RETURN jsonb_build_object('status', 'created', 'id', v_new_id);
+    END IF;
+    
+    RETURN jsonb_build_object('status', 'error');
+END;
+$$;
+-- Fix RLS policy to allow creating shadow users
+CREATE POLICY "Allow authenticated users to create shadow users" ON public.users
+    FOR INSERT WITH CHECK (
+        auth.role() = 'authenticated' AND is_registered = false
+    );

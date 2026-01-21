@@ -4,13 +4,13 @@
  */
 
 import type {
-    CurrencyCode,
-    DbCategory,
-    DbExpense,
-    DbGroup,
-    DbSettlement,
-    DbUser,
-    GroupMemberRole
+  CurrencyCode,
+  DbCategory,
+  DbExpense,
+  DbGroup,
+  DbSettlement,
+  DbUser,
+  GroupMemberRole
 } from './database';
 
 // ============================================
@@ -30,7 +30,7 @@ export interface UserSummary {
 /**
  * Full user profile
  */
-export interface User extends DbUser {}
+export interface User extends DbUser { }
 
 // ============================================
 // GROUP TYPES
@@ -262,6 +262,6 @@ export interface GroupFormData {
   name: string;
   description: string;
   currency: CurrencyCode;
-  /** Phone numbers of members to add */
-  member_phones: string[];
+  /** Members to add */
+  members: { phone: string; name: string }[];
 }

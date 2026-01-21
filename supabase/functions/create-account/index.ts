@@ -39,7 +39,7 @@ serve(async (req) => {
   }
 
   try {
-    const { signupToken, password, name } = await req.json() as { 
+    const { signupToken, password, name } = await req.json() as {
       signupToken: string;
       password: string;
       name: string;
@@ -63,9 +63,9 @@ serve(async (req) => {
     const tokenResult = await verifyResetToken(signupToken, 'signup', jwtSecret);
 
     if (!tokenResult.valid || !tokenResult.phone) {
-      return jsonResponse({ 
-        success: false, 
-        message: tokenResult.error || 'Invalid or expired signup token. Please try again.' 
+      return jsonResponse({
+        success: false,
+        message: tokenResult.error || 'Invalid or expired signup token. Please try again.'
       });
     }
 
@@ -74,7 +74,7 @@ serve(async (req) => {
     // Create admin client with service role
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
+
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
@@ -89,11 +89,11 @@ serve(async (req) => {
     // Check if user already exists
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
     const existingUser = existingUsers?.users.find(u => u.email === email);
-    
+
     if (existingUser) {
-      return jsonResponse({ 
-        success: false, 
-        message: 'This phone number is already registered. Please sign in.' 
+      return jsonResponse({
+        success: false,
+        message: 'This phone number is already registered. Please sign in.'
       });
     }
 
@@ -115,15 +115,46 @@ serve(async (req) => {
 
     // Create user profile in users table
     if (authData.user) {
-      const { error: profileError } = await supabaseAdmin.from('users').insert({
-        id: authData.user.id,
-        phone,
-        name: name.trim(),
-      });
+      // Check for existing shadow user
+      const { data: shadowUser } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('phone', phone)
+        .eq('is_registered', false)
+        .single();
 
-      if (profileError) {
-        console.error('Error creating profile:', profileError);
-        // Don't fail - user is created in auth
+      if (shadowUser) {
+        // Claim shadow account: Update ID to match key and set registered
+        // This relies on ON UPDATE CASCADE for foreign keys
+        const { error: claimError } = await supabaseAdmin
+          .from('users')
+          .update({
+            id: authData.user.id,
+            name: name.trim(),
+            is_registered: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', shadowUser.id);
+
+        if (claimError) {
+          console.error('Error claiming shadow profile:', claimError);
+          // Try fallback insert if update failed (though likely constraints will block it)
+        } else {
+          console.log(`Successfully claimed shadow user ${shadowUser.id} for ${authData.user.id}`);
+        }
+      } else {
+        // Normal insert
+        const { error: profileError } = await supabaseAdmin.from('users').insert({
+          id: authData.user.id,
+          phone,
+          name: name.trim(),
+          is_registered: true, // Explicitly set true for new accounts
+        });
+
+        if (profileError) {
+          console.error('Error creating profile:', profileError);
+          // Don't fail - user is created in auth
+        }
       }
     }
 
@@ -134,8 +165,8 @@ serve(async (req) => {
       .eq('phone', phone)
       .eq('purpose', 'signup');
 
-    return jsonResponse({ 
-      success: true, 
+    return jsonResponse({
+      success: true,
       message: 'Account created successfully',
       user: {
         id: authData.user?.id,

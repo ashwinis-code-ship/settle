@@ -107,19 +107,19 @@ export default function CreateGroupScreen() {
     setErrors({});
 
     try {
-      const memberPhones = selectedContacts.map(contact => {
-        const phone = contact.phone;
-        if (phone.startsWith('+')) {
-          return phone;
+      const members = selectedContacts.map(contact => {
+        let phone = contact.phone;
+        if (!phone.startsWith('+')) {
+          phone = `+91${phone.replace(/^0/, '')}`;
         }
-        return `+91${phone.replace(/^0/, '')}`;
+        return { phone, name: contact.name };
       });
 
       const groupId = await createGroup({
         name: groupName.trim(),
         description: '',
         currency: 'INR',
-        member_phones: memberPhones,
+        members,
       });
 
       if (groupId) {

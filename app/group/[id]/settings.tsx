@@ -7,6 +7,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { router, useLocalSearchParams } from 'expo-router';
+import { MotiView } from 'moti';
 import { useRef, useState } from 'react';
 import {
     ActivityIndicator,
@@ -25,6 +26,7 @@ import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroup } from '@/hooks/use-group';
+import { formatPhoneNumber } from '@/lib/utils';
 import { ContactEntry } from '@/types';
 
 export default function GroupSettingsScreen() {
@@ -45,6 +47,7 @@ export default function GroupSettingsScreen() {
     // Bottom sheet ref
     const bottomSheetRef = useRef<BottomSheet>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [selectedContacts, setSelectedContacts] = useState<ContactEntry[]>([]);
 
     // Theme colors
     const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
@@ -65,33 +68,58 @@ export default function GroupSettingsScreen() {
     };
 
     const handleSelectContact = (contact: ContactEntry) => {
-        Alert.alert(
-            'Add Member',
-            `Add ${contact.name} to the group?`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Add',
-                    onPress: async () => {
-                        setIsSubmitting(true);
-                        let phone = contact.phone;
-                        if (!phone.startsWith('+')) {
-                            phone = `+91${phone.replace(/^0/, '')}`;
-                        }
+        setSelectedContacts(prev => {
+            const isSelected = prev.some(c => c.id === contact.id);
+            if (isSelected) {
+                return prev.filter(c => c.id !== contact.id);
+            } else {
+                return [...prev, contact];
+            }
+        });
+    };
 
-                        const success = await addMember(phone);
-                        setIsSubmitting(false);
+    const handleAddMembers = async () => {
+        if (selectedContacts.length === 0) {
+            bottomSheetRef.current?.close();
+            return;
+        }
 
-                        if (success) {
-                            Alert.alert('Success', 'Member added');
-                            bottomSheetRef.current?.close();
-                        } else {
-                            Alert.alert('Error', 'Failed to add member. Make sure they have a registered account.');
-                        }
-                    }
-                }
-            ]
-        );
+        setIsSubmitting(true);
+        let successCount = 0;
+        let failCount = 0;
+
+        // Add members sequentially
+        for (const contact of selectedContacts) {
+            // 1. Sanitize (strip spaces, parens, etc, keep +)
+            let phone = formatPhoneNumber(contact.phone);
+
+            // 2. Ensure country code (default to +91 if missing)
+            // This maintains existing app behavior around local numbers
+            if (!phone.startsWith('+')) {
+                phone = `+91${phone.replace(/^0/, '')}`;
+            }
+
+            const success = await addMember(phone, contact.name);
+            if (success) {
+                successCount++;
+            } else {
+                failCount++;
+            }
+        }
+
+        setIsSubmitting(false);
+        setSelectedContacts([]); // Clear selection
+
+        if (failCount > 0) {
+            Alert.alert(
+                'Add Members',
+                `Added ${successCount} members. Failed to add ${failCount} members (they might already be in the group or have invalid numbers).`
+            );
+        } else {
+            // All success
+            // Optional: Show success toast or just close
+        }
+        bottomSheetRef.current?.close();
     };
 
     const handleRemoveMember = (memberId: string, memberName: string) => {
@@ -180,68 +208,82 @@ export default function GroupSettingsScreen() {
         <GestureHandlerRootView style={{ flex: 1 }}>
             <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
                 {/* Header */}
-                <View style={[styles.header, { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] }]}>
+                <MotiView
+                    from={{ opacity: 0, translateY: -20 }}
+                    animate={{ opacity: 1, translateY: 0 }}
+                    transition={{ type: 'timing', duration: 400 }}
+                    style={[styles.header, { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] }]}
+                >
                     <Pressable onPress={handleBack} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color={textColor} />
                     </Pressable>
                     <Text style={[styles.headerTitle, { color: textColor }]}>Group Settings</Text>
                     <View style={styles.headerRight} />
-                </View>
+                </MotiView>
 
                 <ScrollView contentContainerStyle={styles.content}>
                     {/* Members Section */}
-                    <Text style={[styles.sectionTitle, { color: textColor }]}>Members</Text>
-                    <View style={[styles.sectionCard, { backgroundColor: cardBg }]}>
-                        {group?.members.map((member, index) => {
-                            const isMe = member.user_id === user?.id;
-                            const memberName = isMe ? 'You' : member.user.name || member.user.phone || 'Unknown';
-                            const isOwner = group.created_by === member.user_id;
+                    <MotiView
+                        from={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ type: 'timing', duration: 500, delay: 100 }}
+                    >
+                        <Text style={[styles.sectionTitle, { color: textColor }]}>Members</Text>
+                        <View style={[styles.sectionCard, { backgroundColor: cardBg }]}>
+                            {group?.members.map((member, index) => {
+                                const isMe = member.user_id === user?.id;
+                                const memberName = member.user.name || member.user.phone || 'Unknown';
+                                const isOwner = group.created_by === member.user_id;
 
-                            return (
-                                <View
-                                    key={member.id}
-                                    style={[
-                                        styles.memberItem,
-                                        index < group.members.length - 1 && { borderBottomWidth: 1, borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] }
-                                    ]}
+                                return (
+                                    <MotiView
+                                        key={member.id}
+                                        from={{ opacity: 0, translateX: -20 }}
+                                        animate={{ opacity: 1, translateX: 0 }}
+                                        transition={{ type: 'timing', duration: 400, delay: 200 + (index * 50) }}
+                                        style={[
+                                            styles.memberItem,
+                                            index < group.members.length - 1 && { borderBottomWidth: 1, borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] }
+                                        ]}
+                                    >
+                                        <View style={styles.memberInfo}>
+                                            <View style={[styles.avatar, { backgroundColor: isMe ? colors.primary[500] : colors.gray[400] }]}>
+                                                <Text style={styles.avatarText}>{memberName.substring(0, 1).toUpperCase()}</Text>
+                                            </View>
+                                            <View style={styles.memberText}>
+                                                <Text style={[styles.memberName, { color: textColor }]}>
+                                                    {memberName} {isOwner && <Text style={{ fontSize: 12, color: colors.primary[500] }}>(Admin)</Text>}
+                                                </Text>
+                                                <Text style={[styles.memberPhone, { color: secondaryTextColor }]}>
+                                                    {member.user.phone}
+                                                </Text>
+                                            </View>
+                                        </View>
+
+                                        {isAdmin && !isMe && member.user_id !== group.created_by && (
+                                            <Pressable
+                                                onPress={() => handleRemoveMember(member.user_id, memberName)}
+                                                style={styles.removeButton}
+                                                disabled={isSubmitting}
+                                            >
+                                                <Ionicons name="trash-outline" size={20} color={dangerColor} />
+                                            </Pressable>
+                                        )}
+                                    </MotiView>
+                                );
+                            })}
+
+                            {isAdmin && (
+                                <Pressable
+                                    style={styles.addMemberButton}
+                                    onPress={handleAddMemberPress}
                                 >
-                                    <View style={styles.memberInfo}>
-                                        <View style={[styles.avatar, { backgroundColor: isMe ? colors.primary[500] : colors.gray[400] }]}>
-                                            <Text style={styles.avatarText}>{memberName.substring(0, 1).toUpperCase()}</Text>
-                                        </View>
-                                        <View style={styles.memberText}>
-                                            <Text style={[styles.memberName, { color: textColor }]}>
-                                                {memberName} {isOwner && <Text style={{ fontSize: 12, color: colors.primary[500] }}>(Admin)</Text>}
-                                            </Text>
-                                            <Text style={[styles.memberPhone, { color: secondaryTextColor }]}>
-                                                {member.user.phone}
-                                            </Text>
-                                        </View>
-                                    </View>
-
-                                    {isAdmin && !isMe && member.user_id !== group.created_by && (
-                                        <Pressable
-                                            onPress={() => handleRemoveMember(member.user_id, memberName)}
-                                            style={styles.removeButton}
-                                            disabled={isSubmitting}
-                                        >
-                                            <Ionicons name="trash-outline" size={20} color={dangerColor} />
-                                        </Pressable>
-                                    )}
-                                </View>
-                            );
-                        })}
-
-                        {isAdmin && (
-                            <Pressable
-                                style={styles.addMemberButton}
-                                onPress={handleAddMemberPress}
-                            >
-                                <Ionicons name="add" size={20} color={colors.primary[500]} />
-                                <Text style={[styles.addMemberText, { color: colors.primary[500] }]}>Add Member</Text>
-                            </Pressable>
-                        )}
-                    </View>
+                                    <Ionicons name="add" size={20} color={colors.primary[500]} />
+                                    <Text style={[styles.addMemberText, { color: colors.primary[500] }]}>Add Member</Text>
+                                </Pressable>
+                            )}
+                        </View>
+                    </MotiView>
 
                     {/* Danger Zone */}
                     <Text style={[styles.sectionTitle, { color: dangerColor, marginTop: 24 }]}>Danger Zone</Text>
@@ -274,7 +316,11 @@ export default function GroupSettingsScreen() {
                 <ContactPickerSheet
                     ref={bottomSheetRef}
                     onContactSelect={handleSelectContact}
+                    selectedIds={new Set(selectedContacts.map(c => c.id))}
                     title="Add Members"
+                    doneText={selectedContacts.length > 0 ? `Add (${selectedContacts.length})` : 'Done'}
+                    onDone={handleAddMembers}
+                    onClose={() => setSelectedContacts([])} // Clear on dismiss
                 />
 
                 {/* Global Loading Overlay */}
