@@ -99,12 +99,13 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         ?.filter((g) => myGroupIds.has(g.group_id))
         .map((g) => g.group_id) || [];
 
-      // Filter out deleted groups - only include active groups
+      // Filter out deleted groups and 1:1 direct groups - only include active regular groups
       const { data: groups } = await supabase
         .from('groups')
-        .select('id, name, currency')
+        .select('id, name, currency, type')
         .in('id', potentialSharedGroupIds)
-        .is('deleted_at', null); // Exclude soft-deleted groups
+        .is('deleted_at', null) // Exclude soft-deleted groups
+        .eq('type', 'group'); // Exclude direct (1:1) groups from "Shared Groups" display
 
       const sharedGroupIds = groups?.map((g) => g.id) || [];
 
@@ -201,17 +202,21 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         if (settlement.group_id) {
           const groupData = groupBalanceMap.get(settlement.group_id);
           if (groupData) {
-            // Settlement reduces the balance (if I paid them, my receivable decreases)
-            groupData.balance += iPayedThem ? -settlement.amount : settlement.amount;
+            // Settlement affects the balance:
+            // - If I paid them: reduces what they owe me (or pays off what I owe)
+            // - If they paid me: reduces what they owe me (they're paying their debt)
+            // Positive balance = they owe me, so settlement reduces it
+            groupData.balance += iPayedThem ? settlement.amount : -settlement.amount;
             groupData.count += 1;
           }
         }
 
+        // For display: positive = you received, negative = you paid
         return {
           id: settlement.id,
           type: 'settlement' as const,
           description: iPayedThem ? 'You paid' : `${friendUser.name} paid`,
-          amount: iPayedThem ? settlement.amount : -settlement.amount,
+          amount: iPayedThem ? -settlement.amount : settlement.amount, // Flip: I paid = negative, they paid = positive
           currency: settlement.currency as CurrencyCode,
           date: settlement.created_at,
           group_id: settlement.group_id,

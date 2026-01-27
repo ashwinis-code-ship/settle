@@ -174,8 +174,14 @@ export default function FriendDetailScreen() {
 
   const renderTransactionItem = (item: FriendTransaction, index: number) => {
     const isPositive = item.amount > 0;
-    const amountColor = isPositive ? colors.success : colors.error;
     const isSettlement = item.type === 'settlement';
+    
+    // For settlements: positive = you received, negative = you paid
+    // For expenses: positive = you get (friend owes you), negative = you owe (you owe friend)
+    const amountColor = isSettlement ? colors.primary[500] : (isPositive ? colors.success : colors.error);
+    const amountLabel = isSettlement 
+      ? (isPositive ? 'you received' : 'you paid')
+      : (isPositive ? 'you get' : 'you owe');
 
     return (
       <MotiView
@@ -201,7 +207,7 @@ export default function FriendDetailScreen() {
             <Ionicons
               name={isSettlement ? 'swap-horizontal' : 'receipt-outline'}
               size={18}
-              color={isSettlement ? colors.primary[500] : amountColor}
+              color={isSettlement ? colors.primary[500] : (isPositive ? colors.success : colors.error)}
             />
           </View>
 
@@ -228,7 +234,7 @@ export default function FriendDetailScreen() {
           {/* Amount */}
           <View style={styles.transactionAmountContainer}>
             <Text style={[styles.transactionAmountLabel, { color: amountColor }]}>
-              {isPositive ? 'you get' : 'you owe'}
+              {amountLabel}
             </Text>
             <Text style={[styles.transactionAmount, { color: amountColor }]}>
               {formatBalance(item.amount, item.currency)}
