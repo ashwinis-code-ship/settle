@@ -6,23 +6,51 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { MotiView } from 'moti';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useFriends } from '@/hooks/use-friends';
+import { formatCurrency } from '@/lib/utils';
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { user } = useAuth();
+  const { friends, isLoading: isLoadingFriends } = useFriends();
 
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
   const secondaryTextColor = isDark ? colors.text.dark.secondary : colors.text.light.secondary;
   const backgroundColor = isDark ? colors.background.dark : colors.background.light;
   const cardBg = isDark ? colors.gray[800] : colors.white;
+
+  // Calculate balance summary from friends data
+  const balanceSummary = useMemo(() => {
+    if (!friends || friends.length === 0) {
+      return { totalOwed: 0, totalOwing: 0, netBalance: 0 };
+    }
+
+    let totalOwed = 0;  // Others owe you (positive balances)
+    let totalOwing = 0; // You owe others (negative balances)
+
+    friends.forEach(friend => {
+      if (friend.balance > 0) {
+        totalOwed += friend.balance;
+      } else if (friend.balance < 0) {
+        totalOwing += Math.abs(friend.balance);
+      }
+    });
+
+    return {
+      totalOwed,
+      totalOwing,
+      netBalance: totalOwed - totalOwing,
+    };
+  }, [friends]);
 
   // Get user info from metadata
   const userName = user?.user_metadata?.name || 'User';
@@ -81,16 +109,33 @@ export default function HomeScreen() {
           from={{ opacity: 0, translateY: 20 }}
           animate={{ opacity: 1, translateY: 0 }}
           transition={{ type: 'timing', duration: 500, delay: 200 }}
-          style={[styles.balanceCard, { backgroundColor: colors.primary[500] }]}
+          style={[
+            styles.balanceCard, 
+            { 
+              backgroundColor: balanceSummary.netBalance >= 0 
+                ? colors.primary[500] 
+                : colors.error 
+            }
+          ]}
         >
-          <Text style={styles.balanceLabel}>Total Balance</Text>
-          <Text style={styles.balanceValue}>₹0.00</Text>
+          <Text style={styles.balanceLabel}>
+            {balanceSummary.netBalance >= 0 ? 'You are owed' : 'You owe'}
+          </Text>
+          {isLoadingFriends ? (
+            <ActivityIndicator color={colors.white} size="small" style={{ marginVertical: 12 }} />
+          ) : (
+            <Text style={styles.balanceValue}>
+              {formatCurrency(Math.abs(balanceSummary.netBalance))}
+            </Text>
+          )}
           <View style={styles.balanceRow}>
             <View style={styles.balanceItem}>
               <Ionicons name="arrow-up-circle" size={20} color={colors.white} />
               <View>
-                <Text style={styles.balanceItemLabel}>You're owed</Text>
-                <Text style={styles.balanceItemValue}>₹0</Text>
+                <Text style={styles.balanceItemLabel}>You get back</Text>
+                <Text style={styles.balanceItemValue}>
+                  {formatCurrency(balanceSummary.totalOwed)}
+                </Text>
               </View>
             </View>
             <View style={styles.balanceDivider} />
@@ -98,7 +143,9 @@ export default function HomeScreen() {
               <Ionicons name="arrow-down-circle" size={20} color={colors.white} />
               <View>
                 <Text style={styles.balanceItemLabel}>You owe</Text>
-                <Text style={styles.balanceItemValue}>₹0</Text>
+                <Text style={styles.balanceItemValue}>
+                  {formatCurrency(balanceSummary.totalOwing)}
+                </Text>
               </View>
             </View>
           </View>
