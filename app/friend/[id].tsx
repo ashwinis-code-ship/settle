@@ -121,15 +121,19 @@ export default function FriendDetailScreen() {
     return (
       <MotiView
         key={groupBalance.group_id}
-        from={{ opacity: 0, translateX: -20 }}
-        animate={{ opacity: 1, translateX: 0 }}
-        transition={{ type: 'timing', duration: 300, delay: index * 80 }}
+        from={{ opacity: 0, translateX: -20, scale: 0.95 }}
+        animate={{ opacity: 1, translateX: 0, scale: 1 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 120, delay: Math.min(index * 70, 350) }}
       >
         <Pressable
           onPress={() => handleGroupPress(groupBalance.group_id)}
           style={({ pressed }) => [
             styles.groupCard,
-            { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },
+            { 
+              backgroundColor: cardBg, 
+              opacity: pressed ? 0.9 : 1,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            },
           ]}
         >
           {/* Group Icon */}
@@ -252,9 +256,9 @@ export default function FriendDetailScreen() {
     return (
       <MotiView
         key={item.id}
-        from={{ opacity: 0, translateX: -20 }}
-        animate={{ opacity: 1, translateX: 0 }}
-        transition={{ type: 'timing', duration: 300, delay: index * 40 }}
+        from={{ opacity: 0, translateX: -20, scale: 0.95 }}
+        animate={{ opacity: 1, translateX: 0, scale: 1 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 120, delay: Math.min(index * 50, 300) }}
       >
         {isSettlement ? (
           content
@@ -342,9 +346,9 @@ export default function FriendDetailScreen() {
       >
         {/* Friend Info Card */}
         <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 400 }}
+          from={{ opacity: 0, translateY: 20, scale: 0.95 }}
+          animate={{ opacity: 1, translateY: 0, scale: 1 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 120 }}
           style={[styles.friendCard, { backgroundColor: cardBg }]}
         >
           <View style={[styles.avatar, { backgroundColor: colors.primary[500] }]}>
@@ -393,9 +397,9 @@ export default function FriendDetailScreen() {
         {/* Shared Groups Section */}
         {groupBalances.length > 0 && (
           <MotiView
-            from={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ type: 'timing', duration: 300, delay: 150 }}
+            from={{ opacity: 0, translateY: 10 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 100 }}
           >
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: textColor }]}>
@@ -414,9 +418,9 @@ export default function FriendDetailScreen() {
         {/* Transaction History Section */}
         {transactions.length > 0 && (
           <MotiView
-            from={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ type: 'timing', duration: 300, delay: 250 }}
+            from={{ opacity: 0, translateY: 10 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 180 }}
           >
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: textColor }]}>
@@ -437,7 +441,7 @@ export default function FriendDetailScreen() {
           <MotiView
             from={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'timing', duration: 400, delay: 200 }}
+            transition={{ type: 'spring', damping: 15, stiffness: 100, delay: 150 }}
             style={[styles.emptyState, { backgroundColor: cardBg }]}
           >
             <Ionicons name="document-text-outline" size={48} color={colors.gray[400]} />

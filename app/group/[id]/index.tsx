@@ -134,9 +134,9 @@ export default function GroupDetailScreen() {
     <>
       {/* Group Info Card */}
       <MotiView
-        from={{ opacity: 0, translateY: 20 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: 'timing', duration: 400, delay: 100 }}
+        from={{ opacity: 0, translateY: 20, scale: 0.95 }}
+        animate={{ opacity: 1, translateY: 0, scale: 1 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 100 }}
         style={[styles.groupInfoCard, { backgroundColor: cardBg }]}
       >
         <View style={[styles.groupIcon, { backgroundColor: colors.primary[500] }]}>
@@ -156,7 +156,7 @@ export default function GroupDetailScreen() {
       <MotiView
         from={{ opacity: 0, translateY: 20 }}
         animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: 'timing', duration: 400, delay: 200 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 180 }}
         style={styles.section}
       >
         <View style={styles.contributionHeaderRow}>
@@ -253,7 +253,7 @@ export default function GroupDetailScreen() {
       <MotiView
         from={{ opacity: 0, translateY: 20 }}
         animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: 'timing', duration: 400, delay: 300 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 260 }}
         style={styles.expensesHeader}
       >
         <Text style={[styles.sectionTitle, { color: textColor }]}>Activity</Text>
@@ -283,9 +283,9 @@ export default function GroupDetailScreen() {
     return (
       <MotiView
         key={settlement.id}
-        from={{ opacity: 0, translateX: -20 }}
-        animate={{ opacity: 1, translateX: 0 }}
-        transition={{ type: 'timing', duration: 300, delay: Math.min(index * 50, 300) }}
+        from={{ opacity: 0, translateX: -20, scale: 0.95 }}
+        animate={{ opacity: 1, translateX: 0, scale: 1 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 120, delay: Math.min(index * 50, 300) }}
       >
         <View style={[styles.expenseItem, { backgroundColor: cardBg }]}>
           {/* Settlement Icon */}
@@ -327,15 +327,19 @@ export default function GroupDetailScreen() {
 
     return (
       <MotiView
-        from={{ opacity: 0, translateX: -20 }}
-        animate={{ opacity: 1, translateX: 0 }}
-        transition={{ type: 'timing', duration: 300, delay: Math.min(index * 50, 300) }}
+        from={{ opacity: 0, translateX: -20, scale: 0.95 }}
+        animate={{ opacity: 1, translateX: 0, scale: 1 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 120, delay: Math.min(index * 50, 300) }}
       >
         <Pressable
           onPress={() => handleExpensePress(expense.id)}
           style={({ pressed }) => [
             styles.expenseItem,
-            { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },
+            { 
+              backgroundColor: cardBg, 
+              opacity: pressed ? 0.9 : 1,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            },
           ]}
         >
           {/* Category Icon */}
@@ -414,7 +418,7 @@ export default function GroupDetailScreen() {
       <MotiView
         from={{ opacity: 0, translateY: -20 }}
         animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: 'timing', duration: 400 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 100 }}
         style={[styles.header, { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] }]}
       >
         <Pressable onPress={handleBack} style={styles.backButton}>

@@ -93,15 +93,24 @@ export default function GroupsScreen() {
 
     return (
       <MotiView
-        from={{ opacity: 0, translateY: 20 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: 'timing', duration: 400, delay: index * 100 }}
+        from={{ opacity: 0, translateY: 20, scale: 0.95 }}
+        animate={{ opacity: 1, translateY: 0, scale: 1 }}
+        transition={{ 
+          type: 'spring', 
+          damping: 18,
+          stiffness: 120,
+          delay: Math.min(index * 80, 400),
+        }}
       >
         <Pressable
           onPress={() => handleGroupPress(item)}
           style={({ pressed }) => [
             styles.groupCard,
-            { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },
+            { 
+              backgroundColor: cardBg, 
+              opacity: pressed ? 0.9 : 1,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            },
           ]}
         >
           {/* Group Avatar */}

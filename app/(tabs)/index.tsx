@@ -129,7 +129,7 @@ export default function HomeScreen() {
         <MotiView
           from={{ opacity: 0, translateY: -20 }}
           animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 500 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 100 }}
           style={styles.header}
         >
           <View style={styles.headerLeft}>
@@ -155,9 +155,9 @@ export default function HomeScreen() {
 
         {/* Balance Summary Card */}
         <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 500, delay: 200 }}
+          from={{ opacity: 0, translateY: 20, scale: 0.95 }}
+          animate={{ opacity: 1, translateY: 0, scale: 1 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 100, delay: 150 }}
           style={[
             styles.balanceCard, 
             { 
@@ -204,7 +204,7 @@ export default function HomeScreen() {
         <MotiView
           from={{ opacity: 0, translateY: 20 }}
           animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 500, delay: 300 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 300 }}
         >
           <Text style={[styles.sectionTitle, { color: textColor }]}>Quick Actions</Text>
           <View style={styles.actionsRow}>
@@ -212,7 +212,11 @@ export default function HomeScreen() {
               onPress={handleAddExpense}
               style={({ pressed }) => [
                 styles.actionCard,
-                { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },
+                { 
+                  backgroundColor: cardBg, 
+                  opacity: pressed ? 0.9 : 1,
+                  transform: [{ scale: pressed ? 0.95 : 1 }],
+                },
               ]}
             >
               <View style={[styles.actionIcon, { backgroundColor: colors.primary[100] }]}>
@@ -225,7 +229,11 @@ export default function HomeScreen() {
               onPress={handleCreateGroup}
               style={({ pressed }) => [
                 styles.actionCard,
-                { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },
+                { 
+                  backgroundColor: cardBg, 
+                  opacity: pressed ? 0.9 : 1,
+                  transform: [{ scale: pressed ? 0.95 : 1 }],
+                },
               ]}
             >
               <View style={[styles.actionIcon, { backgroundColor: colors.success + '20' }]}>
@@ -238,7 +246,11 @@ export default function HomeScreen() {
               onPress={handleSettleUp}
               style={({ pressed }) => [
                 styles.actionCard,
-                { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },
+                { 
+                  backgroundColor: cardBg, 
+                  opacity: pressed ? 0.9 : 1,
+                  transform: [{ scale: pressed ? 0.95 : 1 }],
+                },
               ]}
             >
               <View style={[styles.actionIcon, { backgroundColor: colors.warning + '20' }]}>
@@ -253,7 +265,7 @@ export default function HomeScreen() {
         <MotiView
           from={{ opacity: 0, translateY: 20 }}
           animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 500, delay: 400 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 100, delay: 350 }}
           style={styles.recentSection}
         >
           <Text style={[styles.sectionTitle, { color: textColor }]}>Recent Activity</Text>
@@ -281,15 +293,24 @@ export default function HomeScreen() {
                 return (
                   <MotiView
                     key={item.id}
-                    from={{ opacity: 0, translateX: -20 }}
-                    animate={{ opacity: 1, translateX: 0 }}
-                    transition={{ type: 'timing', duration: 300, delay: index * 50 }}
+                    from={{ opacity: 0, translateX: -20, scale: 0.95 }}
+                    animate={{ opacity: 1, translateX: 0, scale: 1 }}
+                    transition={{ 
+                      type: 'spring', 
+                      damping: 18, 
+                      stiffness: 120, 
+                      delay: Math.min(index * 60, 300),
+                    }}
                   >
                     <Pressable
                       onPress={() => handleActivityPress(item)}
                       style={({ pressed }) => [
                         styles.activityItem,
-                        { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },
+                        { 
+                          backgroundColor: cardBg, 
+                          opacity: pressed ? 0.9 : 1,
+                          transform: [{ scale: pressed ? 0.98 : 1 }],
+                        },
                       ]}
                     >
                       {/* Icon */}
