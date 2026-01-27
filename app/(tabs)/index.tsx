@@ -38,10 +38,10 @@ export default function HomeScreen() {
     let totalOwing = 0; // You owe others (negative balances)
 
     friends.forEach(friend => {
-      if (friend.balance > 0) {
-        totalOwed += friend.balance;
-      } else if (friend.balance < 0) {
-        totalOwing += Math.abs(friend.balance);
+      if (friend.total_balance > 0) {
+        totalOwed += friend.total_balance;
+      } else if (friend.total_balance < 0) {
+        totalOwing += Math.abs(friend.total_balance);
       }
     });
 
