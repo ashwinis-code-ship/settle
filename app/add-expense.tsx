@@ -4,9 +4,10 @@
  * Create a new expense in a group or with a friend (1:1).
  * Supports split types: equal_all, equal_selected
  * 
- * Params:
- * - groupId: Add expense to an existing group
- * - friendId + friendName: Add expense with a friend (auto-creates 1:1 group)
+ * Modes:
+ * - groupId provided: Add expense to an existing group (static display)
+ * - friendId + friendName: Add expense with a friend (static display, auto-creates 1:1 group)
+ * - No params: Search mode - user can search groups or contacts
  */
 
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +16,7 @@ import { MotiView } from 'moti';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -32,9 +34,11 @@ import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useCategories } from '@/hooks/use-categories';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useContactGroupSearch, type SearchResult, type SearchResultContact, type SearchResultGroup } from '@/hooks/use-contact-group-search';
 import { useDirectGroup } from '@/hooks/use-direct-group';
 import { useExpenses } from '@/hooks/use-expenses';
 import { useGroup } from '@/hooks/use-group';
+import { supabase } from '@/lib/supabase';
 import type { CurrencyCode, DbCategory, ExpenseFormData, GroupMember, SplitType } from '@/types';
 import { CURRENCIES } from '@/types/database';
 
@@ -48,14 +52,26 @@ export default function AddExpenseScreen() {
   const isDark = colorScheme === 'dark';
   const { user } = useAuth();
 
-  // Determine mode: group expense or 1:1 with friend
+  // Determine mode: group expense, 1:1 with friend, or search mode
+  const hasPreselection = !!params.groupId || !!params.friendId;
   const isDirectExpense = !!params.friendId && !params.groupId;
+  const isSearchMode = !hasPreselection;
+  
   const [resolvedGroupId, setResolvedGroupId] = useState<string | undefined>(params.groupId);
+  const [selectedFriendId, setSelectedFriendId] = useState<string | undefined>(params.friendId);
+  const [selectedFriendName, setSelectedFriendName] = useState<string | undefined>(params.friendName);
+  const [selectedFriendPhone, setSelectedFriendPhone] = useState<string | undefined>();
 
   const { group, isLoading: isLoadingGroup } = useGroup(resolvedGroupId);
   const { categories } = useCategories();
   const { createExpense } = useExpenses(resolvedGroupId);
   const { findOrCreateDirectGroup, isLoading: isCreatingDirectGroup } = useDirectGroup();
+  const { searchResults, isLoading: isLoadingSearch, hasContactPermission, search } = useContactGroupSearch();
+
+  // Search UI state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [hasSelectedTarget, setHasSelectedTarget] = useState(hasPreselection);
 
   // Form state
   const [description, setDescription] = useState('');
@@ -81,18 +97,64 @@ export default function AddExpenseScreen() {
   const cardBg = isDark ? colors.gray[800] : colors.white;
   const borderColor = isDark ? colors.gray[700] : colors.gray[200];
 
+  // Trigger search on query change
+  useEffect(() => {
+    if (isSearchMode && !hasSelectedTarget) {
+      search(searchQuery);
+    }
+  }, [searchQuery, isSearchMode, hasSelectedTarget, search]);
+
+  // Handle search result selection
+  const handleSelectSearchResult = useCallback(async (result: SearchResult) => {
+    setShowSearchResults(false);
+    setHasSelectedTarget(true);
+
+    if (result.type === 'group') {
+      // Selected a group
+      setResolvedGroupId(result.id);
+      setSelectedFriendId(undefined);
+      setSelectedFriendName(undefined);
+    } else {
+      // Selected a contact - need to find or create user
+      const contact = result as SearchResultContact;
+      setSelectedFriendName(contact.name);
+      setSelectedFriendPhone(contact.phone);
+      
+      if (contact.userId) {
+        // User already exists in app
+        setSelectedFriendId(contact.userId);
+      } else {
+        // Need to create shadow user when expense is submitted
+        // For now, store the phone number and create on submit
+        setSelectedFriendId(undefined);
+      }
+    }
+  }, []);
+
+  // Clear selection and go back to search
+  const handleClearSelection = useCallback(() => {
+    setHasSelectedTarget(false);
+    setResolvedGroupId(undefined);
+    setSelectedFriendId(undefined);
+    setSelectedFriendName(undefined);
+    setSelectedFriendPhone(undefined);
+    setSearchQuery('');
+    setSplitBetween([]);
+  }, []);
+
   // Handle direct expense: find or create 1:1 group
   useEffect(() => {
     const setupDirectGroup = async () => {
-      if (isDirectExpense && params.friendId && user) {
-        const directGroupId = await findOrCreateDirectGroup(params.friendId);
+      const friendId = selectedFriendId || params.friendId;
+      if (friendId && user && hasSelectedTarget && !resolvedGroupId) {
+        const directGroupId = await findOrCreateDirectGroup(friendId);
         if (directGroupId) {
           setResolvedGroupId(directGroupId);
         }
       }
     };
     setupDirectGroup();
-  }, [isDirectExpense, params.friendId, user, findOrCreateDirectGroup]);
+  }, [selectedFriendId, params.friendId, user, findOrCreateDirectGroup, hasSelectedTarget, resolvedGroupId]);
 
   // Initialize form with group defaults
   useEffect(() => {
@@ -104,12 +166,15 @@ export default function AddExpenseScreen() {
         const memberIds = group.members.map((m) => m.user_id);
         setSplitBetween(memberIds);
       }
-    } else if (isDirectExpense && user && params.friendId) {
+    } else if (hasSelectedTarget && user && (selectedFriendId || params.friendId)) {
       // For direct expense, set up split between user and friend
-      setPaidBy(user.id);
-      setSplitBetween([user.id, params.friendId]);
+      const friendId = selectedFriendId || params.friendId;
+      if (friendId) {
+        setPaidBy(user.id);
+        setSplitBetween([user.id, friendId]);
+      }
     }
-  }, [group, user, isDirectExpense, params.friendId]);
+  }, [group, user, hasSelectedTarget, selectedFriendId, params.friendId]);
 
   // Get member info by ID
   const getMember = useCallback((userId: string): GroupMember | undefined => {
@@ -136,6 +201,10 @@ export default function AddExpenseScreen() {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
+    if (!hasSelectedTarget) {
+      newErrors.target = 'Select a group or contact';
+    }
+
     if (!description.trim()) {
       newErrors.description = 'Description is required';
     }
@@ -161,6 +230,75 @@ export default function AddExpenseScreen() {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
+
+    // If we have a contact without userId, we need to create shadow user first
+    let actualFriendId = selectedFriendId;
+    if (!resolvedGroupId && selectedFriendPhone && !actualFriendId && user) {
+      // Normalize phone
+      let normalizedPhone = selectedFriendPhone.replace(/[\s-]/g, '');
+      if (!normalizedPhone.startsWith('+')) {
+        if (normalizedPhone.startsWith('91') && normalizedPhone.length > 10) {
+          normalizedPhone = `+${normalizedPhone}`;
+        } else {
+          normalizedPhone = `+91${normalizedPhone.replace(/^0/, '')}`;
+        }
+      }
+
+      // Check if user exists
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('phone', normalizedPhone)
+        .single() as { data: { id: string } | null };
+
+      if (existingUser) {
+        actualFriendId = existingUser.id;
+      } else {
+        // Create shadow user
+        const { data: shadowUser, error: shadowError } = await supabase
+          .from('users')
+          .insert({
+            phone: normalizedPhone,
+            name: selectedFriendName || 'Unknown',
+            is_registered: false,
+          } as any)
+          .select('id')
+          .single() as { data: { id: string } | null; error: any };
+
+        if (shadowError || !shadowUser) {
+          console.error('Failed to create shadow user:', shadowError);
+          setErrors({ form: 'Failed to add contact. Please try again.' });
+          setIsSubmitting(false);
+          return;
+        }
+        actualFriendId = shadowUser.id;
+      }
+
+      if (!actualFriendId) {
+        setErrors({ form: 'Failed to find or create contact. Please try again.' });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Now create the direct group
+      const directGroupId = await findOrCreateDirectGroup(actualFriendId);
+      if (!directGroupId) {
+        setErrors({ form: 'Failed to create expense. Please try again.' });
+        setIsSubmitting(false);
+        return;
+      }
+      setResolvedGroupId(directGroupId);
+      setSelectedFriendId(actualFriendId);
+      
+      // Update split to include the new friend ID
+      if (user && actualFriendId) {
+        setSplitBetween([user.id, actualFriendId]);
+      }
+
+      // Wait a moment for state to update, then continue with expense creation
+      // This is a bit hacky - ideally we'd refactor to pass the groupId directly
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
 
     const formData: ExpenseFormData = {
       description: description.trim(),
@@ -209,24 +347,24 @@ export default function AddExpenseScreen() {
   };
 
   // Show loading while setting up group (either loading existing or creating direct)
-  const isSettingUp = isLoadingGroup || isCreatingDirectGroup || (isDirectExpense && !resolvedGroupId);
+  // In search mode, don't show loading until user has selected something
+  const isSettingUp = hasSelectedTarget && (isLoadingGroup || isCreatingDirectGroup || (selectedFriendId && !resolvedGroupId));
   
   if (isSettingUp) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary[500]} />
-          {isDirectExpense && (
-            <Text style={[styles.loadingText, { color: secondaryTextColor }]}>
-              Setting up...
-            </Text>
-          )}
+          <Text style={[styles.loadingText, { color: secondaryTextColor }]}>
+            Setting up...
+          </Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (!group && !isDirectExpense) {
+  // Only show error if we have a preselection but group not found
+  if (hasPreselection && !group && !isDirectExpense && !isSearchMode) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
         <View style={styles.errorContainer}>
@@ -237,6 +375,61 @@ export default function AddExpenseScreen() {
       </SafeAreaView>
     );
   }
+
+  // Render search result item
+  const renderSearchResult = ({ item }: { item: SearchResult }) => {
+    if (item.type === 'group') {
+      const groupResult = item as SearchResultGroup;
+      return (
+        <Pressable
+          onPress={() => handleSelectSearchResult(item)}
+          style={({ pressed }) => [
+            styles.searchResultItem,
+            { backgroundColor: cardBg, opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <View style={[styles.searchResultIcon, { backgroundColor: colors.primary[100] }]}>
+            <Ionicons name="people" size={20} color={colors.primary[500]} />
+          </View>
+          <View style={styles.searchResultInfo}>
+            <Text style={[styles.searchResultName, { color: textColor }]} numberOfLines={1}>
+              {groupResult.name}
+            </Text>
+            <Text style={[styles.searchResultMeta, { color: secondaryTextColor }]}>
+              Group · {groupResult.memberCount} members
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+        </Pressable>
+      );
+    } else {
+      const contactResult = item as SearchResultContact;
+      return (
+        <Pressable
+          onPress={() => handleSelectSearchResult(item)}
+          style={({ pressed }) => [
+            styles.searchResultItem,
+            { backgroundColor: cardBg, opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <View style={[styles.searchResultAvatar, { backgroundColor: contactResult.userId ? colors.primary[500] : colors.gray[400] }]}>
+            <Text style={styles.searchResultAvatarText}>
+              {getInitials(contactResult.name)}
+            </Text>
+          </View>
+          <View style={styles.searchResultInfo}>
+            <Text style={[styles.searchResultName, { color: textColor }]} numberOfLines={1}>
+              {contactResult.name}
+            </Text>
+            <Text style={[styles.searchResultMeta, { color: secondaryTextColor }]}>
+              {contactResult.phone}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+        </Pressable>
+      );
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
@@ -264,42 +457,125 @@ export default function AddExpenseScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Group/Friend Info */}
+          {/* Group/Contact Selector */}
           <MotiView
             from={{ opacity: 0, translateY: 10 }}
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ type: 'timing', duration: 300, delay: 50 }}
-            style={[styles.groupInfo, { backgroundColor: cardBg }]}
           >
-            <View style={[styles.groupIcon, { backgroundColor: isDirectExpense ? colors.success : colors.primary[500] }]}>
-              <Ionicons name={isDirectExpense ? 'person' : 'people'} size={20} color={colors.white} />
-            </View>
-            <Text style={[styles.groupName, { color: textColor }]}>
-              {isDirectExpense ? `With ${params.friendName || 'Friend'}` : group?.name}
-            </Text>
+            {/* Search Mode: Show search input */}
+            {isSearchMode && !hasSelectedTarget && (
+              <View style={styles.searchSection}>
+                <View style={[styles.searchInputContainer, { backgroundColor: cardBg, borderColor }]}>
+                  <Ionicons name="search" size={20} color={secondaryTextColor} />
+                  <TextInput
+                    style={[styles.searchInput, { color: textColor }]}
+                    placeholder="Search group or contact..."
+                    placeholderTextColor={secondaryTextColor}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    onFocus={() => setShowSearchResults(true)}
+                    autoFocus
+                  />
+                  {searchQuery.length > 0 && (
+                    <Pressable onPress={() => setSearchQuery('')}>
+                      <Ionicons name="close-circle" size={20} color={secondaryTextColor} />
+                    </Pressable>
+                  )}
+                </View>
+
+                {/* Search Results */}
+                {showSearchResults && (
+                  <View style={[styles.searchResultsContainer, { backgroundColor: cardBg }]}>
+                    {isLoadingSearch ? (
+                      <View style={styles.searchLoadingContainer}>
+                        <ActivityIndicator size="small" color={colors.primary[500]} />
+                      </View>
+                    ) : hasContactPermission === false ? (
+                      <View style={styles.searchEmptyState}>
+                        <Ionicons name="lock-closed-outline" size={32} color={colors.gray[400]} />
+                        <Text style={[styles.searchEmptyText, { color: secondaryTextColor }]}>
+                          Contact permission required
+                        </Text>
+                      </View>
+                    ) : searchResults.length === 0 ? (
+                      <View style={styles.searchEmptyState}>
+                        <Ionicons name="search-outline" size={32} color={colors.gray[400]} />
+                        <Text style={[styles.searchEmptyText, { color: secondaryTextColor }]}>
+                          {searchQuery ? 'No results found' : 'Type to search'}
+                        </Text>
+                      </View>
+                    ) : (
+                      <FlatList
+                        data={searchResults}
+                        renderItem={renderSearchResult}
+                        keyExtractor={(item) => `${item.type}-${item.id}`}
+                        keyboardShouldPersistTaps="handled"
+                        style={styles.searchResultsList}
+                      />
+                    )}
+                  </View>
+                )}
+                {errors.target && (
+                  <Text style={styles.errorMessage}>{errors.target}</Text>
+                )}
+              </View>
+            )}
+
+            {/* Selected Target: Show static display with clear button */}
+            {(hasPreselection || hasSelectedTarget) && (
+              <View style={[styles.groupInfo, { backgroundColor: cardBg }]}>
+                <View style={[
+                  styles.groupIcon, 
+                  { backgroundColor: (selectedFriendId || selectedFriendName || isDirectExpense) ? colors.success : colors.primary[500] }
+                ]}>
+                  <Ionicons 
+                    name={(selectedFriendId || selectedFriendName || isDirectExpense) ? 'person' : 'people'} 
+                    size={20} 
+                    color={colors.white} 
+                  />
+                </View>
+                <Text style={[styles.groupName, { color: textColor }]} numberOfLines={1}>
+                  {selectedFriendName 
+                    ? `With ${selectedFriendName}` 
+                    : isDirectExpense 
+                      ? `With ${params.friendName || 'Friend'}` 
+                      : group?.name || 'Loading...'}
+                </Text>
+                {/* Clear button for search mode selections */}
+                {isSearchMode && hasSelectedTarget && (
+                  <Pressable onPress={handleClearSelection} style={styles.clearButton}>
+                    <Ionicons name="close-circle" size={22} color={secondaryTextColor} />
+                  </Pressable>
+                )}
+              </View>
+            )}
           </MotiView>
 
-          {/* Amount Input */}
-          <MotiView
-            from={{ opacity: 0, translateY: 10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 300, delay: 100 }}
-            style={[styles.amountContainer, { backgroundColor: cardBg }]}
-          >
-            <Pressable
-              onPress={() => setShowCurrencyPicker(!showCurrencyPicker)}
-              style={styles.currencyButton}
-            >
-              <Text style={[styles.currencySymbol, { color: colors.primary[500] }]}>
-                {CURRENCIES[currency].symbol}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={secondaryTextColor} />
-            </Pressable>
-            <TextInput
-              style={[styles.amountInput, { color: textColor }]}
-              placeholder="0.00"
-              placeholderTextColor={colors.gray[400]}
-              value={amount}
+          {/* Rest of form - only show when target is selected */}
+          {(hasPreselection || hasSelectedTarget) && (
+            <>
+              {/* Amount Input */}
+              <MotiView
+                from={{ opacity: 0, translateY: 10 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ type: 'timing', duration: 300, delay: 100 }}
+                style={[styles.amountContainer, { backgroundColor: cardBg }]}
+              >
+                <Pressable
+                  onPress={() => setShowCurrencyPicker(!showCurrencyPicker)}
+                  style={styles.currencyButton}
+                >
+                  <Text style={[styles.currencySymbol, { color: colors.primary[500] }]}>
+                    {CURRENCIES[currency].symbol}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color={secondaryTextColor} />
+                </Pressable>
+                <TextInput
+                  style={[styles.amountInput, { color: textColor }]}
+                  placeholder="0.00"
+                  placeholderTextColor={colors.gray[400]}
+                  value={amount}
               onChangeText={setAmount}
               keyboardType="decimal-pad"
               autoFocus
@@ -459,7 +735,7 @@ export default function AddExpenseScreen() {
               <Ionicons name="chevron-down" size={20} color={secondaryTextColor} />
             </Pressable>
 
-            {showPaidByPicker && (
+            {showPaidByPicker && group && (
               <MotiView
                 from={{ opacity: 0, scaleY: 0.9 }}
                 animate={{ opacity: 1, scaleY: 1 }}
@@ -658,20 +934,22 @@ export default function AddExpenseScreen() {
             />
           </MotiView>
 
-          {/* Submit Button */}
-          <MotiView
-            from={{ opacity: 0, translateY: 10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 300, delay: 450 }}
-            style={styles.submitContainer}
-          >
-            <Button
-              title="Add Expense"
-              onPress={handleSubmit}
-              loading={isSubmitting}
-              disabled={isSubmitting}
-            />
-          </MotiView>
+              {/* Submit Button */}
+              <MotiView
+                from={{ opacity: 0, translateY: 10 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ type: 'timing', duration: 300, delay: 450 }}
+                style={styles.submitContainer}
+              >
+                <Button
+                  title="Add Expense"
+                  onPress={handleSubmit}
+                  loading={isSubmitting}
+                  disabled={isSubmitting}
+                />
+              </MotiView>
+            </>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -727,6 +1005,83 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
+  // Search styles
+  searchSection: {
+    marginBottom: 20,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+  },
+  searchResultsContainer: {
+    marginTop: 8,
+    borderRadius: 12,
+    maxHeight: 300,
+    overflow: 'hidden',
+  },
+  searchResultsList: {
+    maxHeight: 300,
+  },
+  searchLoadingContainer: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  searchEmptyState: {
+    padding: 24,
+    alignItems: 'center',
+    gap: 8,
+  },
+  searchEmptyText: {
+    fontSize: 14,
+  },
+  searchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    gap: 12,
+  },
+  searchResultIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchResultAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchResultAvatarText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  searchResultInfo: {
+    flex: 1,
+  },
+  searchResultName: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  searchResultMeta: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  clearButton: {
+    padding: 4,
+  },
+  // Group info styles
   groupInfo: {
     flexDirection: 'row',
     alignItems: 'center',

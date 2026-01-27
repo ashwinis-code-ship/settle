@@ -6,7 +6,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { MotiView } from 'moti';
-import { Pressable, StyleSheet, Text, View, Alert } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
@@ -34,7 +34,7 @@ export default function HomeScreen() {
     .slice(0, 2);
 
   const handleAddExpense = () => {
-    Alert.alert('Coming Soon', 'Add expense functionality will be available soon.');
+    router.push('/add-expense');
   };
 
   const handleCreateGroup = () => {
