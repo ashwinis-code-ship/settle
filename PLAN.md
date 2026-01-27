@@ -109,11 +109,11 @@ FORGOT PASSWORD:
 2. **Group Add**: Select a group → Enter amount → Choose split → Done
 
 ### Tasks
-- [ ] 4.1 Add expense screen (with friend OR group selector)
-- [ ] 4.2 Split type selector (equal all / equal selected)
-- [ ] 4.3 Member selector for partial splits
-- [ ] 4.4 Category picker with icons
-- [ ] 4.5 Currency selector (INR default)
+- [x] 4.1 Add expense screen (with friend OR group selector) ✅
+- [x] 4.2 Split type selector (equal all / equal selected) ✅
+- [x] 4.3 Member selector for partial splits ✅
+- [x] 4.4 Category picker with icons ✅
+- [x] 4.5 Currency selector (INR default) ✅
 - [ ] 4.6 Expense detail / edit screen
 - [ ] 4.7 Delete expense
 - [ ] 4.8 Auto-create 1:1 group logic
@@ -355,6 +355,7 @@ Main App (Bottom Tabs)
 | 2026-01-20 | 2 | 2.4 OTP Setup | Created otp-schema.sql, Edge Functions (send-otp, verify-otp), otp-service.ts client |
 | 2026-01-20 | 2 | 2.5-2.6 OTP Flow | Created verify-otp.tsx (6-digit input, resend timer), set-password.tsx (strength indicator) |
 | 2026-01-20 | 2 | 2.7 Forgot Password | Created forgot-password.tsx, reset-password.tsx, reset-password Edge Function |
+| 2026-01-21 | 4 | 4.1-4.5 Add Expense | Created add-expense.tsx with amount, description, category picker, currency selector, paid by, split type, member selector |
 
 ---
 
@@ -367,6 +368,6 @@ Main App (Bottom Tabs)
 5. ~~Basic auth screens (sign-in, sign-up with country picker)~~ ✅
 6. ~~OTP database & service setup~~ ✅
 7. ~~3-step sign-up flow with OTP~~ ✅
-8. **Next: Forgot Password flow (2.7)**
-   - Reuse verify-otp screen with purpose='forgot_password'
-   - Create reset password screen
+8. ~~Forgot Password flow (2.7)~~ ✅
+9. ~~Add Expense screen (4.1-4.5)~~ ✅
+10. **Next: Expense detail/edit screen (4.6), Delete expense (4.7), Auto-create 1:1 group (4.8)**
