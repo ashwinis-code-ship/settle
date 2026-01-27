@@ -99,7 +99,7 @@ export function useSettlements(options: UseSettlementsOptions = {}): UseSettleme
     }
   }, [user, isOnline, groupId, friendId]);
 
-  const createSettlement = useCallback(async (data: SettlementFormData): Promise<string | null> => {
+  const createSettlement = useCallback(async (data: SettlementFormData & { paid_by?: string }): Promise<string | null> => {
     if (!user) return null;
 
     const amount = parseFloat(data.amount);
@@ -108,8 +108,11 @@ export function useSettlements(options: UseSettlementsOptions = {}): UseSettleme
       return null;
     }
 
+    // Allow specifying paid_by, defaults to current user
+    const paidBy = data.paid_by || user.id;
+
     const settlementData = {
-      paid_by: user.id,
+      paid_by: paidBy,
       paid_to: data.paid_to,
       amount,
       currency: data.currency,

@@ -6,7 +6,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { MotiView } from 'moti';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
@@ -42,7 +42,7 @@ export default function HomeScreen() {
   };
 
   const handleSettleUp = () => {
-    Alert.alert('Coming Soon', 'Settle up functionality will be available soon.');
+    router.push('/settle-up');
   };
 
   return (

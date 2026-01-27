@@ -56,10 +56,14 @@ export default function FriendDetailScreen() {
   };
 
   const handleSettleUp = () => {
-    // TODO: Navigate to settle up screen (Phase 6)
     router.push({
-      pathname: '/add-expense',
-      params: { friendId: params.id, friendName: friend?.user.name || params.name },
+      pathname: '/settle-up',
+      params: { 
+        friendId: params.id, 
+        friendName: friend?.user.name || params.name,
+        balance: friend?.total_balance?.toString(),
+        currency: friend?.primary_currency,
+      },
     });
   };
 

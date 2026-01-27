@@ -24,7 +24,13 @@ import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useExpenses } from '@/hooks/use-expenses';
 import { useGroup } from '@/hooks/use-group';
-import type { ExpenseListItem } from '@/types';
+import { useSettlements } from '@/hooks/use-settlements';
+import type { ExpenseListItem, Settlement } from '@/types';
+
+// Union type for activity items (expense or settlement)
+type ActivityItem = 
+  | { type: 'expense'; data: ExpenseListItem }
+  | { type: 'settlement'; data: Settlement };
 
 // Utility functions
 const getInitials = (name: string) => {
@@ -74,6 +80,7 @@ export default function GroupDetailScreen() {
 
   const { group, isLoading: isLoadingGroup, refresh: refreshGroup } = useGroup(id);
   const { expenses, isLoading: isLoadingExpenses, refresh: refreshExpenses } = useExpenses(id);
+  const { settlements, isLoading: isLoadingSettlements, refresh: refreshSettlements } = useSettlements({ groupId: id });
 
   // Theme colors
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
@@ -81,15 +88,28 @@ export default function GroupDetailScreen() {
   const backgroundColor = isDark ? colors.background.dark : colors.background.light;
   const cardBg = isDark ? colors.gray[800] : colors.white;
 
-  const isLoading = isLoadingGroup || isLoadingExpenses;
+  const isLoading = isLoadingGroup || isLoadingExpenses || isLoadingSettlements;
+
+  // Combine expenses and settlements into a single activity list
+  const activityList = useMemo((): ActivityItem[] => {
+    const expenseItems: ActivityItem[] = expenses.map((e) => ({ type: 'expense' as const, data: e }));
+    const settlementItems: ActivityItem[] = settlements.map((s) => ({ type: 'settlement' as const, data: s }));
+    
+    // Combine and sort by date (newest first)
+    return [...expenseItems, ...settlementItems].sort((a, b) => {
+      const dateA = a.type === 'expense' ? a.data.expense_date : a.data.created_at;
+      const dateB = b.type === 'expense' ? b.data.expense_date : b.data.created_at;
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
+  }, [expenses, settlements]);
 
   const handleBack = () => {
     router.back();
   };
 
   const handleRefresh = useCallback(async () => {
-    await Promise.all([refreshGroup(), refreshExpenses()]);
-  }, [refreshGroup, refreshExpenses]);
+    await Promise.all([refreshGroup(), refreshExpenses(), refreshSettlements()]);
+  }, [refreshGroup, refreshExpenses, refreshSettlements]);
 
   const handleAddExpense = () => {
     // TODO: Navigate to add expense screen
@@ -203,7 +223,7 @@ export default function GroupDetailScreen() {
         transition={{ type: 'timing', duration: 400, delay: 300 }}
         style={styles.expensesHeader}
       >
-        <Text style={[styles.sectionTitle, { color: textColor }]}>Expenses</Text>
+        <Text style={[styles.sectionTitle, { color: textColor }]}>Activity</Text>
         <Pressable
           onPress={handleAddExpense}
           style={({ pressed }) => [
@@ -222,8 +242,55 @@ export default function GroupDetailScreen() {
     router.push(`/expense/${expenseId}`);
   };
 
-  const renderExpenseItem = ({ item, index }: { item: ExpenseListItem; index: number }) => {
-    const isYou = item.you_paid;
+  const renderSettlementItem = (settlement: Settlement, index: number) => {
+    const isYouPayer = settlement.paid_by === user?.id;
+    const payerName = isYouPayer ? 'You' : settlement.paid_by_user?.name || 'Someone';
+    const receiverName = settlement.paid_to === user?.id ? 'you' : settlement.paid_to_user?.name || 'someone';
+
+    return (
+      <MotiView
+        key={settlement.id}
+        from={{ opacity: 0, translateX: -20 }}
+        animate={{ opacity: 1, translateX: 0 }}
+        transition={{ type: 'timing', duration: 300, delay: Math.min(index * 50, 300) }}
+      >
+        <View style={[styles.expenseItem, { backgroundColor: cardBg }]}>
+          {/* Settlement Icon */}
+          <View style={[styles.expenseIcon, { backgroundColor: colors.success + '20' }]}>
+            <Ionicons name="swap-horizontal" size={20} color={colors.success} />
+          </View>
+
+          {/* Settlement Details */}
+          <View style={styles.expenseDetails}>
+            <Text style={[styles.expenseDescription, { color: textColor }]} numberOfLines={1}>
+              {payerName} paid {receiverName}
+            </Text>
+            <Text style={[styles.expenseMeta, { color: secondaryTextColor }]}>
+              Settlement • {formatDate(settlement.created_at)}
+            </Text>
+          </View>
+
+          {/* Amount */}
+          <View style={styles.expenseAmountContainer}>
+            <Text style={[styles.expenseAmount, { color: colors.success }]}>
+              {formatCurrency(settlement.amount, settlement.currency)}
+            </Text>
+            <Text style={[styles.expenseShare, { color: colors.success }]}>
+              {isYouPayer ? 'you paid' : 'you received'}
+            </Text>
+          </View>
+        </View>
+      </MotiView>
+    );
+  };
+
+  const renderActivityItem = ({ item, index }: { item: ActivityItem; index: number }) => {
+    if (item.type === 'settlement') {
+      return renderSettlementItem(item.data, index);
+    }
+
+    const expense = item.data;
+    const isYou = expense.you_paid;
 
     return (
       <MotiView
@@ -232,16 +299,16 @@ export default function GroupDetailScreen() {
         transition={{ type: 'timing', duration: 300, delay: Math.min(index * 50, 300) }}
       >
         <Pressable
-          onPress={() => handleExpensePress(item.id)}
+          onPress={() => handleExpensePress(expense.id)}
           style={({ pressed }) => [
             styles.expenseItem,
             { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },
           ]}
         >
           {/* Category Icon */}
-          <View style={[styles.expenseIcon, { backgroundColor: item.category?.color ? item.category.color + '20' : colors.primary[100] }]}>
-            {item.category ? (
-              <Text style={styles.expenseIconEmoji}>{item.category.icon}</Text>
+          <View style={[styles.expenseIcon, { backgroundColor: expense.category?.color ? expense.category.color + '20' : colors.primary[100] }]}>
+            {expense.category ? (
+              <Text style={styles.expenseIconEmoji}>{expense.category.icon}</Text>
             ) : (
               <Ionicons name="receipt-outline" size={20} color={colors.primary[600]} />
             )}
@@ -250,26 +317,26 @@ export default function GroupDetailScreen() {
           {/* Expense Details */}
           <View style={styles.expenseDetails}>
             <Text style={[styles.expenseDescription, { color: textColor }]} numberOfLines={1}>
-              {item.description}
+              {expense.description}
             </Text>
             <Text style={[styles.expenseMeta, { color: secondaryTextColor }]}>
-              {isYou ? 'You paid' : `${item.paid_by.name} paid`} • {formatDate(item.expense_date)}
+              {isYou ? 'You paid' : `${expense.paid_by.name} paid`} • {formatDate(expense.expense_date)}
             </Text>
           </View>
 
           {/* Amount */}
           <View style={styles.expenseAmountContainer}>
             <Text style={[styles.expenseAmount, { color: textColor }]}>
-              {formatCurrency(item.amount, item.currency)}
+              {formatCurrency(expense.amount, expense.currency)}
             </Text>
-            {item.your_share > 0 && (
+            {expense.your_share > 0 && (
               <Text style={[styles.expenseShare, { color: colors.error }]}>
-                you owe {formatCurrency(item.your_share, item.currency)}
+                you owe {formatCurrency(expense.your_share, expense.currency)}
               </Text>
             )}
-            {isYou && item.split_count > 1 && (
+            {isYou && expense.split_count > 1 && (
               <Text style={[styles.expenseShare, { color: colors.success }]}>
-                you lent {formatCurrency(item.amount - (item.amount / item.split_count), item.currency)}
+                you lent {formatCurrency(expense.amount - (expense.amount / expense.split_count), expense.currency)}
               </Text>
             )}
           </View>
@@ -278,10 +345,10 @@ export default function GroupDetailScreen() {
     );
   };
 
-  const renderEmptyExpenses = () => (
+  const renderEmptyActivity = () => (
     <View style={styles.emptyExpenses}>
       <Ionicons name="receipt-outline" size={64} color={colors.gray[300]} />
-      <Text style={[styles.emptyTitle, { color: textColor }]}>No expenses yet</Text>
+      <Text style={[styles.emptyTitle, { color: textColor }]}>No activity yet</Text>
       <Text style={[styles.emptySubtitle, { color: secondaryTextColor }]}>
         Add your first expense to start tracking
       </Text>
@@ -330,11 +397,11 @@ export default function GroupDetailScreen() {
 
       {/* Content */}
       <FlatList
-        data={expenses}
-        renderItem={renderExpenseItem}
-        keyExtractor={item => item.id}
+        data={activityList}
+        renderItem={renderActivityItem}
+        keyExtractor={item => item.type === 'expense' ? `expense-${item.data.id}` : `settlement-${item.data.id}`}
         ListHeaderComponent={renderHeader}
-        ListEmptyComponent={renderEmptyExpenses}
+        ListEmptyComponent={renderEmptyActivity}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
