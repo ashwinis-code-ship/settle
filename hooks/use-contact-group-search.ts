@@ -127,12 +127,13 @@ export function useContactGroupSearch(): UseContactGroupSearchResult {
 
       const groupIds = memberData.map((m) => m.group_id);
 
-      // Fetch group details (only explicit groups, not direct groups)
+      // Fetch group details (only explicit groups, not direct groups, exclude deleted)
       const { data: groupsData } = await supabase
         .from('groups')
         .select('id, name')
         .in('id', groupIds)
-        .eq('type', 'group');
+        .eq('type', 'group')
+        .is('deleted_at', null);
 
       if (!groupsData) return;
 

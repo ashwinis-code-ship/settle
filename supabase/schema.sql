@@ -424,26 +424,40 @@ DECLARE
     user2_settled_to_user1 DECIMAL := 0;
 BEGIN
     -- Amount user1 paid that user2 owes (from expense splits)
+    -- Only include expenses from non-deleted groups
     SELECT COALESCE(SUM(es.amount), 0) INTO user1_paid
     FROM public.expense_splits es
     JOIN public.expenses e ON e.id = es.expense_id
-    WHERE e.paid_by = user1_id AND es.user_id = user2_id;
+    JOIN public.groups g ON g.id = e.group_id
+    WHERE e.paid_by = user1_id 
+      AND es.user_id = user2_id
+      AND g.deleted_at IS NULL;
     
     -- Amount user2 paid that user1 owes
+    -- Only include expenses from non-deleted groups
     SELECT COALESCE(SUM(es.amount), 0) INTO user1_owes
     FROM public.expense_splits es
     JOIN public.expenses e ON e.id = es.expense_id
-    WHERE e.paid_by = user2_id AND es.user_id = user1_id;
+    JOIN public.groups g ON g.id = e.group_id
+    WHERE e.paid_by = user2_id 
+      AND es.user_id = user1_id
+      AND g.deleted_at IS NULL;
     
-    -- Settlements from user1 to user2
-    SELECT COALESCE(SUM(amount), 0) INTO user1_settled_to_user2
-    FROM public.settlements
-    WHERE paid_by = user1_id AND paid_to = user2_id;
+    -- Settlements from user1 to user2 (only from non-deleted groups or no group)
+    SELECT COALESCE(SUM(s.amount), 0) INTO user1_settled_to_user2
+    FROM public.settlements s
+    LEFT JOIN public.groups g ON g.id = s.group_id
+    WHERE s.paid_by = user1_id 
+      AND s.paid_to = user2_id
+      AND (s.group_id IS NULL OR g.deleted_at IS NULL);
     
-    -- Settlements from user2 to user1
-    SELECT COALESCE(SUM(amount), 0) INTO user2_settled_to_user1
-    FROM public.settlements
-    WHERE paid_by = user2_id AND paid_to = user1_id;
+    -- Settlements from user2 to user1 (only from non-deleted groups or no group)
+    SELECT COALESCE(SUM(s.amount), 0) INTO user2_settled_to_user1
+    FROM public.settlements s
+    LEFT JOIN public.groups g ON g.id = s.group_id
+    WHERE s.paid_by = user2_id 
+      AND s.paid_to = user1_id
+      AND (s.group_id IS NULL OR g.deleted_at IS NULL);
     
     -- Positive = user2 owes user1, Negative = user1 owes user2
     balance := (user1_paid - user1_owes) - (user1_settled_to_user2 - user2_settled_to_user1);

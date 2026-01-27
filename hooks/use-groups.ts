@@ -40,19 +40,21 @@ export function useGroups(): UseGroupsResult {
     setError(null);
 
     try {
-      // Try cache first
+      // Try cache first (but filter out any deleted groups that might be cached)
       const cached = await cache.getGroups();
       if (cached && cached.length > 0) {
-        // Transform cached data to GroupListItem format
-        const cachedGroups = (cached as DbGroup[]).map((g) => ({
-          id: g.id,
-          name: g.name,
-          image_url: g.image_url,
-          currency: g.currency,
-          member_count: 0, // Will be updated from server
-          your_balance: 0, // Will be calculated
-          last_activity: g.updated_at,
-        }));
+        // Transform cached data to GroupListItem format, filtering out deleted
+        const cachedGroups = (cached as DbGroup[])
+          .filter((g) => !(g as any).deleted_at) // Filter out soft-deleted
+          .map((g) => ({
+            id: g.id,
+            name: g.name,
+            image_url: g.image_url,
+            currency: g.currency,
+            member_count: 0, // Will be updated from server
+            your_balance: 0, // Will be calculated
+            last_activity: g.updated_at,
+          }));
         setGroups(cachedGroups);
 
         if (!isOnline) {

@@ -95,15 +95,18 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         .eq('user_id', friendId);
 
       const myGroupIds = new Set(myGroups?.map((g) => g.group_id) || []);
-      const sharedGroupIds = friendGroups
+      const potentialSharedGroupIds = friendGroups
         ?.filter((g) => myGroupIds.has(g.group_id))
         .map((g) => g.group_id) || [];
 
-      // Fetch group names for context
+      // Filter out deleted groups - only include active groups
       const { data: groups } = await supabase
         .from('groups')
         .select('id, name, currency')
-        .in('id', sharedGroupIds);
+        .in('id', potentialSharedGroupIds)
+        .is('deleted_at', null); // Exclude soft-deleted groups
+
+      const sharedGroupIds = groups?.map((g) => g.id) || [];
 
       const groupMap = new Map<string, { name: string; currency: string }>();
       groups?.forEach((g) => {

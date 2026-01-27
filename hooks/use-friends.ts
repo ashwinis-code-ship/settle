@@ -54,9 +54,24 @@ export function useFriends(): UseFriendsResult {
         return;
       }
 
-      const groupIds = memberData.map((m) => m.group_id);
+      const allGroupIds = memberData.map((m) => m.group_id);
 
-      // Get all other members in these groups
+      // Filter out deleted groups
+      const { data: activeGroups } = await supabase
+        .from('groups')
+        .select('id')
+        .in('id', allGroupIds)
+        .is('deleted_at', null);
+
+      const groupIds = activeGroups?.map((g) => g.id) || [];
+
+      if (groupIds.length === 0) {
+        setFriends([]);
+        setIsLoading(false);
+        return;
+      }
+
+      // Get all other members in these active groups
       const { data: otherMembers } = await supabase
         .from('group_members')
         .select(`
