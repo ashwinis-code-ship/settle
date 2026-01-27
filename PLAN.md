@@ -140,10 +140,10 @@ FORGOT PASSWORD:
 
 **Goal**: Mark debts as paid
 
-- [ ] 6.1 Settle up button (prefilled with owed amount)
-- [ ] 6.2 Custom settlement amount input
-- [ ] 6.3 Settlement history in friend detail
-- [ ] 6.4 Settlement entries in group view
+- [x] 6.1 Settle up button (prefilled with owed amount) ✅
+- [x] 6.2 Custom settlement amount input ✅
+- [x] 6.3 Settlement history in friend detail ✅
+- [x] 6.4 Settlement entries in group view ✅
 
 ---
 
