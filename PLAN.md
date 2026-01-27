@@ -130,7 +130,7 @@ FORGOT PASSWORD:
 - Net balance = What they owe you - What you owe them
 
 ### Tasks
-- [ ] 5.1 Friends list screen (net balance per friend)
+- [x] 5.1 Friends list screen (net balance per friend) ✅
 - [ ] 5.2 Friend detail screen (all transactions with that person)
 - [ ] 5.3 Balance calculation logic (aggregate across groups)
 
@@ -358,6 +358,7 @@ Main App (Bottom Tabs)
 | 2026-01-21 | 4 | 4.1-4.5 Add Expense | Created add-expense.tsx with amount, description, category picker, currency selector, paid by, split type, member selector |
 | 2026-01-21 | 4 | 4.6-4.7 Expense Detail | Created expense detail screen with edit/delete, useExpense hook |
 | 2026-01-21 | 4 | 4.8 Direct Groups | Created useDirectGroup hook for auto-creating 1:1 groups, updated add-expense to support friendId param |
+| 2026-01-21 | 5 | 5.1 Friends List | Created friends list screen with net balance per friend, summary card, quick add expense button |
 
 ---
 
