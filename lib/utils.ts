@@ -15,3 +15,23 @@ export const formatPhoneNumber = (phone: string): string => {
 
     return hasPlus ? `+${stripped}` : stripped;
 };
+
+/**
+ * Formats a currency amount with the appropriate symbol.
+ * Example: formatCurrency(1000, 'INR') -> "₹1,000"
+ * Example: formatCurrency(1000, 'USD') -> "$1,000"
+ */
+export const formatCurrency = (amount: number, currency: string = 'INR'): string => {
+    const symbols: Record<string, string> = {
+        INR: '₹',
+        USD: '$',
+        EUR: '€',
+        GBP: '£',
+    };
+    const symbol = symbols[currency] || currency;
+    const formattedAmount = Math.abs(amount).toLocaleString('en-IN', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+    });
+    return `${symbol}${formattedAmount}`;
+};
