@@ -116,7 +116,7 @@ FORGOT PASSWORD:
 - [x] 4.5 Currency selector (INR default) ✅
 - [x] 4.6 Expense detail / edit screen ✅
 - [x] 4.7 Delete expense ✅
-- [ ] 4.8 Auto-create 1:1 group logic
+- [x] 4.8 Auto-create 1:1 group logic ✅
 
 ---
 
@@ -356,6 +356,8 @@ Main App (Bottom Tabs)
 | 2026-01-20 | 2 | 2.5-2.6 OTP Flow | Created verify-otp.tsx (6-digit input, resend timer), set-password.tsx (strength indicator) |
 | 2026-01-20 | 2 | 2.7 Forgot Password | Created forgot-password.tsx, reset-password.tsx, reset-password Edge Function |
 | 2026-01-21 | 4 | 4.1-4.5 Add Expense | Created add-expense.tsx with amount, description, category picker, currency selector, paid by, split type, member selector |
+| 2026-01-21 | 4 | 4.6-4.7 Expense Detail | Created expense detail screen with edit/delete, useExpense hook |
+| 2026-01-21 | 4 | 4.8 Direct Groups | Created useDirectGroup hook for auto-creating 1:1 groups, updated add-expense to support friendId param |
 
 ---
 
@@ -370,4 +372,6 @@ Main App (Bottom Tabs)
 7. ~~3-step sign-up flow with OTP~~ ✅
 8. ~~Forgot Password flow (2.7)~~ ✅
 9. ~~Add Expense screen (4.1-4.5)~~ ✅
-10. **Next: Expense detail/edit screen (4.6), Delete expense (4.7), Auto-create 1:1 group (4.8)**
+10. ~~Expense detail/edit screen (4.6-4.7)~~ ✅
+11. ~~Auto-create 1:1 group (4.8)~~ ✅
+12. **Next: Phase 5 - Friends & Balances (5.1-5.3)**

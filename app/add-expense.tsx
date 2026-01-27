@@ -1,8 +1,12 @@
 /**
  * Add Expense Screen
  * 
- * Create a new expense in a group.
+ * Create a new expense in a group or with a friend (1:1).
  * Supports split types: equal_all, equal_selected
+ * 
+ * Params:
+ * - groupId: Add expense to an existing group
+ * - friendId + friendName: Add expense with a friend (auto-creates 1:1 group)
  */
 
 import { Ionicons } from '@expo/vector-icons';
@@ -28,20 +32,30 @@ import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useCategories } from '@/hooks/use-categories';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useDirectGroup } from '@/hooks/use-direct-group';
 import { useExpenses } from '@/hooks/use-expenses';
 import { useGroup } from '@/hooks/use-group';
 import type { CurrencyCode, DbCategory, ExpenseFormData, GroupMember, SplitType } from '@/types';
 import { CURRENCIES } from '@/types/database';
 
 export default function AddExpenseScreen() {
-  const { groupId } = useLocalSearchParams<{ groupId: string }>();
+  const params = useLocalSearchParams<{ 
+    groupId?: string; 
+    friendId?: string; 
+    friendName?: string;
+  }>();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { user } = useAuth();
 
-  const { group, isLoading: isLoadingGroup } = useGroup(groupId);
-  const { categories, isLoading: isLoadingCategories } = useCategories();
-  const { createExpense } = useExpenses(groupId);
+  // Determine mode: group expense or 1:1 with friend
+  const isDirectExpense = !!params.friendId && !params.groupId;
+  const [resolvedGroupId, setResolvedGroupId] = useState<string | undefined>(params.groupId);
+
+  const { group, isLoading: isLoadingGroup } = useGroup(resolvedGroupId);
+  const { categories } = useCategories();
+  const { createExpense } = useExpenses(resolvedGroupId);
+  const { findOrCreateDirectGroup, isLoading: isCreatingDirectGroup } = useDirectGroup();
 
   // Form state
   const [description, setDescription] = useState('');
@@ -67,6 +81,19 @@ export default function AddExpenseScreen() {
   const cardBg = isDark ? colors.gray[800] : colors.white;
   const borderColor = isDark ? colors.gray[700] : colors.gray[200];
 
+  // Handle direct expense: find or create 1:1 group
+  useEffect(() => {
+    const setupDirectGroup = async () => {
+      if (isDirectExpense && params.friendId && user) {
+        const directGroupId = await findOrCreateDirectGroup(params.friendId);
+        if (directGroupId) {
+          setResolvedGroupId(directGroupId);
+        }
+      }
+    };
+    setupDirectGroup();
+  }, [isDirectExpense, params.friendId, user, findOrCreateDirectGroup]);
+
   // Initialize form with group defaults
   useEffect(() => {
     if (group) {
@@ -77,8 +104,12 @@ export default function AddExpenseScreen() {
         const memberIds = group.members.map((m) => m.user_id);
         setSplitBetween(memberIds);
       }
+    } else if (isDirectExpense && user && params.friendId) {
+      // For direct expense, set up split between user and friend
+      setPaidBy(user.id);
+      setSplitBetween([user.id, params.friendId]);
     }
-  }, [group, user]);
+  }, [group, user, isDirectExpense, params.friendId]);
 
   // Get member info by ID
   const getMember = useCallback((userId: string): GroupMember | undefined => {
@@ -177,17 +208,25 @@ export default function AddExpenseScreen() {
       .slice(0, 2);
   };
 
-  if (isLoadingGroup) {
+  // Show loading while setting up group (either loading existing or creating direct)
+  const isSettingUp = isLoadingGroup || isCreatingDirectGroup || (isDirectExpense && !resolvedGroupId);
+  
+  if (isSettingUp) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary[500]} />
+          {isDirectExpense && (
+            <Text style={[styles.loadingText, { color: secondaryTextColor }]}>
+              Setting up...
+            </Text>
+          )}
         </View>
       </SafeAreaView>
     );
   }
 
-  if (!group) {
+  if (!group && !isDirectExpense) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
         <View style={styles.errorContainer}>
@@ -225,17 +264,19 @@ export default function AddExpenseScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Group Info */}
+          {/* Group/Friend Info */}
           <MotiView
             from={{ opacity: 0, translateY: 10 }}
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ type: 'timing', duration: 300, delay: 50 }}
             style={[styles.groupInfo, { backgroundColor: cardBg }]}
           >
-            <View style={[styles.groupIcon, { backgroundColor: colors.primary[500] }]}>
-              <Ionicons name="people" size={20} color={colors.white} />
+            <View style={[styles.groupIcon, { backgroundColor: isDirectExpense ? colors.success : colors.primary[500] }]}>
+              <Ionicons name={isDirectExpense ? 'person' : 'people'} size={20} color={colors.white} />
             </View>
-            <Text style={[styles.groupName, { color: textColor }]}>{group.name}</Text>
+            <Text style={[styles.groupName, { color: textColor }]}>
+              {isDirectExpense ? `With ${params.friendName || 'Friend'}` : group?.name}
+            </Text>
           </MotiView>
 
           {/* Amount Input */}
@@ -454,67 +495,69 @@ export default function AddExpenseScreen() {
             {errors.paidBy && <Text style={styles.errorMessage}>{errors.paidBy}</Text>}
           </MotiView>
 
-          {/* Split Type */}
-          <MotiView
-            from={{ opacity: 0, translateY: 10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 300, delay: 300 }}
-            style={styles.section}
-          >
-            <Text style={[styles.sectionLabel, { color: secondaryTextColor }]}>Split</Text>
-            <View style={styles.splitTypeContainer}>
-              <Pressable
-                style={[
-                  styles.splitTypeButton,
-                  { backgroundColor: cardBg, borderColor },
-                  splitType === 'equal_all' && {
-                    backgroundColor: colors.primary[50],
-                    borderColor: colors.primary[500],
-                  },
-                ]}
-                onPress={() => handleSplitTypeChange('equal_all')}
-              >
-                <Ionicons
-                  name="people"
-                  size={20}
-                  color={splitType === 'equal_all' ? colors.primary[500] : secondaryTextColor}
-                />
-                <Text
+          {/* Split Type - Only show for group expenses with 2+ members */}
+          {!isDirectExpense && (group?.members?.length || 0) > 2 && (
+            <MotiView
+              from={{ opacity: 0, translateY: 10 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ type: 'timing', duration: 300, delay: 300 }}
+              style={styles.section}
+            >
+              <Text style={[styles.sectionLabel, { color: secondaryTextColor }]}>Split</Text>
+              <View style={styles.splitTypeContainer}>
+                <Pressable
                   style={[
-                    styles.splitTypeText,
-                    { color: splitType === 'equal_all' ? colors.primary[500] : textColor },
+                    styles.splitTypeButton,
+                    { backgroundColor: cardBg, borderColor },
+                    splitType === 'equal_all' && {
+                      backgroundColor: colors.primary[50],
+                      borderColor: colors.primary[500],
+                    },
                   ]}
+                  onPress={() => handleSplitTypeChange('equal_all')}
                 >
-                  Equal (All)
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.splitTypeButton,
-                  { backgroundColor: cardBg, borderColor },
-                  splitType === 'equal_selected' && {
-                    backgroundColor: colors.primary[50],
-                    borderColor: colors.primary[500],
-                  },
-                ]}
-                onPress={() => handleSplitTypeChange('equal_selected')}
-              >
-                <Ionicons
-                  name="person"
-                  size={20}
-                  color={splitType === 'equal_selected' ? colors.primary[500] : secondaryTextColor}
-                />
-                <Text
+                  <Ionicons
+                    name="people"
+                    size={20}
+                    color={splitType === 'equal_all' ? colors.primary[500] : secondaryTextColor}
+                  />
+                  <Text
+                    style={[
+                      styles.splitTypeText,
+                      { color: splitType === 'equal_all' ? colors.primary[500] : textColor },
+                    ]}
+                  >
+                    Equal (All)
+                  </Text>
+                </Pressable>
+                <Pressable
                   style={[
-                    styles.splitTypeText,
-                    { color: splitType === 'equal_selected' ? colors.primary[500] : textColor },
+                    styles.splitTypeButton,
+                    { backgroundColor: cardBg, borderColor },
+                    splitType === 'equal_selected' && {
+                      backgroundColor: colors.primary[50],
+                      borderColor: colors.primary[500],
+                    },
                   ]}
+                  onPress={() => handleSplitTypeChange('equal_selected')}
                 >
-                  Select Members
-                </Text>
-              </Pressable>
-            </View>
-          </MotiView>
+                  <Ionicons
+                    name="person"
+                    size={20}
+                    color={splitType === 'equal_selected' ? colors.primary[500] : secondaryTextColor}
+                  />
+                  <Text
+                    style={[
+                      styles.splitTypeText,
+                      { color: splitType === 'equal_selected' ? colors.primary[500] : textColor },
+                    ]}
+                  >
+                    Select Members
+                  </Text>
+                </Pressable>
+              </View>
+            </MotiView>
+          )}
 
           {/* Member Selection for Split */}
           <MotiView
@@ -527,7 +570,7 @@ export default function AddExpenseScreen() {
               Split between ({splitBetween.length} {splitBetween.length === 1 ? 'person' : 'people'})
             </Text>
             <View style={[styles.splitMemberList, { backgroundColor: cardBg }]}>
-              {group.members.map((member) => {
+              {(group?.members || []).map((member) => {
                 const isSelected = splitBetween.includes(member.user_id);
                 const splitAmount = splitAmounts[member.user_id];
 
@@ -646,6 +689,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    marginTop: 12,
   },
   errorContainer: {
     flex: 1,
