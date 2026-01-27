@@ -2,13 +2,15 @@
  * Single Expense Hook
  * 
  * Fetches and manages a single expense with full details.
+ * Uses TanStack Query for caching and deduplication.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { syncQueue } from '@/lib/sync-queue';
 import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
+import { queryKeys } from '@/lib/query-client';
 import type {
   CurrencyCode,
   DbCategory,
@@ -17,6 +19,49 @@ import type {
   ExpenseSplitInfo,
   UserSummary,
 } from '@/types';
+import { useState } from 'react';
+
+async function fetchExpenseData(expenseId: string): Promise<Expense> {
+  // Fetch expense with relations
+  const { data: expenseData, error: expenseError } = await supabase
+    .from('expenses')
+    .select(`
+      *,
+      paid_by_user:paid_by (id, name, phone, avatar_url),
+      category:category_id (*)
+    `)
+    .eq('id', expenseId)
+    .single();
+
+  if (expenseError) throw expenseError;
+
+  // Fetch splits with user details
+  const { data: splitsData, error: splitsError } = await supabase
+    .from('expense_splits')
+    .select(`
+      user_id,
+      amount,
+      user:user_id (id, name, phone, avatar_url)
+    `)
+    .eq('expense_id', expenseId);
+
+  if (splitsError) throw splitsError;
+
+  const splits: ExpenseSplitInfo[] = (splitsData || []).map((s) => ({
+    user_id: s.user_id,
+    amount: Number(s.amount),
+    user: s.user as unknown as UserSummary,
+  }));
+
+  return {
+    ...expenseData,
+    amount: Number(expenseData.amount),
+    currency: expenseData.currency as CurrencyCode,
+    paid_by_user: expenseData.paid_by_user as UserSummary,
+    category: expenseData.category as DbCategory | null,
+    splits,
+  };
+}
 
 interface UseExpenseResult {
   expense: Expense | null;
@@ -31,83 +76,36 @@ interface UseExpenseResult {
 export function useExpense(expenseId: string | undefined): UseExpenseResult {
   const { user } = useAuth();
   const { isOnline } = useSync();
+  const queryClient = useQueryClient();
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
-  const [expense, setExpense] = useState<Expense | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Query for fetching expense
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['expense', expenseId],
+    queryFn: () => fetchExpenseData(expenseId!),
+    enabled: !!expenseId && !!user && isOnline,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
 
-  const fetchExpense = useCallback(async () => {
-    if (!expenseId || !user) {
-      setExpense(null);
-      setIsLoading(false);
-      return;
+  // Helper to invalidate related queries
+  const invalidateQueries = (groupId?: string) => {
+    queryClient.invalidateQueries({ queryKey: ['expense', expenseId] });
+    if (groupId) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenses(groupId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.group(groupId) });
     }
+    queryClient.invalidateQueries({ queryKey: queryKeys.groups });
+    queryClient.invalidateQueries({ queryKey: queryKeys.friends });
+  };
 
-    setIsLoading(true);
-    setError(null);
+  // Update expense mutation
+  const updateExpenseMutation = useMutation({
+    mutationFn: async ({ updates, newSplits }: { 
+      updates: DbExpenseUpdate; 
+      newSplits?: { user_id: string; amount: number }[] 
+    }) => {
+      if (!expenseId || !data) throw new Error('No expense');
 
-    try {
-      if (!isOnline) {
-        // TODO: Load from cache
-        setIsLoading(false);
-        return;
-      }
-
-      // Fetch expense with relations
-      const { data: expenseData, error: expenseError } = await supabase
-        .from('expenses')
-        .select(`
-          *,
-          paid_by_user:paid_by (id, name, phone, avatar_url),
-          category:category_id (*)
-        `)
-        .eq('id', expenseId)
-        .single();
-
-      if (expenseError) throw expenseError;
-
-      // Fetch splits with user details
-      const { data: splitsData, error: splitsError } = await supabase
-        .from('expense_splits')
-        .select(`
-          user_id,
-          amount,
-          user:user_id (id, name, phone, avatar_url)
-        `)
-        .eq('expense_id', expenseId);
-
-      if (splitsError) throw splitsError;
-
-      const splits: ExpenseSplitInfo[] = (splitsData || []).map((s) => ({
-        user_id: s.user_id,
-        amount: Number(s.amount),
-        user: s.user as unknown as UserSummary,
-      }));
-
-      setExpense({
-        ...expenseData,
-        amount: Number(expenseData.amount),
-        currency: expenseData.currency as CurrencyCode,
-        paid_by_user: expenseData.paid_by_user as UserSummary,
-        category: expenseData.category as DbCategory | null,
-        splits,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to fetch expense';
-      setError(message);
-      console.error('[useExpense] Error:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [expenseId, user, isOnline]);
-
-  const updateExpense = useCallback(async (
-    updates: DbExpenseUpdate,
-    newSplits?: { user_id: string; amount: number }[]
-  ): Promise<boolean> => {
-    if (!expenseId || !expense) return false;
-
-    try {
       if (isOnline) {
         // Update expense
         const { error: updateError } = await supabase
@@ -137,25 +135,27 @@ export function useExpense(expenseId: string | undefined): UseExpenseResult {
 
           if (splitsError) throw splitsError;
         }
-
-        await fetchExpense();
       } else {
         await syncQueue.add('UPDATE_EXPENSE', { id: expenseId, ...updates, splits: newSplits });
-        
-        // Optimistic update
-        setExpense((prev) => prev ? { ...prev, ...updates } : null);
       }
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update expense');
-      return false;
-    }
-  }, [expenseId, expense, isOnline, fetchExpense]);
+      
+      return data.group_id;
+    },
+    onSuccess: (groupId) => {
+      invalidateQueries(groupId);
+    },
+    onError: (err) => {
+      setMutationError(err instanceof Error ? err.message : 'Failed to update expense');
+    },
+  });
 
-  const deleteExpense = useCallback(async (): Promise<boolean> => {
-    if (!expenseId) return false;
+  // Delete expense mutation
+  const deleteExpenseMutation = useMutation({
+    mutationFn: async () => {
+      if (!expenseId) throw new Error('No expense ID');
 
-    try {
+      const groupId = data?.group_id;
+
       if (isOnline) {
         const { error: deleteError } = await supabase
           .from('expenses')
@@ -166,28 +166,61 @@ export function useExpense(expenseId: string | undefined): UseExpenseResult {
       } else {
         await syncQueue.add('DELETE_EXPENSE', { id: expenseId });
       }
-      setExpense(null);
+      
+      return groupId;
+    },
+    onSuccess: (groupId) => {
+      // Remove expense from cache
+      queryClient.removeQueries({ queryKey: ['expense', expenseId] });
+      if (groupId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.expenses(groupId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.group(groupId) });
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.groups });
+      queryClient.invalidateQueries({ queryKey: queryKeys.friends });
+    },
+    onError: (err) => {
+      setMutationError(err instanceof Error ? err.message : 'Failed to delete expense');
+    },
+  });
+
+  const updateExpense = async (
+    updates: DbExpenseUpdate,
+    newSplits?: { user_id: string; amount: number }[]
+  ): Promise<boolean> => {
+    setMutationError(null);
+    try {
+      await updateExpenseMutation.mutateAsync({ updates, newSplits });
       return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete expense');
+    } catch {
       return false;
     }
-  }, [expenseId, isOnline]);
+  };
 
-  useEffect(() => {
-    fetchExpense();
-  }, [fetchExpense]);
+  const deleteExpense = async (): Promise<boolean> => {
+    setMutationError(null);
+    try {
+      await deleteExpenseMutation.mutateAsync();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const refresh = async () => {
+    await refetch();
+  };
 
   // User can edit if they created the expense
-  const canEdit = expense?.created_by === user?.id;
+  const canEdit = data?.created_by === user?.id;
 
   return {
-    expense,
+    expense: data ?? null,
     isLoading,
-    error,
+    error: error ? (error instanceof Error ? error.message : 'Failed to fetch expense') : mutationError,
     updateExpense,
     deleteExpense,
-    refresh: fetchExpense,
+    refresh,
     canEdit,
   };
 }
