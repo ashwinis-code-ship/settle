@@ -172,6 +172,13 @@ export default function FriendDetailScreen() {
     );
   };
 
+  const handleTransactionPress = (item: FriendTransaction) => {
+    // Only expenses can be viewed/edited, not settlements
+    if (item.type === 'expense') {
+      router.push(`/expense/${item.id}`);
+    }
+  };
+
   const renderTransactionItem = (item: FriendTransaction, index: number) => {
     const isPositive = item.amount > 0;
     const isSettlement = item.type === 'settlement';
@@ -183,6 +190,65 @@ export default function FriendDetailScreen() {
       ? (isPositive ? 'you received' : 'you paid')
       : (isPositive ? 'you get' : 'you owe');
 
+    const content = (
+      <View style={[styles.transactionItem, { backgroundColor: cardBg }]}>
+        {/* Icon */}
+        <View
+          style={[
+            styles.transactionIcon,
+            {
+              backgroundColor: isSettlement
+                ? colors.primary[100]
+                : isPositive
+                ? colors.success + '20'
+                : colors.error + '20',
+            },
+          ]}
+        >
+          <Ionicons
+            name={isSettlement ? 'swap-horizontal' : 'receipt-outline'}
+            size={18}
+            color={isSettlement ? colors.primary[500] : (isPositive ? colors.success : colors.error)}
+          />
+        </View>
+
+        {/* Details */}
+        <View style={styles.transactionDetails}>
+          <Text style={[styles.transactionDescription, { color: textColor }]} numberOfLines={1}>
+            {item.description}
+          </Text>
+          <View style={styles.transactionMeta}>
+            <Text style={[styles.transactionDate, { color: secondaryTextColor }]}>
+              {formatDate(item.date)}
+            </Text>
+            {item.group_name && (
+              <>
+                <Text style={[styles.transactionDot, { color: secondaryTextColor }]}>•</Text>
+                <Text style={[styles.transactionGroup, { color: secondaryTextColor }]} numberOfLines={1}>
+                  {item.group_name}
+                </Text>
+              </>
+            )}
+          </View>
+        </View>
+
+        {/* Amount */}
+        <View style={styles.transactionAmountContainer}>
+          <Text style={[styles.transactionAmountLabel, { color: amountColor }]}>
+            {amountLabel}
+          </Text>
+          <Text style={[styles.transactionAmount, { color: amountColor }]}>
+            {formatBalance(item.amount, item.currency)}
+          </Text>
+        </View>
+
+        {/* Chevron for expenses */}
+        {!isSettlement && (
+          <Ionicons name="chevron-forward" size={16} color={secondaryTextColor} style={{ marginLeft: 4 }} />
+        )}
+      </View>
+    );
+
     return (
       <MotiView
         key={item.id}
@@ -190,57 +256,16 @@ export default function FriendDetailScreen() {
         animate={{ opacity: 1, translateX: 0 }}
         transition={{ type: 'timing', duration: 300, delay: index * 40 }}
       >
-        <View style={[styles.transactionItem, { backgroundColor: cardBg }]}>
-          {/* Icon */}
-          <View
-            style={[
-              styles.transactionIcon,
-              {
-                backgroundColor: isSettlement
-                  ? colors.primary[100]
-                  : isPositive
-                  ? colors.success + '20'
-                  : colors.error + '20',
-              },
-            ]}
+        {isSettlement ? (
+          content
+        ) : (
+          <Pressable
+            onPress={() => handleTransactionPress(item)}
+            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
           >
-            <Ionicons
-              name={isSettlement ? 'swap-horizontal' : 'receipt-outline'}
-              size={18}
-              color={isSettlement ? colors.primary[500] : (isPositive ? colors.success : colors.error)}
-            />
-          </View>
-
-          {/* Details */}
-          <View style={styles.transactionDetails}>
-            <Text style={[styles.transactionDescription, { color: textColor }]} numberOfLines={1}>
-              {item.description}
-            </Text>
-            <View style={styles.transactionMeta}>
-              <Text style={[styles.transactionDate, { color: secondaryTextColor }]}>
-                {formatDate(item.date)}
-              </Text>
-              {item.group_name && (
-                <>
-                  <Text style={[styles.transactionDot, { color: secondaryTextColor }]}>•</Text>
-                  <Text style={[styles.transactionGroup, { color: secondaryTextColor }]} numberOfLines={1}>
-                    {item.group_name}
-                  </Text>
-                </>
-              )}
-            </View>
-          </View>
-
-          {/* Amount */}
-          <View style={styles.transactionAmountContainer}>
-            <Text style={[styles.transactionAmountLabel, { color: amountColor }]}>
-              {amountLabel}
-            </Text>
-            <Text style={[styles.transactionAmount, { color: amountColor }]}>
-              {formatBalance(item.amount, item.currency)}
-            </Text>
-          </View>
-        </View>
+            {content}
+          </Pressable>
+        )}
       </MotiView>
     );
   };
