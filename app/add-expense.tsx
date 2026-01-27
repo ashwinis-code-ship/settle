@@ -450,13 +450,82 @@ export default function AddExpenseScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        {/* Search Mode: Fixed search bar at top */}
+        {isSearchMode && !hasSelectedTarget && (
+          <MotiView
+            from={{ opacity: 0, translateY: -10 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: 300 }}
+            style={[styles.searchBarFixed, { backgroundColor }]}
+          >
+            <View style={[styles.searchInputContainer, { backgroundColor: cardBg, borderColor }]}>
+              <Ionicons name="search" size={20} color={secondaryTextColor} />
+              <TextInput
+                style={[styles.searchInput, { color: textColor }]}
+                placeholder="Search group or contact..."
+                placeholderTextColor={secondaryTextColor}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onFocus={() => setShowSearchResults(true)}
+                autoFocus
+              />
+              {searchQuery.length > 0 && (
+                <Pressable onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={20} color={secondaryTextColor} />
+                </Pressable>
+              )}
+            </View>
+            {errors.target && (
+              <Text style={styles.errorMessage}>{errors.target}</Text>
+            )}
+          </MotiView>
+        )}
+
+        {/* Search Results - Scrollable area below fixed search bar */}
+        {isSearchMode && !hasSelectedTarget && showSearchResults && (
+          <ScrollView
+            style={styles.flex}
+            contentContainerStyle={styles.searchResultsScrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={[styles.searchResultsContainer, { backgroundColor: cardBg }]}>
+              {isLoadingSearch ? (
+                <View style={styles.searchLoadingContainer}>
+                  <ActivityIndicator size="small" color={colors.primary[500]} />
+                </View>
+              ) : hasContactPermission === false ? (
+                <View style={styles.searchEmptyState}>
+                  <Ionicons name="lock-closed-outline" size={32} color={colors.gray[400]} />
+                  <Text style={[styles.searchEmptyText, { color: secondaryTextColor }]}>
+                    Contact permission required
+                  </Text>
+                </View>
+              ) : searchResults.length === 0 ? (
+                <View style={styles.searchEmptyState}>
+                  <Ionicons name="search-outline" size={32} color={colors.gray[400]} />
+                  <Text style={[styles.searchEmptyText, { color: secondaryTextColor }]}>
+                    {searchQuery ? 'No results found' : 'Type to search'}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.searchResultsList}>
+                  {searchResults.map((item) => (
+                    <View key={`${item.type}-${item.id}`}>
+                      {renderSearchResult({ item })}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        )}
+
+        {/* Main Form ScrollView - only shown when target is selected */}
+        {(hasPreselection || hasSelectedTarget) && (
         <ScrollView
           style={styles.flex}
-          contentContainerStyle={[
-            styles.scrollContent,
-            // Make content grow to fill screen in search mode
-            isSearchMode && !hasSelectedTarget && styles.scrollContentFlex,
-          ]}
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -465,67 +534,7 @@ export default function AddExpenseScreen() {
             from={{ opacity: 0, translateY: 10 }}
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ type: 'timing', duration: 300, delay: 50 }}
-            style={isSearchMode && !hasSelectedTarget ? styles.flex : undefined}
           >
-            {/* Search Mode: Show search input */}
-            {isSearchMode && !hasSelectedTarget && (
-              <View style={styles.searchSection}>
-                <View style={[styles.searchInputContainer, { backgroundColor: cardBg, borderColor }]}>
-                  <Ionicons name="search" size={20} color={secondaryTextColor} />
-                  <TextInput
-                    style={[styles.searchInput, { color: textColor }]}
-                    placeholder="Search group or contact..."
-                    placeholderTextColor={secondaryTextColor}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    onFocus={() => setShowSearchResults(true)}
-                    autoFocus
-                  />
-                  {searchQuery.length > 0 && (
-                    <Pressable onPress={() => setSearchQuery('')}>
-                      <Ionicons name="close-circle" size={20} color={secondaryTextColor} />
-                    </Pressable>
-                  )}
-                </View>
-
-                {/* Search Results - using map instead of FlatList to avoid nesting issue */}
-                {showSearchResults && (
-                  <View style={[styles.searchResultsContainer, { backgroundColor: cardBg }]}>
-                    {isLoadingSearch ? (
-                      <View style={styles.searchLoadingContainer}>
-                        <ActivityIndicator size="small" color={colors.primary[500]} />
-                      </View>
-                    ) : hasContactPermission === false ? (
-                      <View style={styles.searchEmptyState}>
-                        <Ionicons name="lock-closed-outline" size={32} color={colors.gray[400]} />
-                        <Text style={[styles.searchEmptyText, { color: secondaryTextColor }]}>
-                          Contact permission required
-                        </Text>
-                      </View>
-                    ) : searchResults.length === 0 ? (
-                      <View style={styles.searchEmptyState}>
-                        <Ionicons name="search-outline" size={32} color={colors.gray[400]} />
-                        <Text style={[styles.searchEmptyText, { color: secondaryTextColor }]}>
-                          {searchQuery ? 'No results found' : 'Type to search'}
-                        </Text>
-                      </View>
-                    ) : (
-                      <View style={styles.searchResultsList}>
-                        {searchResults.map((item) => (
-                          <View key={`${item.type}-${item.id}`}>
-                            {renderSearchResult({ item })}
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                )}
-                {errors.target && (
-                  <Text style={styles.errorMessage}>{errors.target}</Text>
-                )}
-              </View>
-            )}
-
             {/* Selected Target: Show static display with clear button */}
             {(hasPreselection || hasSelectedTarget) && (
               <View style={[styles.groupInfo, { backgroundColor: cardBg }]}>
@@ -955,6 +964,7 @@ export default function AddExpenseScreen() {
             </>
           )}
         </ScrollView>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -1013,6 +1023,15 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   // Search styles
+  searchBarFixed: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  searchResultsScrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+  },
   searchSection: {
     flex: 1,
   },
