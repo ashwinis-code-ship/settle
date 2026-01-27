@@ -152,101 +152,100 @@ export default function GroupDetailScreen() {
         </View>
       </MotiView>
 
-      {/* Contributions Chart */}
+      {/* Contributions - Stacked Bar */}
       <MotiView
         from={{ opacity: 0, translateY: 20 }}
         animate={{ opacity: 1, translateY: 0 }}
         transition={{ type: 'timing', duration: 400, delay: 200 }}
         style={styles.section}
       >
-        <Text style={[styles.sectionTitle, { color: textColor }]}>Contributions</Text>
-        <View style={[styles.balancesCard, { backgroundColor: cardBg }]}>
-          {sortedBalances.length === 0 ? (
+        <View style={styles.contributionHeaderRow}>
+          <Text style={[styles.sectionTitle, { color: textColor, marginBottom: 0 }]}>Contributions</Text>
+          <Text style={[styles.totalSpendingValue, { color: textColor }]}>
+            {formatCurrency(sortedBalances.reduce((sum, b) => sum + b.total_paid, 0))}
+          </Text>
+        </View>
+        <View style={[styles.stackedBarCard, { backgroundColor: cardBg }]}>
+          {sortedBalances.length === 0 || sortedBalances.reduce((sum, b) => sum + b.total_paid, 0) === 0 ? (
             <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
               No expenses yet
             </Text>
           ) : (
-            <>
-              {/* Total Spending */}
-              <View style={styles.totalSpendingRow}>
-                <Text style={[styles.totalSpendingLabel, { color: secondaryTextColor }]}>
-                  Total Group Spending
-                </Text>
-                <Text style={[styles.totalSpendingValue, { color: textColor }]}>
-                  {formatCurrency(sortedBalances.reduce((sum, b) => sum + b.total_paid, 0))}
-                </Text>
-              </View>
+            (() => {
+              const totalPaid = sortedBalances.reduce((sum, b) => sum + b.total_paid, 0);
+              const contributionColors = [
+                colors.primary[500],
+                colors.success,
+                '#9333EA',
+                '#F97316',
+                '#06B6D4',
+                '#EC4899',
+                '#14B8A6',
+                colors.warning,
+              ];
               
-              {/* Contribution Bars */}
-              {(() => {
-                const totalPaid = sortedBalances.reduce((sum, b) => sum + b.total_paid, 0);
-                const contributionColors = [
-                  colors.primary[500],
-                  colors.success,
-                  '#9333EA',
-                  '#F97316',
-                  '#06B6D4',
-                  '#EC4899',
-                  '#14B8A6',
-                  colors.warning,
-                ];
-                
-                return sortedBalances
-                  .sort((a, b) => b.total_paid - a.total_paid)
-                  .map((balance, index) => {
-                    const percentage = totalPaid > 0 ? (balance.total_paid / totalPaid) * 100 : 0;
-                    const barColor = contributionColors[index % contributionColors.length];
-                    
-                    return (
-                      <View
-                        key={balance.user.id}
-                        style={[
-                          styles.contributionItem,
-                          index < sortedBalances.length - 1 && styles.balanceItemBorder,
-                          { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] },
-                        ]}
-                      >
-                        <View style={styles.contributionHeader}>
-                          <View style={styles.balanceUser}>
-                            <View
-                              style={[
-                                styles.balanceAvatar,
-                                { backgroundColor: barColor }
-                              ]}
-                            >
-                              <Text style={styles.balanceAvatarText}>
-                                {getInitials(balance.user.name)}
-                              </Text>
-                            </View>
-                            <Text style={[styles.balanceName, { color: textColor }]}>
-                              {balance.user.id === user?.id ? 'You' : balance.user.name}
+              // Sort by contribution (highest first) and filter out zero contributors
+              const contributors = sortedBalances
+                .map((b, i) => ({
+                  ...b,
+                  percentage: (b.total_paid / totalPaid) * 100,
+                  color: contributionColors[i % contributionColors.length],
+                }))
+                .sort((a, b) => b.total_paid - a.total_paid);
+              
+              return (
+                <>
+                  {/* Stacked Bar */}
+                  <View style={styles.stackedBarContainer}>
+                    {contributors.map((contributor, index) => {
+                      const isFirst = index === 0;
+                      const isLast = index === contributors.length - 1;
+                      const showInitials = contributor.percentage >= 12; // Only show initials if segment is wide enough
+                      
+                      if (contributor.percentage === 0) return null;
+                      
+                      return (
+                        <View
+                          key={contributor.user.id}
+                          style={[
+                            styles.stackedBarSegment,
+                            {
+                              width: `${contributor.percentage}%`,
+                              backgroundColor: contributor.color,
+                              borderTopLeftRadius: isFirst ? 8 : 0,
+                              borderBottomLeftRadius: isFirst ? 8 : 0,
+                              borderTopRightRadius: isLast ? 8 : 0,
+                              borderBottomRightRadius: isLast ? 8 : 0,
+                            },
+                          ]}
+                        >
+                          {showInitials && (
+                            <Text style={styles.stackedBarInitials}>
+                              {contributor.user.id === user?.id ? 'You' : getInitials(contributor.user.name)}
                             </Text>
-                          </View>
-                          <Text style={[styles.contributionAmount, { color: textColor }]}>
-                            {formatCurrency(balance.total_paid)}
-                          </Text>
+                          )}
                         </View>
-                        
-                        {/* Progress Bar */}
-                        <View style={[styles.contributionBarBg, { backgroundColor: isDark ? colors.gray[700] : colors.gray[200] }]}>
-                          <View 
-                            style={[
-                              styles.contributionBarFill, 
-                              { 
-                                width: `${Math.max(percentage, 2)}%`,
-                                backgroundColor: barColor,
-                              }
-                            ]} 
-                          />
-                        </View>
-                        <Text style={[styles.contributionPercentage, { color: secondaryTextColor }]}>
-                          {percentage.toFixed(0)}% of total
+                      );
+                    })}
+                  </View>
+                  
+                  {/* Legend */}
+                  <View style={styles.stackedBarLegend}>
+                    {contributors.map((contributor) => (
+                      <View key={contributor.user.id} style={styles.legendItem}>
+                        <View style={[styles.legendDot, { backgroundColor: contributor.color }]} />
+                        <Text style={[styles.legendText, { color: secondaryTextColor }]} numberOfLines={1}>
+                          {contributor.user.id === user?.id ? 'You' : contributor.user.name.split(' ')[0]}
+                        </Text>
+                        <Text style={[styles.legendAmount, { color: textColor }]}>
+                          {formatCurrency(contributor.total_paid)}
                         </Text>
                       </View>
-                    );
-                  });
-              })()}
-            </>
+                    ))}
+                  </View>
+                </>
+              );
+            })()
           )}
         </View>
       </MotiView>
@@ -661,47 +660,62 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     padding: 16,
   },
-  // Contribution styles
-  totalSpendingRow: {
+  // Stacked Bar Contribution styles
+  contributionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[200],
-  },
-  totalSpendingLabel: {
-    fontSize: 14,
-    fontWeight: '500',
+    marginBottom: 12,
   },
   totalSpendingValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
   },
-  contributionItem: {
-    padding: 12,
+  stackedBarCard: {
+    borderRadius: 16,
+    padding: 16,
   },
-  contributionHeader: {
+  stackedBarContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  contributionAmount: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  contributionBarBg: {
-    height: 8,
-    borderRadius: 4,
+    height: 40,
+    borderRadius: 8,
     overflow: 'hidden',
   },
-  contributionBarFill: {
+  stackedBarSegment: {
     height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stackedBarInitials: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  stackedBarLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 12,
+    gap: 8,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    gap: 6,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
     borderRadius: 4,
   },
-  contributionPercentage: {
+  legendText: {
     fontSize: 12,
-    marginTop: 4,
+    maxWidth: 60,
+  },
+  legendAmount: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
