@@ -95,6 +95,7 @@ export function useSettlements(options: UseSettlementsOptions = {}): UseSettleme
     }
     queryClient.invalidateQueries({ queryKey: queryKeys.groups });
     queryClient.invalidateQueries({ queryKey: queryKeys.friends });
+    queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
     if (friendId) {
       queryClient.invalidateQueries({ queryKey: queryKeys.friendDetail(friendId) });
     }

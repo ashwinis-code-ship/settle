@@ -152,7 +152,7 @@ FORGOT PASSWORD:
 **Goal**: Home screen overview + animations
 
 - [x] 7.1 Dashboard with total owed/owing summary ✅
-- [ ] 7.2 Recent activity feed
+- [x] 7.2 Recent activity feed ✅
 - [ ] 7.3 Fluid animations throughout (Moti)
 - [ ] 7.4 Empty states with illustrations
 - [ ] 7.5 Loading skeletons

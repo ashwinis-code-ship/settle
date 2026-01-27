@@ -102,6 +102,7 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
     queryClient.invalidateQueries({ queryKey: queryKeys.group(groupId || '') });
     queryClient.invalidateQueries({ queryKey: queryKeys.groups });
     queryClient.invalidateQueries({ queryKey: queryKeys.friends });
+    queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
   };
 
   // Create expense mutation

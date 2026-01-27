@@ -7,7 +7,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { MotiView } from 'moti';
 import { useMemo } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
@@ -15,6 +15,7 @@ import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFriends } from '@/hooks/use-friends';
+import { useRecentActivity, type ActivityItem } from '@/hooks/use-recent-activity';
 import { formatCurrency } from '@/lib/utils';
 
 export default function HomeScreen() {
@@ -22,6 +23,7 @@ export default function HomeScreen() {
   const isDark = colorScheme === 'dark';
   const { user } = useAuth();
   const { friends, isLoading: isLoadingFriends } = useFriends();
+  const { activities, isLoading: isLoadingActivity } = useRecentActivity();
 
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
   const secondaryTextColor = isDark ? colors.text.dark.secondary : colors.text.light.secondary;
@@ -71,6 +73,34 @@ export default function HomeScreen() {
 
   const handleSettleUp = () => {
     router.push('/settle-up');
+  };
+
+  const handleActivityPress = (item: ActivityItem) => {
+    if (item.type === 'expense') {
+      router.push(`/expense/${item.id}`);
+    }
+    // Settlements don't have a detail screen yet
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    
+    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   return (
@@ -200,7 +230,7 @@ export default function HomeScreen() {
           </View>
         </MotiView>
 
-        {/* Recent Activity Placeholder */}
+        {/* Recent Activity */}
         <MotiView
           from={{ opacity: 0, translateY: 20 }}
           animate={{ opacity: 1, translateY: 0 }}
@@ -208,15 +238,126 @@ export default function HomeScreen() {
           style={styles.recentSection}
         >
           <Text style={[styles.sectionTitle, { color: textColor }]}>Recent Activity</Text>
-          <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
-            <Ionicons name="receipt-outline" size={48} color={colors.gray[400]} />
-            <Text style={[styles.emptyStateTitle, { color: textColor }]}>
-              No recent activity
-            </Text>
-            <Text style={[styles.emptyStateText, { color: secondaryTextColor }]}>
-              Your expenses and settlements will appear here
-            </Text>
-          </View>
+          
+          {isLoadingActivity ? (
+            <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
+              <ActivityIndicator size="small" color={colors.primary[500]} />
+            </View>
+          ) : activities.length === 0 ? (
+            <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
+              <Ionicons name="receipt-outline" size={48} color={colors.gray[400]} />
+              <Text style={[styles.emptyStateTitle, { color: textColor }]}>
+                No recent activity
+              </Text>
+              <Text style={[styles.emptyStateText, { color: secondaryTextColor }]}>
+                Your expenses and settlements will appear here
+              </Text>
+            </View>
+          ) : (
+            <ScrollView 
+              style={styles.activityList}
+              showsVerticalScrollIndicator={false}
+            >
+              {activities.map((item, index) => {
+                const isSettlement = item.type === 'settlement';
+                const isYouPaid = item.paid_by.id === user?.id;
+                
+                return (
+                  <MotiView
+                    key={item.id}
+                    from={{ opacity: 0, translateX: -20 }}
+                    animate={{ opacity: 1, translateX: 0 }}
+                    transition={{ type: 'timing', duration: 300, delay: index * 50 }}
+                  >
+                    <Pressable
+                      onPress={() => handleActivityPress(item)}
+                      style={({ pressed }) => [
+                        styles.activityItem,
+                        { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },
+                      ]}
+                    >
+                      {/* Icon */}
+                      <View
+                        style={[
+                          styles.activityIcon,
+                          {
+                            backgroundColor: isSettlement
+                              ? colors.primary[100]
+                              : colors.gray[100],
+                          },
+                        ]}
+                      >
+                        {item.category_icon ? (
+                          <Text style={styles.activityEmoji}>{item.category_icon}</Text>
+                        ) : (
+                          <Ionicons
+                            name={isSettlement ? 'swap-horizontal' : 'receipt-outline'}
+                            size={18}
+                            color={isSettlement ? colors.primary[500] : colors.gray[600]}
+                          />
+                        )}
+                      </View>
+
+                      {/* Details */}
+                      <View style={styles.activityDetails}>
+                        <Text style={[styles.activityDescription, { color: textColor }]} numberOfLines={1}>
+                          {isSettlement 
+                            ? (isYouPaid 
+                                ? `You paid ${item.paid_to?.name}` 
+                                : `${item.paid_by.name} paid you`)
+                            : item.description
+                          }
+                        </Text>
+                        <View style={styles.activityMeta}>
+                          <Text style={[styles.activityDate, { color: secondaryTextColor }]}>
+                            {formatDate(item.date)}
+                          </Text>
+                          {item.group_name && (
+                            <>
+                              <Text style={[styles.activityDot, { color: secondaryTextColor }]}>•</Text>
+                              <Text style={[styles.activityGroup, { color: secondaryTextColor }]} numberOfLines={1}>
+                                {item.group_name}
+                              </Text>
+                            </>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Amount */}
+                      <View style={styles.activityAmountContainer}>
+                        {isSettlement ? (
+                          <Text style={[styles.activityAmount, { color: colors.primary[500] }]}>
+                            {formatCurrency(item.amount, item.currency)}
+                          </Text>
+                        ) : (
+                          <>
+                            <Text style={[styles.activityAmount, { color: textColor }]}>
+                              {formatCurrency(item.amount, item.currency)}
+                            </Text>
+                            {item.your_share !== undefined && item.your_share > 0 && (
+                              <Text style={[styles.activityShare, { color: colors.error }]}>
+                                you owe {formatCurrency(item.your_share, item.currency)}
+                              </Text>
+                            )}
+                            {isYouPaid && (
+                              <Text style={[styles.activityShare, { color: colors.success }]}>
+                                you paid
+                              </Text>
+                            )}
+                          </>
+                        )}
+                      </View>
+
+                      {/* Chevron for expenses */}
+                      {!isSettlement && (
+                        <Ionicons name="chevron-forward" size={16} color={secondaryTextColor} />
+                      )}
+                    </Pressable>
+                  </MotiView>
+                );
+              })}
+            </ScrollView>
+          )}
         </MotiView>
       </View>
     </SafeAreaView>
@@ -359,6 +500,63 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 14,
     textAlign: 'center',
+  },
+  // Activity feed styles
+  activityList: {
+    flex: 1,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 14,
+    marginBottom: 8,
+  },
+  activityIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activityEmoji: {
+    fontSize: 18,
+  },
+  activityDetails: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  activityDescription: {
+    fontSize: 15,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  activityMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  activityDate: {
+    fontSize: 12,
+  },
+  activityDot: {
+    marginHorizontal: 4,
+    fontSize: 12,
+  },
+  activityGroup: {
+    fontSize: 12,
+    maxWidth: 80,
+  },
+  activityAmountContainer: {
+    alignItems: 'flex-end',
+    marginLeft: 8,
+  },
+  activityAmount: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  activityShare: {
+    fontSize: 11,
+    marginTop: 2,
   },
 });
 

@@ -27,4 +27,5 @@ export const queryKeys = {
   settlements: (params?: { groupId?: string; friendId?: string }) => 
     ['settlements', params] as const,
   friendDetail: (id: string) => ['friendDetail', id] as const,
+  recentActivity: ['recentActivity'] as const,
 };

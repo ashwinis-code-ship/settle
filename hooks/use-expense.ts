@@ -96,6 +96,7 @@ export function useExpense(expenseId: string | undefined): UseExpenseResult {
     }
     queryClient.invalidateQueries({ queryKey: queryKeys.groups });
     queryClient.invalidateQueries({ queryKey: queryKeys.friends });
+    queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
   };
 
   // Update expense mutation
@@ -178,6 +179,7 @@ export function useExpense(expenseId: string | undefined): UseExpenseResult {
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.groups });
       queryClient.invalidateQueries({ queryKey: queryKeys.friends });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
     },
     onError: (err) => {
       setMutationError(err instanceof Error ? err.message : 'Failed to delete expense');
