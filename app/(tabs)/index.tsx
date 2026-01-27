@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFriends } from '@/hooks/use-friends';
 import { useRecentActivity, type ActivityItem } from '@/hooks/use-recent-activity';
+import { hapticLight } from '@/lib/haptics';
 import { formatCurrency } from '@/lib/utils';
 
 export default function HomeScreen() {
@@ -71,19 +72,23 @@ export default function HomeScreen() {
     .slice(0, 2);
 
   const handleAddExpense = () => {
+    hapticLight();
     router.push('/add-expense');
   };
 
   const handleCreateGroup = () => {
+    hapticLight();
     router.push('/create-group');
   };
 
   const handleSettleUp = () => {
+    hapticLight();
     router.push('/settle-up');
   };
 
   const handleActivityPress = (item: ActivityItem) => {
     if (item.type === 'expense') {
+      hapticLight();
       router.push(`/expense/${item.id}`);
     }
     // Settlements don't have a detail screen yet

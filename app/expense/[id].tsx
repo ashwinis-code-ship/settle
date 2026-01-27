@@ -30,6 +30,7 @@ import { useCategories } from '@/hooks/use-categories';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useExpense } from '@/hooks/use-expense';
 import { useGroup } from '@/hooks/use-group';
+import { hapticHeavy, hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import type { CurrencyCode, DbCategory, SplitType } from '@/types';
 import { CURRENCIES } from '@/types/database';
 
@@ -121,16 +122,19 @@ export default function ExpenseDetailScreen() {
 
     const amountNum = parseFloat(amount);
     if (!description.trim() || isNaN(amountNum) || amountNum <= 0) {
+      hapticWarning();
       Alert.alert('Invalid Input', 'Please enter a valid description and amount.');
       return;
     }
 
     if (splitBetween.length === 0) {
+      hapticWarning();
       Alert.alert('Invalid Split', 'Please select at least one person to split with.');
       return;
     }
 
     if (!paidBy) {
+      hapticWarning();
       Alert.alert('Invalid Input', 'Please select who paid.');
       return;
     }
@@ -158,13 +162,16 @@ export default function ExpenseDetailScreen() {
     setIsSubmitting(false);
 
     if (success) {
+      hapticSuccess();
       setIsEditing(false);
     } else {
+      hapticWarning();
       Alert.alert('Error', 'Failed to update expense. Please try again.');
     }
   };
 
   const toggleMemberInSplit = (userId: string) => {
+    hapticSelection();
     setSplitBetween((prev) => {
       if (prev.includes(userId)) {
         // Don't allow removing the last person
@@ -184,6 +191,7 @@ export default function ExpenseDetailScreen() {
   };
 
   const handleDelete = () => {
+    hapticHeavy();
     Alert.alert(
       'Delete Expense',
       'Are you sure you want to delete this expense? This action cannot be undone.',
@@ -198,8 +206,10 @@ export default function ExpenseDetailScreen() {
             setIsDeleting(false);
 
             if (success) {
+              hapticSuccess();
               router.back();
             } else {
+              hapticWarning();
               Alert.alert('Error', 'Failed to delete expense. Please try again.');
             }
           },

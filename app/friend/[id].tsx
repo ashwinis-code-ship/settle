@@ -23,6 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFriendDetail, type GroupBalance } from '@/hooks/use-friend-detail';
+import { hapticLight } from '@/lib/haptics';
 import { CURRENCIES } from '@/types/database';
 import type { FriendTransaction } from '@/types';
 
@@ -49,6 +50,7 @@ export default function FriendDetailScreen() {
   };
 
   const handleAddExpense = () => {
+    hapticLight();
     router.push({
       pathname: '/add-expense',
       params: { friendId: params.id, friendName: friend?.user.name || params.name },
@@ -56,6 +58,7 @@ export default function FriendDetailScreen() {
   };
 
   const handleSettleUp = () => {
+    hapticLight();
     router.push({
       pathname: '/settle-up',
       params: { 
@@ -68,6 +71,7 @@ export default function FriendDetailScreen() {
   };
 
   const handleGroupPress = (groupId: string) => {
+    hapticLight();
     router.push(`/group/${groupId}`);
   };
 
@@ -179,6 +183,7 @@ export default function FriendDetailScreen() {
   const handleTransactionPress = (item: FriendTransaction) => {
     // Only expenses can be viewed/edited, not settlements
     if (item.type === 'expense') {
+      hapticLight();
       router.push(`/expense/${item.id}`);
     }
   };

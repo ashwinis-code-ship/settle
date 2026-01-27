@@ -28,6 +28,7 @@ import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSettlements } from '@/hooks/use-settlements';
+import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import type { UserSummary } from '@/types';
 import { type CurrencyCode } from '@/types/database';
@@ -215,6 +216,7 @@ export default function SettleUpScreen() {
   }, [searchQuery, isSearchMode, searchFriendsWithBalance]);
 
   const handleSelectTarget = (target: SettleTarget) => {
+    hapticLight();
     setSelectedTarget(target);
     setIsSearchMode(false);
     // Pre-fill amount
@@ -239,6 +241,7 @@ export default function SettleUpScreen() {
 
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      hapticWarning();
       Alert.alert('Invalid Amount', 'Please enter a valid amount greater than 0');
       return;
     }
@@ -277,6 +280,7 @@ export default function SettleUpScreen() {
       console.log('[SettleUp] Settlement result:', result);
 
       if (result) {
+        hapticSuccess();
         Alert.alert(
           'Settlement Recorded',
           `₹${parsedAmount.toFixed(2)} payment has been recorded.`,

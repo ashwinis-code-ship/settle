@@ -37,6 +37,7 @@ import { useContactGroupSearch, type SearchResult, type SearchResultContact, typ
 import { useDirectGroup } from '@/hooks/use-direct-group';
 import { useExpenses } from '@/hooks/use-expenses';
 import { useGroup } from '@/hooks/use-group';
+import { hapticLight, hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import type { CurrencyCode, DbCategory, ExpenseFormData, GroupMember, SplitType } from '@/types';
 import { CURRENCIES } from '@/types/database';
@@ -222,7 +223,11 @@ export default function AddExpenseScreen() {
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const isValid = Object.keys(newErrors).length === 0;
+    if (!isValid) {
+      hapticWarning();
+    }
+    return isValid;
   };
 
   const handleSubmit = async () => {
@@ -315,11 +320,13 @@ export default function AddExpenseScreen() {
     setIsSubmitting(false);
 
     if (expenseId) {
+      hapticSuccess();
       router.back();
     }
   };
 
   const toggleMemberInSplit = (userId: string) => {
+    hapticSelection();
     setSplitBetween((prev) => {
       if (prev.includes(userId)) {
         return prev.filter((id) => id !== userId);
@@ -697,6 +704,7 @@ export default function AddExpenseScreen() {
                       },
                     ]}
                     onPress={() => {
+                      hapticSelection();
                       setSelectedCategory(category);
                       setShowCategoryPicker(false);
                     }}

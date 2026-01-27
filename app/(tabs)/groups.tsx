@@ -22,6 +22,7 @@ import { router } from 'expo-router';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroups } from '@/hooks/use-groups';
+import { hapticLight } from '@/lib/haptics';
 import { CURRENCIES } from '@/types/database';
 import type { GroupListItem } from '@/types';
 
@@ -43,10 +44,12 @@ export default function GroupsScreen() {
   }, [refresh]);
 
   const handleCreateGroup = () => {
+    hapticLight();
     router.push('/create-group');
   };
 
   const handleGroupPress = (group: GroupListItem) => {
+    hapticLight();
     router.push(`/group/${group.id}`);
   };
 

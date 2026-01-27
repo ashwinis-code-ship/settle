@@ -22,6 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFriends } from '@/hooks/use-friends';
+import { hapticLight } from '@/lib/haptics';
 import { CURRENCIES } from '@/types/database';
 import type { Friend } from '@/types';
 
@@ -43,7 +44,7 @@ export default function FriendsScreen() {
   }, [refresh]);
 
   const handleFriendPress = (friend: Friend) => {
-    // Navigate to friend detail screen (will be implemented in 5.2)
+    hapticLight();
     router.push({
       pathname: '/friend/[id]',
       params: { id: friend.user.id, name: friend.user.name },
@@ -51,7 +52,7 @@ export default function FriendsScreen() {
   };
 
   const handleAddExpense = (friend: Friend) => {
-    // Navigate to add expense with this friend
+    hapticLight();
     router.push({
       pathname: '/add-expense',
       params: { friendId: friend.user.id, friendName: friend.user.name },

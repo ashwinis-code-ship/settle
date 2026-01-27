@@ -25,6 +25,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useExpenses } from '@/hooks/use-expenses';
 import { useGroup } from '@/hooks/use-group';
 import { useSettlements } from '@/hooks/use-settlements';
+import { hapticLight } from '@/lib/haptics';
 import type { ExpenseListItem, Settlement } from '@/types';
 
 // Union type for activity items (expense or settlement)
@@ -112,11 +113,12 @@ export default function GroupDetailScreen() {
   }, [refreshGroup, refreshExpenses, refreshSettlements]);
 
   const handleAddExpense = () => {
-    // TODO: Navigate to add expense screen
+    hapticLight();
     router.push(`/add-expense?groupId=${id}`);
   };
 
   const handleSettings = () => {
+    hapticLight();
     router.push(`/group/${id}/settings`);
   };
 
@@ -272,6 +274,7 @@ export default function GroupDetailScreen() {
   );
 
   const handleExpensePress = (expenseId: string) => {
+    hapticLight();
     router.push(`/expense/${expenseId}`);
   };
 

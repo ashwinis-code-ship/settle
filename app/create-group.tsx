@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroups } from '@/hooks/use-groups';
+import { hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { ContactEntry } from '@/types';
 
 // Utility functions
@@ -79,6 +80,7 @@ export default function CreateGroupScreen() {
   };
 
   const handleToggleContact = useCallback((contact: ContactEntry) => {
+    hapticSelection();
     setSelectedContacts(prev => {
       const isSelected = prev.some(c => c.id === contact.id);
       if (isSelected) {
@@ -99,6 +101,7 @@ export default function CreateGroupScreen() {
     }
 
     if (Object.keys(newErrors).length > 0) {
+      hapticWarning();
       setErrors(newErrors);
       return;
     }
@@ -123,8 +126,10 @@ export default function CreateGroupScreen() {
       });
 
       if (groupId) {
+        hapticSuccess();
         router.back();
       } else {
+        hapticWarning();
         setErrors({ form: 'Failed to create group. Please try again.' });
       }
     } catch (err) {
