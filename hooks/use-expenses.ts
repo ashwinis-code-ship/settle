@@ -2,13 +2,15 @@
  * Expenses Hook
  * 
  * Manages expenses for a specific group.
+ * Uses TanStack Query for caching and deduplication.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { syncQueue } from '@/lib/sync-queue';
 import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
+import { queryKeys } from '@/lib/query-client';
 import type {
   DbCategory,
   ExpenseFormData,
@@ -16,6 +18,60 @@ import type {
   UserSummary,
   CurrencyCode,
 } from '@/types';
+import { useState } from 'react';
+
+async function fetchExpenses(groupId: string, userId: string): Promise<ExpenseListItem[]> {
+  // Fetch expenses with paid_by user and category
+  const { data: expensesData, error: expensesError } = await supabase
+    .from('expenses')
+    .select(`
+      *,
+      paid_by_user:paid_by (id, name, phone, avatar_url),
+      category:category_id (*)
+    `)
+    .eq('group_id', groupId)
+    .order('expense_date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (expensesError) throw expensesError;
+
+  // Get splits for user's share calculation
+  const expenseIds = (expensesData || []).map((e) => e.id);
+  
+  const { data: splitsData } = await supabase
+    .from('expense_splits')
+    .select('expense_id, user_id, amount')
+    .in('expense_id', expenseIds);
+
+  // Build splits map
+  const splitsMap: Record<string, { user_id: string; amount: number }[]> = {};
+  splitsData?.forEach((split) => {
+    if (!splitsMap[split.expense_id]) {
+      splitsMap[split.expense_id] = [];
+    }
+    splitsMap[split.expense_id].push(split);
+  });
+
+  // Transform to ExpenseListItem
+  return (expensesData || []).map((e) => {
+    const splits = splitsMap[e.id] || [];
+    const userSplit = splits.find((s) => s.user_id === userId);
+    const youPaid = e.paid_by === userId;
+
+    return {
+      id: e.id,
+      description: e.description,
+      amount: Number(e.amount),
+      currency: e.currency as CurrencyCode,
+      paid_by: e.paid_by_user as UserSummary,
+      category: e.category as DbCategory | null,
+      expense_date: e.expense_date,
+      your_share: youPaid ? 0 : (userSplit?.amount || 0),
+      you_paid: youPaid,
+      split_count: splits.length,
+    };
+  });
+}
 
 interface UseExpensesResult {
   expenses: ExpenseListItem[];
@@ -29,159 +85,78 @@ interface UseExpensesResult {
 export function useExpenses(groupId: string | undefined): UseExpensesResult {
   const { user } = useAuth();
   const { isOnline } = useSync();
-  
-  const [expenses, setExpenses] = useState<ExpenseListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
-  const fetchExpenses = useCallback(async () => {
-    if (!groupId || !user) {
-      setExpenses([]);
-      setIsLoading(false);
-      return;
-    }
+  // Query for fetching expenses
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: queryKeys.expenses(groupId || ''),
+    queryFn: () => fetchExpenses(groupId!, user!.id),
+    enabled: !!groupId && !!user && isOnline,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
 
-    setIsLoading(true);
-    setError(null);
+  // Helper to invalidate related queries
+  const invalidateQueries = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.expenses(groupId || '') });
+    queryClient.invalidateQueries({ queryKey: queryKeys.group(groupId || '') });
+    queryClient.invalidateQueries({ queryKey: queryKeys.groups });
+    queryClient.invalidateQueries({ queryKey: queryKeys.friends });
+  };
 
-    try {
-      if (!isOnline) {
-        // TODO: Load from cache
-        setIsLoading(false);
-        return;
+  // Create expense mutation
+  const createExpenseMutation = useMutation({
+    mutationFn: async (formData: ExpenseFormData): Promise<string> => {
+      if (!groupId || !user) throw new Error('No group or user');
+
+      const amount = parseFloat(formData.amount);
+      if (isNaN(amount) || amount <= 0) {
+        throw new Error('Invalid amount');
       }
 
-      // Fetch expenses with paid_by user and category
-      const { data: expensesData, error: expensesError } = await supabase
-        .from('expenses')
-        .select(`
-          *,
-          paid_by_user:paid_by (id, name, phone, avatar_url),
-          category:category_id (*)
-        `)
-        .eq('group_id', groupId)
-        .order('expense_date', { ascending: false })
-        .order('created_at', { ascending: false });
-
-      if (expensesError) throw expensesError;
-
-      // Get splits for user's share calculation
-      const expenseIds = (expensesData || []).map((e) => e.id);
+      // Calculate splits based on split type
+      let splits: { user_id: string; amount: number }[];
       
-      const { data: splitsData } = await supabase
-        .from('expense_splits')
-        .select('expense_id, user_id, amount')
-        .in('expense_id', expenseIds);
+      if (formData.split_type === 'equal_all') {
+        const { data: members } = await supabase
+          .from('group_members')
+          .select('user_id')
+          .eq('group_id', groupId);
 
-      // Build splits map
-      const splitsMap: Record<string, { user_id: string; amount: number }[]> = {};
-      splitsData?.forEach((split) => {
-        if (!splitsMap[split.expense_id]) {
-          splitsMap[split.expense_id] = [];
-        }
-        splitsMap[split.expense_id].push(split);
-      });
+        const memberIds = members?.map((m) => m.user_id) || [user.id];
+        const splitAmount = amount / memberIds.length;
+        
+        splits = memberIds.map((userId) => ({
+          user_id: userId,
+          amount: Math.round(splitAmount * 100) / 100,
+        }));
+      } else {
+        const splitAmount = amount / formData.split_between.length;
+        splits = formData.split_between.map((userId) => ({
+          user_id: userId,
+          amount: Math.round(splitAmount * 100) / 100,
+        }));
+      }
 
-      // Transform to ExpenseListItem
-      const expensesList: ExpenseListItem[] = (expensesData || []).map((e) => {
-        const splits = splitsMap[e.id] || [];
-        const userSplit = splits.find((s) => s.user_id === user.id);
-        const youPaid = e.paid_by === user.id;
-
-        return {
-          id: e.id,
-          description: e.description,
-          amount: Number(e.amount),
-          currency: e.currency as CurrencyCode,
-          paid_by: e.paid_by_user as UserSummary,
-          category: e.category as DbCategory | null,
-          expense_date: e.expense_date,
-          your_share: youPaid ? 0 : (userSplit?.amount || 0),
-          you_paid: youPaid,
-          split_count: splits.length,
-        };
-      });
-
-      setExpenses(expensesList);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to fetch expenses';
-      setError(message);
-      console.error('[useExpenses] Error:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [groupId, user, isOnline]);
-
-  const createExpense = useCallback(async (data: ExpenseFormData): Promise<string | null> => {
-    if (!groupId || !user) return null;
-
-    const amount = parseFloat(data.amount);
-    if (isNaN(amount) || amount <= 0) {
-      setError('Invalid amount');
-      return null;
-    }
-
-    // Calculate splits based on split type
-    let splits: { user_id: string; amount: number }[];
-    
-    if (data.split_type === 'equal_all') {
-      // Get all group members
-      const { data: members } = await supabase
-        .from('group_members')
-        .select('user_id')
-        .eq('group_id', groupId);
-
-      const memberIds = members?.map((m) => m.user_id) || [user.id];
-      const splitAmount = amount / memberIds.length;
-      
-      splits = memberIds.map((userId) => ({
-        user_id: userId,
-        amount: Math.round(splitAmount * 100) / 100,
-      }));
-    } else {
-      // equal_selected
-      const splitAmount = amount / data.split_between.length;
-      splits = data.split_between.map((userId) => ({
-        user_id: userId,
-        amount: Math.round(splitAmount * 100) / 100,
-      }));
-    }
-
-    const expenseData = {
-      group_id: groupId,
-      paid_by: data.paid_by,
-      amount,
-      currency: data.currency,
-      description: data.description,
-      category_id: data.category_id,
-      notes: data.notes || null,
-      expense_date: data.expense_date.toISOString().split('T')[0],
-      created_by: user.id,
-      splits,
-    };
-
-    try {
       if (isOnline) {
-        // Insert expense
         const { data: newExpense, error: expenseError } = await supabase
           .from('expenses')
           .insert({
-            group_id: expenseData.group_id,
-            paid_by: expenseData.paid_by,
-            amount: expenseData.amount,
-            currency: expenseData.currency,
-            description: expenseData.description,
-            category_id: expenseData.category_id,
-            notes: expenseData.notes,
-            expense_date: expenseData.expense_date,
-            created_by: expenseData.created_by,
+            group_id: groupId,
+            paid_by: formData.paid_by,
+            amount,
+            currency: formData.currency,
+            description: formData.description,
+            category_id: formData.category_id,
+            notes: formData.notes || null,
+            expense_date: formData.expense_date.toISOString().split('T')[0],
+            created_by: user.id,
           })
           .select('id')
           .single();
 
         if (expenseError) throw expenseError;
 
-        // Insert splits
         const splitsWithExpenseId = splits.map((s) => ({
           ...s,
           expense_id: newExpense.id,
@@ -193,41 +168,32 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
 
         if (splitsError) throw splitsError;
 
-        await fetchExpenses();
         return newExpense.id;
       } else {
-        // Queue for later sync
-        await syncQueue.add('CREATE_EXPENSE', expenseData);
-        
-        // Optimistic update
-        const tempId = `temp_${Date.now()}`;
-        const tempExpense: ExpenseListItem = {
-          id: tempId,
-          description: data.description,
+        await syncQueue.add('CREATE_EXPENSE', {
+          group_id: groupId,
+          paid_by: formData.paid_by,
           amount,
-          currency: data.currency,
-          paid_by: { id: data.paid_by, name: 'You', phone: '', avatar_url: null },
-          category: null,
-          expense_date: data.expense_date.toISOString().split('T')[0],
-          your_share: 0,
-          you_paid: data.paid_by === user.id,
-          split_count: splits.length,
-        };
-        
-        setExpenses((prev) => [tempExpense, ...prev]);
-        return tempId;
+          currency: formData.currency,
+          description: formData.description,
+          category_id: formData.category_id,
+          notes: formData.notes || null,
+          expense_date: formData.expense_date.toISOString().split('T')[0],
+          created_by: user.id,
+          splits,
+        });
+        return `temp_${Date.now()}`;
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create expense');
-      return null;
-    }
-  }, [groupId, user, isOnline, fetchExpenses]);
+    },
+    onSuccess: invalidateQueries,
+    onError: (err) => {
+      setMutationError(err instanceof Error ? err.message : 'Failed to create expense');
+    },
+  });
 
-  const deleteExpense = useCallback(async (expenseId: string): Promise<boolean> => {
-    try {
-      // Optimistic update
-      setExpenses((prev) => prev.filter((e) => e.id !== expenseId));
-
+  // Delete expense mutation
+  const deleteExpenseMutation = useMutation({
+    mutationFn: async (expenseId: string) => {
       if (isOnline) {
         const { error: deleteError } = await supabase
           .from('expenses')
@@ -238,24 +204,42 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
       } else {
         await syncQueue.add('DELETE_EXPENSE', { id: expenseId });
       }
+    },
+    onSuccess: invalidateQueries,
+    onError: (err) => {
+      setMutationError(err instanceof Error ? err.message : 'Failed to delete expense');
+    },
+  });
+
+  const createExpense = async (formData: ExpenseFormData): Promise<string | null> => {
+    setMutationError(null);
+    try {
+      return await createExpenseMutation.mutateAsync(formData);
+    } catch {
+      return null;
+    }
+  };
+
+  const deleteExpense = async (expenseId: string): Promise<boolean> => {
+    setMutationError(null);
+    try {
+      await deleteExpenseMutation.mutateAsync(expenseId);
       return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete expense');
-      await fetchExpenses(); // Rollback
+    } catch {
       return false;
     }
-  }, [isOnline, fetchExpenses]);
+  };
 
-  useEffect(() => {
-    fetchExpenses();
-  }, [fetchExpenses]);
+  const refresh = async () => {
+    await refetch();
+  };
 
   return {
-    expenses,
+    expenses: data ?? [],
     isLoading,
-    error,
+    error: error ? (error instanceof Error ? error.message : 'Failed to fetch expenses') : mutationError,
     createExpense,
     deleteExpense,
-    refresh: fetchExpenses,
+    refresh,
   };
 }
