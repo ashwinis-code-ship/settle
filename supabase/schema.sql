@@ -465,6 +465,63 @@ BEGIN
     RETURN balance;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to soft delete a group (SECURITY DEFINER to bypass RLS)
+CREATE OR REPLACE FUNCTION soft_delete_group(p_group_id UUID)
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_user_role TEXT;
+BEGIN
+    -- Check if current user is admin of this group
+    SELECT role INTO v_user_role
+    FROM public.group_members
+    WHERE group_id = p_group_id AND user_id = auth.uid();
+    
+    IF v_user_role IS NULL THEN
+        RAISE EXCEPTION 'You are not a member of this group';
+    END IF;
+    
+    IF v_user_role != 'admin' THEN
+        RAISE EXCEPTION 'Only admins can delete groups';
+    END IF;
+    
+    -- Perform soft delete
+    UPDATE public.groups
+    SET deleted_at = NOW()
+    WHERE id = p_group_id AND deleted_at IS NULL;
+    
+    RETURN FOUND;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to restore a soft-deleted group
+CREATE OR REPLACE FUNCTION restore_group(p_group_id UUID)
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_user_role TEXT;
+BEGIN
+    -- Check if current user is admin of this group
+    SELECT role INTO v_user_role
+    FROM public.group_members
+    WHERE group_id = p_group_id AND user_id = auth.uid();
+    
+    IF v_user_role IS NULL THEN
+        RAISE EXCEPTION 'You are not a member of this group';
+    END IF;
+    
+    IF v_user_role != 'admin' THEN
+        RAISE EXCEPTION 'Only admins can restore groups';
+    END IF;
+    
+    -- Restore the group
+    UPDATE public.groups
+    SET deleted_at = NULL
+    WHERE id = p_group_id AND deleted_at IS NOT NULL;
+    
+    RETURN FOUND;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Migration to support Shadow Users (Unregistered Invites)
 
 -- 1. Remove strict FK to auth.users to allow shadow users

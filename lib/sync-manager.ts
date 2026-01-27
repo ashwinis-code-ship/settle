@@ -53,23 +53,17 @@ const processors: Record<SyncActionType, ActionProcessor> = {
     if (error) throw error;
   },
 
-  // Soft delete: set deleted_at instead of actual deletion
+  // Soft delete: use RPC function to bypass RLS
   DELETE_GROUP: async (payload) => {
     const { id } = payload as { id: string };
-    const { error } = await supabase
-      .from('groups')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
+    const { error } = await supabase.rpc('soft_delete_group', { p_group_id: id });
     if (error) throw error;
   },
 
-  // Restore soft-deleted group
+  // Restore soft-deleted group: use RPC function to bypass RLS
   RESTORE_GROUP: async (payload) => {
     const { id } = payload as { id: string };
-    const { error } = await supabase
-      .from('groups')
-      .update({ deleted_at: null })
-      .eq('id', id);
+    const { error } = await supabase.rpc('restore_group', { p_group_id: id });
     if (error) throw error;
   },
 

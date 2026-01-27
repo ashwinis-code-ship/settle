@@ -239,11 +239,14 @@ export function useGroup(groupId: string | undefined): UseGroupResult {
 
     try {
       if (isOnline) {
-        const { error: deleteError } = await supabase
-          .from('groups')
-          .update({ deleted_at: new Date().toISOString() } as any)
-          .eq('id', groupId);
+        console.log('[useGroup] Soft deleting group via RPC:', groupId);
+        
+        // Use RPC function which has SECURITY DEFINER to bypass RLS
+        const { data, error: deleteError } = await supabase
+          .rpc('soft_delete_group', { p_group_id: groupId });
 
+        console.log('[useGroup] Delete result:', { data, error: deleteError });
+        
         if (deleteError) throw deleteError;
       } else {
         await syncQueue.add('DELETE_GROUP', { id: groupId });
@@ -251,6 +254,7 @@ export function useGroup(groupId: string | undefined): UseGroupResult {
       setGroup(null);
       return true;
     } catch (err) {
+      console.error('[useGroup] Delete error:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete group');
       return false;
     }
@@ -262,10 +266,11 @@ export function useGroup(groupId: string | undefined): UseGroupResult {
 
     try {
       if (isOnline) {
+        console.log('[useGroup] Restoring group via RPC:', groupId);
+        
+        // Use RPC function which has SECURITY DEFINER to bypass RLS
         const { error: restoreError } = await supabase
-          .from('groups')
-          .update({ deleted_at: null } as any)
-          .eq('id', groupId);
+          .rpc('restore_group', { p_group_id: groupId });
 
         if (restoreError) throw restoreError;
         await fetchGroup();
@@ -274,6 +279,7 @@ export function useGroup(groupId: string | undefined): UseGroupResult {
       }
       return true;
     } catch (err) {
+      console.error('[useGroup] Restore error:', err);
       setError(err instanceof Error ? err.message : 'Failed to restore group');
       return false;
     }
