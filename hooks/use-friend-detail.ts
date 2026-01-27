@@ -99,22 +99,27 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         ?.filter((g) => myGroupIds.has(g.group_id))
         .map((g) => g.group_id) || [];
 
-      // Filter out deleted groups and 1:1 direct groups - only include active regular groups
-      const { data: groups } = await supabase
+      // Fetch ALL active shared groups (including direct/1:1) for expenses and settlements
+      const { data: allGroups } = await supabase
         .from('groups')
         .select('id, name, currency, type')
         .in('id', potentialSharedGroupIds)
-        .is('deleted_at', null) // Exclude soft-deleted groups
-        .eq('type', 'group'); // Exclude direct (1:1) groups from "Shared Groups" display
+        .is('deleted_at', null); // Exclude soft-deleted groups
 
-      const sharedGroupIds = groups?.map((g) => g.id) || [];
+      // All group IDs for expense/settlement queries (includes direct groups)
+      const allSharedGroupIds = allGroups?.map((g) => g.id) || [];
 
-      const groupMap = new Map<string, { name: string; currency: string }>();
-      groups?.forEach((g) => {
-        groupMap.set(g.id, { name: g.name, currency: g.currency });
+      // Only regular groups (not direct/1:1) for "Shared Groups" display section
+      const regularGroups = allGroups?.filter((g) => g.type === 'group') || [];
+      const regularGroupIds = regularGroups.map((g) => g.id);
+
+      // Map for all groups (for transaction display)
+      const groupMap = new Map<string, { name: string; currency: string; type: string }>();
+      allGroups?.forEach((g) => {
+        groupMap.set(g.id, { name: g.name, currency: g.currency, type: g.type || 'group' });
       });
 
-      // Fetch all expenses in shared groups where either user paid or is in split
+      // Fetch all expenses in ALL shared groups (including direct)
       const { data: expenses } = await supabase
         .from('expenses')
         .select(`
@@ -130,7 +135,7 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
             amount
           )
         `)
-        .in('group_id', sharedGroupIds)
+        .in('group_id', allSharedGroupIds)
         .order('created_at', { ascending: false });
 
       // Fetch settlements between the two users
@@ -144,8 +149,8 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
       const expenseTransactions: FriendTransaction[] = [];
       const groupBalanceMap = new Map<string, { balance: number; count: number }>();
 
-      // Initialize group balances
-      sharedGroupIds.forEach((gid) => {
+      // Initialize group balances for ALL shared groups (including direct)
+      allSharedGroupIds.forEach((gid) => {
         groupBalanceMap.set(gid, { balance: 0, count: 0 });
       });
 
@@ -224,11 +229,12 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         };
       });
 
-      // Build group balances array
+      // Build group balances array - only include regular groups (not direct/1:1)
       const groupBalancesArray: GroupBalance[] = [];
       for (const [groupId, data] of groupBalanceMap.entries()) {
         const groupInfo = groupMap.get(groupId);
-        if (groupInfo && data.count > 0) {
+        // Only include regular groups in the "Shared Groups" display
+        if (groupInfo && data.count > 0 && groupInfo.type === 'group') {
           groupBalancesArray.push({
             group_id: groupId,
             group_name: groupInfo.name,
@@ -250,7 +256,7 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
       setFriend({
         user: friendUser as UserSummary,
         total_balance: Number(balance) || 0,
-        shared_groups: sharedGroupIds.length,
+        shared_groups: regularGroupIds.length, // Only count regular groups
         primary_currency: 'INR',
       });
       setGroupBalances(groupBalancesArray);

@@ -460,7 +460,10 @@ BEGIN
       AND (s.group_id IS NULL OR g.deleted_at IS NULL);
     
     -- Positive = user2 owes user1, Negative = user1 owes user2
-    balance := (user1_paid - user1_owes) - (user1_settled_to_user2 - user2_settled_to_user1);
+    -- Settlement adjustments:
+    -- - If user1 pays user2: reduces what user1 owes (or overpays), so ADD to balance
+    -- - If user2 pays user1: reduces what user2 owes, so SUBTRACT from balance
+    balance := (user1_paid - user1_owes) + user1_settled_to_user2 - user2_settled_to_user1;
     
     RETURN balance;
 END;
