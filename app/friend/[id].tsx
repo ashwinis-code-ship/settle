@@ -2,7 +2,7 @@
  * Friend Detail Screen
  * 
  * Shows all transactions (expenses and settlements) with a specific friend.
- * Displays net balance and transaction history.
+ * Groups by shared group first, then shows individual transaction history.
  */
 
 import { Ionicons } from '@expo/vector-icons';
@@ -11,9 +11,9 @@ import { MotiView } from 'moti';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -22,7 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useFriendDetail } from '@/hooks/use-friend-detail';
+import { useFriendDetail, type GroupBalance } from '@/hooks/use-friend-detail';
 import { CURRENCIES } from '@/types/database';
 import type { FriendTransaction } from '@/types';
 
@@ -30,7 +30,7 @@ export default function FriendDetailScreen() {
   const params = useLocalSearchParams<{ id: string; name?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
-  const { friend, transactions, isLoading, error, refresh } = useFriendDetail(params.id);
+  const { friend, groupBalances, transactions, isLoading, error, refresh } = useFriendDetail(params.id);
   const [refreshing, setRefreshing] = useState(false);
 
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
@@ -61,6 +61,10 @@ export default function FriendDetailScreen() {
       pathname: '/add-expense',
       params: { friendId: params.id, friendName: friend?.user.name || params.name },
     });
+  };
+
+  const handleGroupPress = (groupId: string) => {
+    router.push(`/group/${groupId}`);
   };
 
   const getInitials = (name: string) => {
@@ -106,16 +110,75 @@ export default function FriendDetailScreen() {
     return 'All settled up';
   };
 
-  const renderTransactionItem = ({ item, index }: { item: FriendTransaction; index: number }) => {
+  const renderGroupCard = (groupBalance: GroupBalance, index: number) => {
+    const isPositive = groupBalance.balance > 0;
+    const balanceColor = getBalanceColor(groupBalance.balance);
+
+    return (
+      <MotiView
+        key={groupBalance.group_id}
+        from={{ opacity: 0, translateX: -20 }}
+        animate={{ opacity: 1, translateX: 0 }}
+        transition={{ type: 'timing', duration: 300, delay: index * 80 }}
+      >
+        <Pressable
+          onPress={() => handleGroupPress(groupBalance.group_id)}
+          style={({ pressed }) => [
+            styles.groupCard,
+            { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },
+          ]}
+        >
+          {/* Group Icon */}
+          <View style={[styles.groupIcon, { backgroundColor: colors.primary[100] }]}>
+            <Ionicons name="people" size={20} color={colors.primary[500]} />
+          </View>
+
+          {/* Group Info */}
+          <View style={styles.groupInfo}>
+            <Text style={[styles.groupName, { color: textColor }]} numberOfLines={1}>
+              {groupBalance.group_name}
+            </Text>
+            <Text style={[styles.groupMeta, { color: secondaryTextColor }]}>
+              {groupBalance.transaction_count} transaction{groupBalance.transaction_count !== 1 ? 's' : ''}
+            </Text>
+          </View>
+
+          {/* Balance */}
+          <View style={styles.groupBalanceContainer}>
+            {groupBalance.balance !== 0 ? (
+              <>
+                <Text style={[styles.groupBalanceLabel, { color: balanceColor }]}>
+                  {isPositive ? 'owes you' : 'you owe'}
+                </Text>
+                <Text style={[styles.groupBalanceAmount, { color: balanceColor }]}>
+                  {formatBalance(groupBalance.balance, groupBalance.currency)}
+                </Text>
+              </>
+            ) : (
+              <View style={[styles.settledBadgeSmall, { backgroundColor: colors.success + '20' }]}>
+                <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                <Text style={[styles.settledTextSmall, { color: colors.success }]}>Settled</Text>
+              </View>
+            )}
+          </View>
+
+          <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+        </Pressable>
+      </MotiView>
+    );
+  };
+
+  const renderTransactionItem = (item: FriendTransaction, index: number) => {
     const isPositive = item.amount > 0;
     const amountColor = isPositive ? colors.success : colors.error;
     const isSettlement = item.type === 'settlement';
 
     return (
       <MotiView
+        key={item.id}
         from={{ opacity: 0, translateX: -20 }}
         animate={{ opacity: 1, translateX: 0 }}
-        transition={{ type: 'timing', duration: 300, delay: index * 50 }}
+        transition={{ type: 'timing', duration: 300, delay: index * 40 }}
       >
         <View style={[styles.transactionItem, { backgroundColor: cardBg }]}>
           {/* Icon */}
@@ -133,7 +196,7 @@ export default function FriendDetailScreen() {
           >
             <Ionicons
               name={isSettlement ? 'swap-horizontal' : 'receipt-outline'}
-              size={20}
+              size={18}
               color={isSettlement ? colors.primary[500] : amountColor}
             />
           </View>
@@ -172,13 +235,76 @@ export default function FriendDetailScreen() {
     );
   };
 
-  const renderHeader = () => {
-    const friendName = friend?.user.name || params.name || 'Friend';
-    const balance = friend?.total_balance || 0;
-    const balanceColor = getBalanceColor(balance);
-
+  if (isLoading && !friend) {
     return (
-      <>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={textColor} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: textColor }]}>{params.name || 'Friend'}</Text>
+          <View style={styles.backButton} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary[500]} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={textColor} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: textColor }]}>Error</Text>
+          <View style={styles.backButton} />
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={48} color={colors.error} />
+          <Text style={[styles.errorText, { color: textColor }]}>{error}</Text>
+          <Pressable
+            onPress={refresh}
+            style={[styles.retryButton, { backgroundColor: colors.primary[500] }]}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const friendName = friend?.user.name || params.name || 'Friend';
+  const balance = friend?.total_balance || 0;
+  const balanceColor = getBalanceColor(balance);
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Pressable onPress={handleBack} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={textColor} />
+        </Pressable>
+        <Text style={[styles.headerTitle, { color: textColor }]} numberOfLines={1}>
+          {friendName}
+        </Text>
+        <View style={styles.backButton} />
+      </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary[500]}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
         {/* Friend Info Card */}
         <MotiView
           from={{ opacity: 0, translateY: 20 }}
@@ -227,117 +353,66 @@ export default function FriendDetailScreen() {
               </Pressable>
             )}
           </View>
-
-          {/* Shared Groups */}
-          <Text style={[styles.sharedGroupsText, { color: secondaryTextColor }]}>
-            {friend?.shared_groups || 0} shared group{(friend?.shared_groups || 0) !== 1 ? 's' : ''}
-          </Text>
         </MotiView>
 
-        {/* Transactions Header */}
+        {/* Shared Groups Section */}
+        {groupBalances.length > 0 && (
+          <MotiView
+            from={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ type: 'timing', duration: 300, delay: 150 }}
+          >
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: textColor }]}>
+                Shared Groups
+              </Text>
+              <Text style={[styles.sectionSubtitle, { color: secondaryTextColor }]}>
+                {groupBalances.length} group{groupBalances.length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            <View style={styles.groupsList}>
+              {groupBalances.map((gb, index) => renderGroupCard(gb, index))}
+            </View>
+          </MotiView>
+        )}
+
+        {/* Transaction History Section */}
         {transactions.length > 0 && (
           <MotiView
             from={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ type: 'timing', duration: 300, delay: 200 }}
-            style={styles.sectionHeader}
+            transition={{ type: 'timing', duration: 300, delay: 250 }}
           >
-            <Text style={[styles.sectionTitle, { color: textColor }]}>Transaction History</Text>
-            <Text style={[styles.sectionSubtitle, { color: secondaryTextColor }]}>
-              {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: textColor }]}>
+                All Transactions
+              </Text>
+              <Text style={[styles.sectionSubtitle, { color: secondaryTextColor }]}>
+                {transactions.length} item{transactions.length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            <View style={styles.transactionsList}>
+              {transactions.map((tx, index) => renderTransactionItem(tx, index))}
+            </View>
+          </MotiView>
+        )}
+
+        {/* Empty State */}
+        {transactions.length === 0 && groupBalances.length === 0 && !isLoading && (
+          <MotiView
+            from={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'timing', duration: 400, delay: 200 }}
+            style={[styles.emptyState, { backgroundColor: cardBg }]}
+          >
+            <Ionicons name="document-text-outline" size={48} color={colors.gray[400]} />
+            <Text style={[styles.emptyTitle, { color: textColor }]}>No transactions yet</Text>
+            <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
+              Add an expense to start tracking your shared expenses
             </Text>
           </MotiView>
         )}
-      </>
-    );
-  };
-
-  const renderEmptyTransactions = () => (
-    <MotiView
-      from={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: 'timing', duration: 400, delay: 200 }}
-      style={[styles.emptyState, { backgroundColor: cardBg }]}
-    >
-      <Ionicons name="document-text-outline" size={48} color={colors.gray[400]} />
-      <Text style={[styles.emptyTitle, { color: textColor }]}>No transactions yet</Text>
-      <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
-        Add an expense to start tracking your shared expenses
-      </Text>
-    </MotiView>
-  );
-
-  if (isLoading && !friend) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={textColor} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: textColor }]}>{params.name || 'Friend'}</Text>
-          <View style={styles.backButton} />
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary[500]} />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (error) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={textColor} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: textColor }]}>Error</Text>
-          <View style={styles.backButton} />
-        </View>
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color={colors.error} />
-          <Text style={[styles.errorText, { color: textColor }]}>{error}</Text>
-          <Pressable
-            onPress={refresh}
-            style={[styles.retryButton, { backgroundColor: colors.primary[500] }]}
-          >
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={handleBack} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={textColor} />
-        </Pressable>
-        <Text style={[styles.headerTitle, { color: textColor }]} numberOfLines={1}>
-          {friend?.user.name || params.name || 'Friend'}
-        </Text>
-        <View style={styles.backButton} />
-      </View>
-
-      <FlatList
-        data={transactions}
-        renderItem={renderTransactionItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        ListHeaderComponent={renderHeader}
-        ListEmptyComponent={!isLoading ? renderEmptyTransactions : null}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.primary[500]}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-      />
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -365,7 +440,10 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
   },
-  listContent: {
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
     padding: 16,
     paddingBottom: 40,
   },
@@ -373,7 +451,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
     borderRadius: 20,
-    marginBottom: 20,
+    marginBottom: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -417,7 +495,6 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 16,
   },
   actionButton: {
     flexDirection: 'row',
@@ -436,9 +513,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  sharedGroupsText: {
-    fontSize: 13,
-  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -452,7 +526,11 @@ const styles = StyleSheet.create({
   sectionSubtitle: {
     fontSize: 13,
   },
-  transactionItem: {
+  groupsList: {
+    gap: 10,
+    marginBottom: 24,
+  },
+  groupCard: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
@@ -463,52 +541,108 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
-  transactionIcon: {
+  groupIcon: {
     width: 40,
     height: 40,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  transactionDetails: {
+  groupInfo: {
     flex: 1,
     marginLeft: 12,
   },
-  transactionDescription: {
+  groupName: {
     fontSize: 15,
+    fontWeight: '600',
+  },
+  groupMeta: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  groupBalanceContainer: {
+    alignItems: 'flex-end',
+    marginRight: 8,
+  },
+  groupBalanceLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+  },
+  groupBalanceAmount: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  settledBadgeSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4,
+  },
+  settledTextSmall: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  transactionsList: {
+    gap: 8,
+  },
+  transactionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  transactionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transactionDetails: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  transactionDescription: {
+    fontSize: 14,
     fontWeight: '500',
   },
   transactionMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 3,
+    marginTop: 2,
   },
   transactionDate: {
-    fontSize: 12,
+    fontSize: 11,
   },
   transactionDot: {
-    marginHorizontal: 6,
-    fontSize: 12,
+    marginHorizontal: 5,
+    fontSize: 11,
   },
   transactionGroup: {
-    fontSize: 12,
-    maxWidth: 100,
+    fontSize: 11,
+    maxWidth: 80,
   },
   transactionAmountContainer: {
     alignItems: 'flex-end',
   },
   transactionAmountLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '500',
     textTransform: 'uppercase',
   },
   transactionAmount: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    marginTop: 2,
-  },
-  separator: {
-    height: 8,
+    marginTop: 1,
   },
   emptyState: {
     alignItems: 'center',

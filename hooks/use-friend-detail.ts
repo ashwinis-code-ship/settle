@@ -3,6 +3,7 @@
  * 
  * Fetches transactions between the current user and a specific friend.
  * Includes expenses and settlements from all shared groups.
+ * Groups data by shared group for display.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -18,8 +19,19 @@ interface FriendDetail {
   primary_currency: CurrencyCode;
 }
 
+/** Aggregated balance per shared group */
+export interface GroupBalance {
+  group_id: string;
+  group_name: string;
+  /** Positive = friend owes you in this group, Negative = you owe friend */
+  balance: number;
+  currency: CurrencyCode;
+  transaction_count: number;
+}
+
 interface UseFriendDetailResult {
   friend: FriendDetail | null;
+  groupBalances: GroupBalance[];
   transactions: FriendTransaction[];
   isLoading: boolean;
   error: string | null;
@@ -31,6 +43,7 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
   const { isOnline } = useSync();
 
   const [friend, setFriend] = useState<FriendDetail | null>(null);
+  const [groupBalances, setGroupBalances] = useState<GroupBalance[]>([]);
   const [transactions, setTransactions] = useState<FriendTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,12 +102,12 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
       // Fetch group names for context
       const { data: groups } = await supabase
         .from('groups')
-        .select('id, name')
+        .select('id, name, currency')
         .in('id', sharedGroupIds);
 
-      const groupNameMap = new Map<string, string>();
+      const groupMap = new Map<string, { name: string; currency: string }>();
       groups?.forEach((g) => {
-        groupNameMap.set(g.id, g.name);
+        groupMap.set(g.id, { name: g.name, currency: g.currency });
       });
 
       // Fetch all expenses in shared groups where either user paid or is in split
@@ -123,8 +136,14 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         .or(`and(paid_by.eq.${user.id},paid_to.eq.${friendId}),and(paid_by.eq.${friendId},paid_to.eq.${user.id})`)
         .order('created_at', { ascending: false });
 
-      // Process expenses into transactions
+      // Process expenses into transactions and calculate per-group balances
       const expenseTransactions: FriendTransaction[] = [];
+      const groupBalanceMap = new Map<string, { balance: number; count: number }>();
+
+      // Initialize group balances
+      sharedGroupIds.forEach((gid) => {
+        groupBalanceMap.set(gid, { balance: 0, count: 0 });
+      });
 
       expenses?.forEach((expense) => {
         const splits = expense.expense_splits as { user_id: string; amount: number }[];
@@ -150,6 +169,14 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
 
         if (impactAmount === 0) return; // No impact between us
 
+        // Update group balance
+        const groupData = groupBalanceMap.get(expense.group_id);
+        if (groupData) {
+          groupData.balance += impactAmount;
+          groupData.count += 1;
+        }
+
+        const groupInfo = groupMap.get(expense.group_id);
         expenseTransactions.push({
           id: expense.id,
           type: 'expense',
@@ -158,13 +185,25 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
           currency: expense.currency as CurrencyCode,
           date: expense.created_at,
           group_id: expense.group_id,
-          group_name: groupNameMap.get(expense.group_id) || null,
+          group_name: groupInfo?.name || null,
         });
       });
 
-      // Process settlements into transactions
+      // Process settlements
       const settlementTransactions: FriendTransaction[] = (settlements || []).map((settlement) => {
         const iPayedThem = settlement.paid_by === user.id;
+        const groupInfo = settlement.group_id ? groupMap.get(settlement.group_id) : null;
+        
+        // Update group balance if settlement is associated with a group
+        if (settlement.group_id) {
+          const groupData = groupBalanceMap.get(settlement.group_id);
+          if (groupData) {
+            // Settlement reduces the balance (if I paid them, my receivable decreases)
+            groupData.balance += iPayedThem ? -settlement.amount : settlement.amount;
+            groupData.count += 1;
+          }
+        }
+
         return {
           id: settlement.id,
           type: 'settlement' as const,
@@ -173,11 +212,29 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
           currency: settlement.currency as CurrencyCode,
           date: settlement.created_at,
           group_id: settlement.group_id,
-          group_name: settlement.group_id ? groupNameMap.get(settlement.group_id) || null : null,
+          group_name: groupInfo?.name || null,
         };
       });
 
-      // Combine and sort by date (newest first)
+      // Build group balances array
+      const groupBalancesArray: GroupBalance[] = [];
+      for (const [groupId, data] of groupBalanceMap.entries()) {
+        const groupInfo = groupMap.get(groupId);
+        if (groupInfo && data.count > 0) {
+          groupBalancesArray.push({
+            group_id: groupId,
+            group_name: groupInfo.name,
+            balance: data.balance,
+            currency: (groupInfo.currency || 'INR') as CurrencyCode,
+            transaction_count: data.count,
+          });
+        }
+      }
+
+      // Sort group balances by absolute balance (highest first)
+      groupBalancesArray.sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance));
+
+      // Combine and sort transactions by date (newest first)
       const allTransactions = [...expenseTransactions, ...settlementTransactions].sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       );
@@ -188,6 +245,7 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         shared_groups: sharedGroupIds.length,
         primary_currency: 'INR',
       });
+      setGroupBalances(groupBalancesArray);
       setTransactions(allTransactions);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch friend details';
@@ -204,6 +262,7 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
 
   return {
     friend,
+    groupBalances,
     transactions,
     isLoading,
     error,
