@@ -6,8 +6,8 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { MotiView } from 'moti';
-import { useMemo } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
@@ -22,8 +22,15 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { user } = useAuth();
-  const { friends, isLoading: isLoadingFriends } = useFriends();
-  const { activities, isLoading: isLoadingActivity } = useRecentActivity();
+  const { friends, isLoading: isLoadingFriends, refresh: refreshFriends } = useFriends();
+  const { activities, isLoading: isLoadingActivity, refresh: refreshActivity } = useRecentActivity();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([refreshFriends(), refreshActivity()]);
+    setRefreshing(false);
+  }, [refreshFriends, refreshActivity]);
 
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
   const secondaryTextColor = isDark ? colors.text.dark.secondary : colors.text.light.secondary;
@@ -105,7 +112,19 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-      <View style={styles.content}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary[500]}
+            colors={[colors.primary[500]]}
+          />
+        }
+      >
         {/* Header */}
         <MotiView
           from={{ opacity: 0, translateY: -20 }}
@@ -254,10 +273,7 @@ export default function HomeScreen() {
               </Text>
             </View>
           ) : (
-            <ScrollView 
-              style={styles.activityList}
-              showsVerticalScrollIndicator={false}
-            >
+            <View style={styles.activityList}>
               {activities.map((item, index) => {
                 const isSettlement = item.type === 'settlement';
                 const isYouPaid = item.paid_by.id === user?.id;
@@ -356,10 +372,10 @@ export default function HomeScreen() {
                   </MotiView>
                 );
               })}
-            </ScrollView>
+            </View>
           )}
         </MotiView>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -370,8 +386,11 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     paddingHorizontal: 24,
     paddingTop: 20,
+    paddingBottom: 24,
   },
   header: {
     flexDirection: 'row',
