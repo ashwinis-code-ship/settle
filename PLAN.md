@@ -131,8 +131,8 @@ FORGOT PASSWORD:
 
 ### Tasks
 - [x] 5.1 Friends list screen (net balance per friend) ✅
-- [ ] 5.2 Friend detail screen (all transactions with that person)
-- [ ] 5.3 Balance calculation logic (aggregate across groups)
+- [x] 5.2 Friend detail screen (all transactions with that person) ✅
+- [x] 5.3 Balance calculation logic (aggregate across groups) ✅
 
 ---
 
@@ -359,6 +359,7 @@ Main App (Bottom Tabs)
 | 2026-01-21 | 4 | 4.6-4.7 Expense Detail | Created expense detail screen with edit/delete, useExpense hook |
 | 2026-01-21 | 4 | 4.8 Direct Groups | Created useDirectGroup hook for auto-creating 1:1 groups, updated add-expense to support friendId param |
 | 2026-01-21 | 5 | 5.1 Friends List | Created friends list screen with net balance per friend, summary card, quick add expense button |
+| 2026-01-21 | 5 | 5.2-5.3 Friend Detail | Created friend detail screen with transaction history, useFriendDetail hook with balance aggregation |
 
 ---
 
