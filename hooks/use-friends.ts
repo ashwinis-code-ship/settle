@@ -56,14 +56,20 @@ export function useFriends(): UseFriendsResult {
 
       const allGroupIds = memberData.map((m) => m.group_id);
 
-      // Filter out deleted groups
+      // Filter out deleted groups and get group types
       const { data: activeGroups } = await supabase
         .from('groups')
-        .select('id')
+        .select('id, type')
         .in('id', allGroupIds)
         .is('deleted_at', null);
 
       const groupIds = activeGroups?.map((g) => g.id) || [];
+      
+      // Create a map of group types for later use
+      const groupTypeMap = new Map<string, string>();
+      activeGroups?.forEach((g) => {
+        groupTypeMap.set(g.id, g.type || 'group');
+      });
 
       if (groupIds.length === 0) {
         setFriends([]);
@@ -121,11 +127,17 @@ export function useFriends(): UseFriendsResult {
           .limit(1)
           .single();
 
+        // Count only non-direct (regular) groups for "shared groups" display
+        // Direct (1:1) groups should not be counted
+        const regularGroupsCount = data.groupIds.filter(
+          (gid) => groupTypeMap.get(gid) !== 'direct'
+        ).length;
+
         friendsData.push({
           user: data.user,
           total_balance: Number(balance) || 0,
           primary_currency: 'INR' as CurrencyCode, // TODO: Calculate most common currency
-          shared_groups: data.groupIds.length,
+          shared_groups: regularGroupsCount,
           last_activity: lastExpense?.created_at || null,
         });
       }

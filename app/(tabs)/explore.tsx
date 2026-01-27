@@ -128,9 +128,11 @@ export default function FriendsScreen() {
             <Text style={[styles.friendName, { color: textColor }]} numberOfLines={1}>
               {item.user.name}
             </Text>
-            <Text style={[styles.friendMeta, { color: secondaryTextColor }]}>
-              {item.shared_groups} shared group{item.shared_groups !== 1 ? 's' : ''}
-            </Text>
+            {item.shared_groups > 0 && (
+              <Text style={[styles.friendMeta, { color: secondaryTextColor }]}>
+                {item.shared_groups} shared group{item.shared_groups !== 1 ? 's' : ''}
+              </Text>
+            )}
           </View>
 
           {/* Balance */}
