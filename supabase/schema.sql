@@ -31,7 +31,8 @@ CREATE TABLE public.groups (
     type TEXT DEFAULT 'group' CHECK (type IN ('group', 'direct')), -- 'group' = explicit named group, 'direct' = auto-created 1:1 group
     created_by UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ DEFAULT NULL -- Soft delete: NULL = active, timestamp = deleted
 );
 
 -- Group members junction table
@@ -102,6 +103,7 @@ CREATE INDEX idx_users_phone ON public.users(phone);
 -- Groups indexes
 CREATE INDEX idx_groups_created_by ON public.groups(created_by);
 CREATE INDEX idx_groups_created_at ON public.groups(created_at DESC);
+CREATE INDEX idx_groups_deleted_at ON public.groups(deleted_at) WHERE deleted_at IS NULL; -- Partial index for active groups
 
 -- Group members indexes
 CREATE INDEX idx_group_members_user_id ON public.group_members(user_id);

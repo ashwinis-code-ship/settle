@@ -53,9 +53,23 @@ const processors: Record<SyncActionType, ActionProcessor> = {
     if (error) throw error;
   },
 
+  // Soft delete: set deleted_at instead of actual deletion
   DELETE_GROUP: async (payload) => {
     const { id } = payload as { id: string };
-    const { error } = await supabase.from('groups').delete().eq('id', id);
+    const { error } = await supabase
+      .from('groups')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+  },
+
+  // Restore soft-deleted group
+  RESTORE_GROUP: async (payload) => {
+    const { id } = payload as { id: string };
+    const { error } = await supabase
+      .from('groups')
+      .update({ deleted_at: null })
+      .eq('id', id);
     if (error) throw error;
   },
 

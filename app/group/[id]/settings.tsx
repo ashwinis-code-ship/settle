@@ -172,7 +172,7 @@ export default function GroupSettingsScreen() {
     const handleDeleteGroup = () => {
         Alert.alert(
             'Delete Group',
-            'Are you sure you want to delete this group? This action cannot be undone and all expenses will be lost.',
+            'Are you sure you want to delete this group? The group will be hidden but can be restored later if needed.',
             [
                 { text: 'Cancel', style: 'cancel' },
                 {

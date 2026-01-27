@@ -15,6 +15,7 @@ export type SyncActionType =
   | 'CREATE_GROUP'
   | 'UPDATE_GROUP'
   | 'DELETE_GROUP'
+  | 'RESTORE_GROUP'
   | 'ADD_GROUP_MEMBER'
   | 'REMOVE_GROUP_MEMBER'
   | 'CREATE_EXPENSE'

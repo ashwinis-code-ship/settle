@@ -80,12 +80,13 @@ export function useGroups(): UseGroupsResult {
 
         const groupIds = memberData.map((m) => m.group_id);
 
-        // Fetch group details (only explicit groups, not 1:1 direct groups)
+        // Fetch group details (only explicit groups, not 1:1 direct groups, exclude deleted)
         const { data: groupsData, error: groupsError } = await supabase
           .from('groups')
           .select('*')
           .in('id', groupIds)
           .eq('type', 'group') // Filter out 'direct' (1:1) groups
+          .is('deleted_at', null) // Filter out soft-deleted groups
           .order('updated_at', { ascending: false });
 
         if (groupsError) throw groupsError;

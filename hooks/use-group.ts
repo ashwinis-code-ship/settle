@@ -31,6 +31,7 @@ interface UseGroupResult {
   removeMember: (userId: string) => Promise<boolean>;
   leaveGroup: () => Promise<boolean>;
   deleteGroup: () => Promise<boolean>;
+  restoreGroup: () => Promise<boolean>;
   refresh: () => Promise<void>;
 }
 
@@ -232,6 +233,7 @@ export function useGroup(groupId: string | undefined): UseGroupResult {
     return removeMember(user.id);
   }, [user, removeMember]);
 
+  // Soft delete: set deleted_at timestamp instead of actual deletion
   const deleteGroup = useCallback(async (): Promise<boolean> => {
     if (!groupId) return false;
 
@@ -239,7 +241,7 @@ export function useGroup(groupId: string | undefined): UseGroupResult {
       if (isOnline) {
         const { error: deleteError } = await supabase
           .from('groups')
-          .delete()
+          .update({ deleted_at: new Date().toISOString() } as any)
           .eq('id', groupId);
 
         if (deleteError) throw deleteError;
@@ -254,6 +256,29 @@ export function useGroup(groupId: string | undefined): UseGroupResult {
     }
   }, [groupId, isOnline]);
 
+  // Restore a soft-deleted group
+  const restoreGroup = useCallback(async (): Promise<boolean> => {
+    if (!groupId) return false;
+
+    try {
+      if (isOnline) {
+        const { error: restoreError } = await supabase
+          .from('groups')
+          .update({ deleted_at: null } as any)
+          .eq('id', groupId);
+
+        if (restoreError) throw restoreError;
+        await fetchGroup();
+      } else {
+        await syncQueue.add('RESTORE_GROUP', { id: groupId });
+      }
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to restore group');
+      return false;
+    }
+  }, [groupId, isOnline, fetchGroup]);
+
   useEffect(() => {
     fetchGroup();
   }, [fetchGroup]);
@@ -267,6 +292,7 @@ export function useGroup(groupId: string | undefined): UseGroupResult {
     removeMember,
     leaveGroup,
     deleteGroup,
+    restoreGroup,
     refresh: fetchGroup,
   };
 }
