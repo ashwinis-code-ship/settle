@@ -16,7 +16,6 @@ import { MotiView } from 'moti';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -453,7 +452,11 @@ export default function AddExpenseScreen() {
       >
         <ScrollView
           style={styles.flex}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            // Make content grow to fill screen in search mode
+            isSearchMode && !hasSelectedTarget && styles.scrollContentFlex,
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -462,6 +465,7 @@ export default function AddExpenseScreen() {
             from={{ opacity: 0, translateY: 10 }}
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ type: 'timing', duration: 300, delay: 50 }}
+            style={isSearchMode && !hasSelectedTarget ? styles.flex : undefined}
           >
             {/* Search Mode: Show search input */}
             {isSearchMode && !hasSelectedTarget && (
@@ -484,7 +488,7 @@ export default function AddExpenseScreen() {
                   )}
                 </View>
 
-                {/* Search Results */}
+                {/* Search Results - using map instead of FlatList to avoid nesting issue */}
                 {showSearchResults && (
                   <View style={[styles.searchResultsContainer, { backgroundColor: cardBg }]}>
                     {isLoadingSearch ? (
@@ -506,13 +510,13 @@ export default function AddExpenseScreen() {
                         </Text>
                       </View>
                     ) : (
-                      <FlatList
-                        data={searchResults}
-                        renderItem={renderSearchResult}
-                        keyExtractor={(item) => `${item.type}-${item.id}`}
-                        keyboardShouldPersistTaps="handled"
-                        style={styles.searchResultsList}
-                      />
+                      <View style={styles.searchResultsList}>
+                        {searchResults.map((item) => (
+                          <View key={`${item.type}-${item.id}`}>
+                            {renderSearchResult({ item })}
+                          </View>
+                        ))}
+                      </View>
                     )}
                   </View>
                 )}
@@ -1005,9 +1009,12 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
+  scrollContentFlex: {
+    flexGrow: 1,
+  },
   // Search styles
   searchSection: {
-    marginBottom: 20,
+    flex: 1,
   },
   searchInputContainer: {
     flexDirection: 'row',
@@ -1022,13 +1029,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   searchResultsContainer: {
-    marginTop: 8,
+    marginTop: 12,
     borderRadius: 12,
-    maxHeight: 300,
-    overflow: 'hidden',
   },
   searchResultsList: {
-    maxHeight: 300,
+    // No max height - let it grow naturally
   },
   searchLoadingContainer: {
     padding: 24,
