@@ -114,8 +114,8 @@ FORGOT PASSWORD:
 - [x] 4.3 Member selector for partial splits ✅
 - [x] 4.4 Category picker with icons ✅
 - [x] 4.5 Currency selector (INR default) ✅
-- [ ] 4.6 Expense detail / edit screen
-- [ ] 4.7 Delete expense
+- [x] 4.6 Expense detail / edit screen ✅
+- [x] 4.7 Delete expense ✅
 - [ ] 4.8 Auto-create 1:1 group logic
 
 ---

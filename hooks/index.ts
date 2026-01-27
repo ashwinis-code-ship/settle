@@ -15,5 +15,6 @@ export { useCategories } from './use-categories';
 export { useGroups } from './use-groups';
 export { useGroup } from './use-group';
 export { useExpenses } from './use-expenses';
+export { useExpense } from './use-expense';
 export { useFriends } from './use-friends';
 export { useSettlements } from './use-settlements';

@@ -218,6 +218,10 @@ export default function GroupDetailScreen() {
     </>
   );
 
+  const handleExpensePress = (expenseId: string) => {
+    router.push(`/expense/${expenseId}`);
+  };
+
   const renderExpenseItem = ({ item, index }: { item: ExpenseListItem; index: number }) => {
     const isYou = item.you_paid;
 
@@ -228,18 +232,19 @@ export default function GroupDetailScreen() {
         transition={{ type: 'timing', duration: 300, delay: Math.min(index * 50, 300) }}
       >
         <Pressable
+          onPress={() => handleExpensePress(item.id)}
           style={({ pressed }) => [
             styles.expenseItem,
             { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },
           ]}
         >
           {/* Category Icon */}
-          <View style={[styles.expenseIcon, { backgroundColor: colors.primary[100] }]}>
-            <Ionicons
-              name={item.category?.icon as any || 'receipt-outline'}
-              size={20}
-              color={colors.primary[600]}
-            />
+          <View style={[styles.expenseIcon, { backgroundColor: item.category?.color ? item.category.color + '20' : colors.primary[100] }]}>
+            {item.category ? (
+              <Text style={styles.expenseIconEmoji}>{item.category.icon}</Text>
+            ) : (
+              <Ionicons name="receipt-outline" size={20} color={colors.primary[600]} />
+            )}
           </View>
 
           {/* Expense Details */}
@@ -493,6 +498,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  expenseIconEmoji: {
+    fontSize: 20,
   },
   expenseDetails: {
     flex: 1,
