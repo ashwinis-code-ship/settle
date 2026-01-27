@@ -352,8 +352,8 @@ CREATE POLICY "Users can view settlements they're involved in" ON public.settlem
         )
     );
 
-CREATE POLICY "Users can create settlements where they are the payer" ON public.settlements
-    FOR INSERT WITH CHECK (auth.uid() = paid_by);
+CREATE POLICY "Users can create settlements they are involved in" ON public.settlements
+    FOR INSERT WITH CHECK (auth.uid() = paid_by OR auth.uid() = paid_to);
 
 CREATE POLICY "Settlement creators can delete their settlements" ON public.settlements
     FOR DELETE USING (auth.uid() = paid_by);

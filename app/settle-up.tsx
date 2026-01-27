@@ -7,21 +7,20 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { MotiView } from 'moti';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableWithoutFeedback,
-  View,
+    ActivityIndicator,
+    Alert,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableWithoutFeedback,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -30,8 +29,8 @@ import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSettlements } from '@/hooks/use-settlements';
 import { supabase } from '@/lib/supabase';
-import { CURRENCIES, type CurrencyCode } from '@/types/database';
-import type { Friend, UserSummary } from '@/types';
+import type { UserSummary } from '@/types';
+import { type CurrencyCode } from '@/types/database';
 
 interface SettleTarget {
   user: UserSummary;
@@ -264,6 +263,7 @@ export default function SettleUpScreen() {
     }
 
     setIsSubmitting(true);
+    console.log('[SettleUp] Creating settlement:', { paidBy, paidTo, amount, currency: selectedTarget.currency });
     try {
       const result = await createSettlement({
         paid_by: paidBy,
@@ -274,14 +274,20 @@ export default function SettleUpScreen() {
         notes: notes,
       });
 
+      console.log('[SettleUp] Settlement result:', result);
+
       if (result) {
         Alert.alert(
           'Settlement Recorded',
           `₹${parsedAmount.toFixed(2)} payment has been recorded.`,
           [{ text: 'OK', onPress: () => router.back() }]
         );
+      } else {
+        console.error('[SettleUp] Settlement failed - no result returned');
+        Alert.alert('Error', 'Failed to record settlement. Please try again.');
       }
     } catch (err) {
+      console.error('[SettleUp] Settlement error:', err);
       Alert.alert('Error', 'Failed to record settlement. Please try again.');
     } finally {
       setIsSubmitting(false);

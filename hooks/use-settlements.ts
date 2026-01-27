@@ -122,11 +122,14 @@ export function useSettlements(options: UseSettlementsOptions = {}): UseSettleme
 
     try {
       if (isOnline) {
+        console.log('[useSettlements] Creating settlement:', settlementData);
         const { data: newSettlement, error: createError } = await supabase
           .from('settlements')
           .insert(settlementData)
           .select('id')
           .single();
+
+        console.log('[useSettlements] Result:', { data: newSettlement, error: createError });
 
         if (createError) throw createError;
 
