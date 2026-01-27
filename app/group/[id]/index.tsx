@@ -186,12 +186,13 @@ export default function GroupDetailScreen() {
               
               // Sort by contribution (highest first) and filter out zero contributors
               const contributors = sortedBalances
+                .filter(b => b.total_paid > 0) // Hide zero contributors
+                .sort((a, b) => b.total_paid - a.total_paid)
                 .map((b, i) => ({
                   ...b,
                   percentage: (b.total_paid / totalPaid) * 100,
                   color: contributionColors[i % contributionColors.length],
-                }))
-                .sort((a, b) => b.total_paid - a.total_paid);
+                }));
               
               return (
                 <>
@@ -201,8 +202,6 @@ export default function GroupDetailScreen() {
                       const isFirst = index === 0;
                       const isLast = index === contributors.length - 1;
                       const showInitials = contributor.percentage >= 12; // Only show initials if segment is wide enough
-                      
-                      if (contributor.percentage === 0) return null;
                       
                       return (
                         <View
@@ -229,7 +228,7 @@ export default function GroupDetailScreen() {
                     })}
                   </View>
                   
-                  {/* Legend */}
+                  {/* Legend - only show contributors */}
                   <View style={styles.stackedBarLegend}>
                     {contributors.map((contributor) => (
                       <View key={contributor.user.id} style={styles.legendItem}>
