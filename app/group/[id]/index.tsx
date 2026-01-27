@@ -152,8 +152,107 @@ export default function GroupDetailScreen() {
         </View>
       </MotiView>
 
-      {/* Member Balances */}
+      {/* Contributions Chart */}
       <MotiView
+        from={{ opacity: 0, translateY: 20 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'timing', duration: 400, delay: 200 }}
+        style={styles.section}
+      >
+        <Text style={[styles.sectionTitle, { color: textColor }]}>Contributions</Text>
+        <View style={[styles.balancesCard, { backgroundColor: cardBg }]}>
+          {sortedBalances.length === 0 ? (
+            <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
+              No expenses yet
+            </Text>
+          ) : (
+            <>
+              {/* Total Spending */}
+              <View style={styles.totalSpendingRow}>
+                <Text style={[styles.totalSpendingLabel, { color: secondaryTextColor }]}>
+                  Total Group Spending
+                </Text>
+                <Text style={[styles.totalSpendingValue, { color: textColor }]}>
+                  {formatCurrency(sortedBalances.reduce((sum, b) => sum + b.total_paid, 0))}
+                </Text>
+              </View>
+              
+              {/* Contribution Bars */}
+              {(() => {
+                const totalPaid = sortedBalances.reduce((sum, b) => sum + b.total_paid, 0);
+                const contributionColors = [
+                  colors.primary[500],
+                  colors.success,
+                  '#9333EA',
+                  '#F97316',
+                  '#06B6D4',
+                  '#EC4899',
+                  '#14B8A6',
+                  colors.warning,
+                ];
+                
+                return sortedBalances
+                  .sort((a, b) => b.total_paid - a.total_paid)
+                  .map((balance, index) => {
+                    const percentage = totalPaid > 0 ? (balance.total_paid / totalPaid) * 100 : 0;
+                    const barColor = contributionColors[index % contributionColors.length];
+                    
+                    return (
+                      <View
+                        key={balance.user.id}
+                        style={[
+                          styles.contributionItem,
+                          index < sortedBalances.length - 1 && styles.balanceItemBorder,
+                          { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] },
+                        ]}
+                      >
+                        <View style={styles.contributionHeader}>
+                          <View style={styles.balanceUser}>
+                            <View
+                              style={[
+                                styles.balanceAvatar,
+                                { backgroundColor: barColor }
+                              ]}
+                            >
+                              <Text style={styles.balanceAvatarText}>
+                                {getInitials(balance.user.name)}
+                              </Text>
+                            </View>
+                            <Text style={[styles.balanceName, { color: textColor }]}>
+                              {balance.user.id === user?.id ? 'You' : balance.user.name}
+                            </Text>
+                          </View>
+                          <Text style={[styles.contributionAmount, { color: textColor }]}>
+                            {formatCurrency(balance.total_paid)}
+                          </Text>
+                        </View>
+                        
+                        {/* Progress Bar */}
+                        <View style={[styles.contributionBarBg, { backgroundColor: isDark ? colors.gray[700] : colors.gray[200] }]}>
+                          <View 
+                            style={[
+                              styles.contributionBarFill, 
+                              { 
+                                width: `${Math.max(percentage, 2)}%`,
+                                backgroundColor: barColor,
+                              }
+                            ]} 
+                          />
+                        </View>
+                        <Text style={[styles.contributionPercentage, { color: secondaryTextColor }]}>
+                          {percentage.toFixed(0)}% of total
+                        </Text>
+                      </View>
+                    );
+                  });
+              })()}
+            </>
+          )}
+        </View>
+      </MotiView>
+
+      {/* DEPRECATED: Member Balances - replaced with contributions above */}
+      {false && <MotiView
         from={{ opacity: 0, translateY: 20 }}
         animate={{ opacity: 1, translateY: 0 }}
         transition={{ type: 'timing', duration: 400, delay: 200 }}
@@ -625,5 +724,48 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     padding: 16,
+  },
+  // Contribution styles
+  totalSpendingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[200],
+  },
+  totalSpendingLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  totalSpendingValue: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  contributionItem: {
+    padding: 12,
+  },
+  contributionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  contributionAmount: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  contributionBarBg: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  contributionBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  contributionPercentage: {
+    fontSize: 12,
+    marginTop: 4,
   },
 });
