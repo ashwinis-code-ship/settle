@@ -6,6 +6,7 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { MotiView } from 'moti';
 import { useCallback, useState } from 'react';
@@ -132,7 +133,16 @@ export default function FriendsScreen() {
         >
           {/* Friend Avatar */}
           <View style={[styles.friendAvatar, { backgroundColor: getAvatarColor(item.user.name) }]}>
-            <Text style={styles.friendAvatarText}>{getInitials(item.user.name)}</Text>
+            {item.user.avatar_url ? (
+              <Image
+                source={{ uri: item.user.avatar_url }}
+                style={styles.friendAvatarImage}
+                contentFit="cover"
+                transition={200}
+              />
+            ) : (
+              <Text style={styles.friendAvatarText}>{getInitials(item.user.name)}</Text>
+            )}
           </View>
 
           {/* Friend Info */}
@@ -390,6 +400,12 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  friendAvatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   friendAvatarText: {
     color: colors.white,

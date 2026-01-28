@@ -17,10 +17,12 @@ import {
   Platform,
   ActionSheetIOS,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 
 import { colors } from '@/constants/colors';
@@ -28,7 +30,8 @@ import { useAuth } from '@/contexts/auth-context';
 import { useSettings, type ThemeMode } from '@/contexts/settings-context';
 import { useUser } from '@/hooks/use-user';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { hapticLight, hapticSelection } from '@/lib/haptics';
+import { hapticLight, hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { pickImageFromCamera, pickImageFromLibrary, uploadAvatar, getPathFromUrl, deleteImage } from '@/lib/image-upload';
 import { CURRENCIES, type CurrencyCode } from '@/types/database';
 
 export default function ProfileScreen() {
@@ -50,6 +53,7 @@ export default function ProfileScreen() {
   const [name, setName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   const nameInputRef = useRef<TextInput>(null);
 
@@ -106,49 +110,124 @@ export default function ProfileScreen() {
     }
   };
 
+  const handlePhotoUpload = async (uri: string) => {
+    if (!authUser) return;
+    
+    setIsUploadingPhoto(true);
+    try {
+      const result = await uploadAvatar(uri, authUser.id);
+      
+      if (result.success && result.url) {
+        // Update user profile with new avatar URL
+        const success = await updateUser({ avatar_url: result.url });
+        if (success) {
+          hapticSuccess();
+          await refresh();
+        } else {
+          hapticWarning();
+          Alert.alert('Error', 'Failed to update profile. Please try again.');
+        }
+      } else {
+        hapticWarning();
+        Alert.alert('Error', result.error || 'Failed to upload photo. Please try again.');
+      }
+    } catch (err) {
+      console.error('[Profile] Photo upload error:', err);
+      hapticWarning();
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    hapticSelection();
+    const uri = await pickImageFromCamera();
+    if (uri) {
+      await handlePhotoUpload(uri);
+    }
+  };
+
+  const handleChooseFromLibrary = async () => {
+    hapticSelection();
+    const uri = await pickImageFromLibrary();
+    if (uri) {
+      await handlePhotoUpload(uri);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!user?.avatar_url) return;
+    
+    hapticSelection();
+    setIsUploadingPhoto(true);
+    
+    try {
+      // Delete from storage
+      const path = getPathFromUrl(user.avatar_url, 'avatars');
+      if (path) {
+        await deleteImage('avatars', path);
+      }
+      
+      // Update user profile
+      const success = await updateUser({ avatar_url: null });
+      if (success) {
+        hapticSuccess();
+        await refresh();
+      } else {
+        hapticWarning();
+        Alert.alert('Error', 'Failed to remove photo. Please try again.');
+      }
+    } catch (err) {
+      console.error('[Profile] Remove photo error:', err);
+      hapticWarning();
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
   const handleChangePhoto = () => {
+    if (isUploadingPhoto) return;
+    
+    const hasPhoto = !!user?.avatar_url;
+    
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: ['Cancel', 'Take Photo', 'Choose from Library', 'Remove Photo'],
+          options: hasPhoto 
+            ? ['Cancel', 'Take Photo', 'Choose from Library', 'Remove Photo']
+            : ['Cancel', 'Take Photo', 'Choose from Library'],
           cancelButtonIndex: 0,
-          destructiveButtonIndex: 3,
+          destructiveButtonIndex: hasPhoto ? 3 : undefined,
         },
         (buttonIndex) => {
           if (buttonIndex === 1) {
-            // TODO: Implement camera capture
-            Alert.alert('Coming Soon', 'Camera functionality will be available soon.');
+            handleTakePhoto();
           } else if (buttonIndex === 2) {
-            // TODO: Implement photo library picker
-            Alert.alert('Coming Soon', 'Photo library functionality will be available soon.');
-          } else if (buttonIndex === 3) {
-            // TODO: Implement remove photo
-            Alert.alert('Coming Soon', 'Remove photo functionality will be available soon.');
+            handleChooseFromLibrary();
+          } else if (buttonIndex === 3 && hasPhoto) {
+            handleRemovePhoto();
           }
         }
       );
     } else {
       // Android - use Alert as a simple alternative
-      Alert.alert(
-        'Change Profile Photo',
-        'Choose an option',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Take Photo', 
-            onPress: () => Alert.alert('Coming Soon', 'Camera functionality will be available soon.')
-          },
-          { 
-            text: 'Choose from Library', 
-            onPress: () => Alert.alert('Coming Soon', 'Photo library functionality will be available soon.')
-          },
-          { 
-            text: 'Remove Photo', 
-            style: 'destructive',
-            onPress: () => Alert.alert('Coming Soon', 'Remove photo functionality will be available soon.')
-          },
-        ]
-      );
+      const options: any[] = [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Take Photo', onPress: handleTakePhoto },
+        { text: 'Choose from Library', onPress: handleChooseFromLibrary },
+      ];
+      
+      if (hasPhoto) {
+        options.push({ 
+          text: 'Remove Photo', 
+          style: 'destructive',
+          onPress: handleRemovePhoto,
+        });
+      }
+      
+      Alert.alert('Change Profile Photo', 'Choose an option', options);
     }
   };
 
@@ -313,11 +392,22 @@ export default function ProfileScreen() {
             transition={{ type: 'spring', damping: 15, delay: 100 }}
             style={styles.avatarSection}
           >
-            <Pressable onPress={handleChangePhoto}>
+            <Pressable onPress={handleChangePhoto} disabled={isUploadingPhoto}>
               <View style={[styles.avatar, { backgroundColor: colors.primary[500] }]}>
-                <Text style={styles.avatarText}>{userInitials}</Text>
+                {isUploadingPhoto ? (
+                  <ActivityIndicator size="large" color={colors.white} />
+                ) : user?.avatar_url ? (
+                  <Image
+                    source={{ uri: user.avatar_url }}
+                    style={styles.avatarImage}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                ) : (
+                  <Text style={styles.avatarText}>{userInitials}</Text>
+                )}
               </View>
-              <View style={styles.editAvatarButton}>
+              <View style={[styles.editAvatarButton, isUploadingPhoto && { opacity: 0.5 }]}>
                 <Ionicons name="camera" size={14} color={colors.white} />
               </View>
             </Pressable>
@@ -633,6 +723,11 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: '700',
     color: colors.white,
+  },
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
   editAvatarButton: {
     position: 'absolute',

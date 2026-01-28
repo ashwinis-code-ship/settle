@@ -7,9 +7,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { router } from 'expo-router';
+import { Image } from 'expo-image';
 import { MotiView } from 'moti';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  ActionSheetIOS,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -28,6 +32,7 @@ import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroups } from '@/hooks/use-groups';
 import { hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { pickImageFromCamera, pickImageFromLibrary } from '@/lib/image-upload';
 import { ContactEntry } from '@/types';
 
 // Utility functions
@@ -56,6 +61,7 @@ export default function CreateGroupScreen() {
   // Form state
   const [groupName, setGroupName] = useState('');
   const [selectedContacts, setSelectedContacts] = useState<ContactEntry[]>([]);
+  const [groupImageUri, setGroupImageUri] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -91,6 +97,68 @@ export default function CreateGroupScreen() {
     });
   }, []);
 
+  const handleTakePhoto = async () => {
+    hapticSelection();
+    const uri = await pickImageFromCamera();
+    if (uri) {
+      setGroupImageUri(uri);
+    }
+  };
+
+  const handleChooseFromLibrary = async () => {
+    hapticSelection();
+    const uri = await pickImageFromLibrary();
+    if (uri) {
+      setGroupImageUri(uri);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    hapticSelection();
+    setGroupImageUri(null);
+  };
+
+  const handleGroupImagePress = () => {
+    const hasImage = !!groupImageUri;
+    
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: hasImage 
+            ? ['Cancel', 'Take Photo', 'Choose from Library', 'Remove Photo']
+            : ['Cancel', 'Take Photo', 'Choose from Library'],
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: hasImage ? 3 : undefined,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) {
+            handleTakePhoto();
+          } else if (buttonIndex === 2) {
+            handleChooseFromLibrary();
+          } else if (buttonIndex === 3 && hasImage) {
+            handleRemovePhoto();
+          }
+        }
+      );
+    } else {
+      const options: any[] = [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Take Photo', onPress: handleTakePhoto },
+        { text: 'Choose from Library', onPress: handleChooseFromLibrary },
+      ];
+      
+      if (hasImage) {
+        options.push({ 
+          text: 'Remove Photo', 
+          style: 'destructive',
+          onPress: handleRemovePhoto,
+        });
+      }
+      
+      Alert.alert('Group Photo', 'Choose an option', options);
+    }
+  };
+
   const handleSubmit = async () => {
     const newErrors: Record<string, string> = {};
 
@@ -123,6 +191,7 @@ export default function CreateGroupScreen() {
         description: '',
         currency: 'INR',
         members,
+        imageUri: groupImageUri || undefined,
       });
 
       if (groupId) {
@@ -192,14 +261,26 @@ export default function CreateGroupScreen() {
               transition={shouldAnimate ? { type: 'spring', damping: 15, delay: 100 } : undefined}
               style={styles.iconSection}
             >
-              <Pressable style={[styles.groupIconButton, { backgroundColor: colors.primary[500] }]}>
-                <Ionicons name="people" size={40} color={colors.white} />
+              <Pressable 
+                style={[styles.groupIconButton, { backgroundColor: colors.primary[500] }]}
+                onPress={handleGroupImagePress}
+              >
+                {groupImageUri ? (
+                  <Image
+                    source={{ uri: groupImageUri }}
+                    style={styles.groupImage}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                ) : (
+                  <Ionicons name="people" size={40} color={colors.white} />
+                )}
                 <View style={styles.cameraOverlay}>
                   <Ionicons name="camera" size={14} color={colors.white} />
                 </View>
               </Pressable>
               <Text style={[styles.iconHint, { color: secondaryTextColor }]}>
-                Tap to add group photo
+                {groupImageUri ? 'Tap to change photo' : 'Tap to add group photo'}
               </Text>
             </MotiView>
 
@@ -381,6 +462,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    overflow: 'hidden',
+  },
+  groupImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 30,
   },
   cameraOverlay: {
     position: 'absolute',

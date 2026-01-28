@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 
 import { EmptyState } from '@/components/ui/empty-state';
@@ -121,8 +122,12 @@ export default function GroupsScreen() {
           {/* Group Avatar */}
           <View style={[styles.groupAvatar, { backgroundColor: avatarColor }]}>
             {item.image_url ? (
-              // TODO: Add Image component when image upload is implemented
-              <Text style={styles.groupAvatarText}>{initials}</Text>
+              <Image
+                source={{ uri: item.image_url }}
+                style={styles.groupAvatarImage}
+                contentFit="cover"
+                transition={200}
+              />
             ) : (
               <Text style={styles.groupAvatarText}>{initials}</Text>
             )}
@@ -305,6 +310,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  groupAvatarImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
   },
   groupAvatarText: {
     fontSize: 18,

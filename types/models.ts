@@ -264,4 +264,6 @@ export interface GroupFormData {
   currency: CurrencyCode;
   /** Members to add */
   members: { phone: string; name: string }[];
+  /** Optional local image URI to upload */
+  imageUri?: string;
 }

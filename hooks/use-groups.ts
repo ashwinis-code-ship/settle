@@ -12,6 +12,7 @@ import { cache } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { syncQueue } from '@/lib/sync-queue';
 import { formatPhoneNumber } from '@/lib/utils';
+import { uploadGroupImage } from '@/lib/image-upload';
 import { queryKeys } from '@/lib/query-client';
 import type { DbGroup, GroupFormData, GroupListItem } from '@/types';
 import { useState } from 'react';
@@ -224,6 +225,23 @@ export function useGroups(): UseGroupsResult {
               .insert(memberInserts);
 
             if (memberAddError) throw memberAddError;
+          }
+        }
+
+        // Upload group image if provided
+        if (formData.imageUri) {
+          try {
+            const uploadResult = await uploadGroupImage(formData.imageUri, newGroup.id);
+            if (uploadResult.success && uploadResult.url) {
+              // Update group with image URL
+              await supabase
+                .from('groups')
+                .update({ image_url: uploadResult.url })
+                .eq('id', newGroup.id);
+            }
+          } catch (imgErr) {
+            console.error('[useGroups] Image upload failed:', imgErr);
+            // Don't fail group creation if image upload fails
           }
         }
 
