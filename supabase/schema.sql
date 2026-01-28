@@ -245,10 +245,11 @@ CREATE POLICY "Group admins can delete groups" ON public.groups
     );
 
 -- Group members policies
--- Uses helper function to avoid infinite recursion
+-- Users can see their own membership rows (to discover groups they were added to)
+-- OR members of groups they belong to (via helper function to avoid infinite recursion)
 CREATE POLICY "Users can view members of their groups" ON public.group_members
     FOR SELECT USING (
-        public.is_group_member(group_id, auth.uid())
+        user_id = auth.uid() OR public.is_group_member(group_id, auth.uid())
     );
 
 CREATE POLICY "Group admins can add members" ON public.group_members
@@ -290,7 +291,7 @@ CREATE POLICY "Group members can create expenses" ON public.expenses
     FOR INSERT WITH CHECK (
         EXISTS (
             SELECT 1 FROM public.group_members
-            WHERE group_members.group_id = group_id
+            WHERE group_members.group_id = expenses.group_id
             AND group_members.user_id = auth.uid()
         )
         AND auth.uid() = created_by
