@@ -170,10 +170,14 @@ export function useGroups(): UseGroupsResult {
 
         // Handle members (find existing or create shadow users)
         if (formData.members.length > 0) {
-          const phones = formData.members.map(m => {
+          // Normalize all phone numbers first
+          const membersWithNormalizedPhone = formData.members.map(m => {
             const sanitized = formatPhoneNumber(m.phone);
-            return sanitized.startsWith('+') ? sanitized : `+91${sanitized.replace(/^0/, '')}`;
+            const normalizedPhone = sanitized.startsWith('+') ? sanitized : `+91${sanitized.replace(/^0/, '')}`;
+            return { ...m, normalizedPhone };
           });
+
+          const phones = membersWithNormalizedPhone.map(m => m.normalizedPhone);
 
           // Find existing users
           const { data: existingUsers, error: usersError } = await supabase
@@ -186,26 +190,41 @@ export function useGroups(): UseGroupsResult {
           const existingUserMap = new Map((existingUsers || []).map(u => [u.phone, u.id]));
           const memberIds: string[] = [];
 
-          // Process all members
-          for (const member of formData.members) {
-            if (member.phone === user.phone) continue; // Skip creator
+          // Get current user's normalized phone
+          const currentUserPhone = user.phone?.startsWith('+') ? user.phone : `+91${user.phone?.replace(/^0/, '')}`;
 
-            if (existingUserMap.has(member.phone)) {
-              memberIds.push(existingUserMap.get(member.phone)!);
+          // Process all members
+          for (const member of membersWithNormalizedPhone) {
+            // Skip creator
+            if (member.normalizedPhone === currentUserPhone) continue;
+
+            if (existingUserMap.has(member.normalizedPhone)) {
+              memberIds.push(existingUserMap.get(member.normalizedPhone)!);
             } else {
-              // Create shadow user
+              // Create shadow user with upsert to handle race conditions
               const { data: shadowUser, error: shadowError } = await supabase
                 .from('users')
-                .insert({
-                  phone: member.phone,
+                .upsert({
+                  phone: member.normalizedPhone,
                   name: member.name,
                   is_registered: false
-                })
+                }, { onConflict: 'phone', ignoreDuplicates: false })
                 .select('id')
                 .single();
 
               if (shadowError) {
-                console.error('Failed to create shadow user:', shadowError);
+                // If upsert failed, try to fetch existing user
+                const { data: existingUser } = await supabase
+                  .from('users')
+                  .select('id')
+                  .eq('phone', member.normalizedPhone)
+                  .single();
+                
+                if (existingUser) {
+                  memberIds.push(existingUser.id);
+                } else {
+                  console.error('Failed to create/find user:', shadowError);
+                }
                 continue;
               }
               memberIds.push(shadowUser.id);
