@@ -283,8 +283,7 @@ export default function HomeScreen() {
           ) : activities.length === 0 ? (
             <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
               <EmptyState
-                illustration="📋"
-                isEmoji
+                icon="time-outline"
                 title="No recent activity"
                 description="Your expenses and settlements will appear here"
                 compact

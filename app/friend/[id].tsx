@@ -446,8 +446,7 @@ export default function FriendDetailScreen() {
         {transactions.length === 0 && groupBalances.length === 0 && !isLoading && (
           <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
             <EmptyState
-              illustration="💸"
-              isEmoji
+              icon="wallet-outline"
               title="No transactions yet"
               description="Add an expense to start tracking your shared expenses with this friend"
               actionLabel="Add Expense"

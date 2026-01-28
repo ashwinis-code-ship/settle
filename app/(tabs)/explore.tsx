@@ -185,8 +185,7 @@ export default function FriendsScreen() {
 
   const renderEmptyState = () => (
     <EmptyState
-      illustration="🤝"
-      isEmoji
+      icon="person-add-outline"
       title="No friends yet"
       description="Friends will appear here when you share expenses in a group together"
       actionLabel="Create a Group"

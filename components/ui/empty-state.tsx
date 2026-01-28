@@ -1,7 +1,7 @@
 /**
  * EmptyState Component
  * 
- * Reusable component for displaying empty states with illustrations.
+ * Reusable component for displaying empty states with icons.
  * Features animated entry and optional action button.
  */
 
@@ -13,10 +13,8 @@ import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 interface EmptyStateProps {
-  /** Large emoji or icon name */
-  illustration: string;
-  /** Whether illustration is an emoji (true) or Ionicons name (false) */
-  isEmoji?: boolean;
+  /** Ionicons icon name */
+  icon: keyof typeof Ionicons.glyphMap;
   /** Main title */
   title: string;
   /** Description text */
@@ -25,23 +23,16 @@ interface EmptyStateProps {
   actionLabel?: string;
   /** Action button callback */
   onAction?: () => void;
-  /** Icon color (for Ionicons). Default: primary */
-  iconColor?: string;
-  /** Background color for icon container */
-  iconBgColor?: string;
   /** Compact mode for smaller spaces */
   compact?: boolean;
 }
 
 export function EmptyState({
-  illustration,
-  isEmoji = false,
+  icon,
   title,
   description,
   actionLabel,
   onAction,
-  iconColor = colors.primary[500],
-  iconBgColor = colors.primary[100],
   compact = false,
 }: EmptyStateProps) {
   const colorScheme = useColorScheme() ?? 'light';
@@ -49,6 +40,7 @@ export function EmptyState({
   
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
   const secondaryTextColor = isDark ? colors.text.dark.secondary : colors.text.light.secondary;
+  const iconBgColor = isDark ? colors.gray[700] : colors.primary[50];
 
   return (
     <MotiView
@@ -57,23 +49,19 @@ export function EmptyState({
       transition={{ type: 'spring', damping: 15, stiffness: 100 }}
       style={[styles.container, compact && styles.containerCompact]}
     >
-      {/* Illustration */}
+      {/* Icon */}
       <View
         style={[
-          styles.illustrationContainer,
-          compact && styles.illustrationContainerCompact,
-          { backgroundColor: isEmoji ? 'transparent' : iconBgColor },
+          styles.iconContainer,
+          compact && styles.iconContainerCompact,
+          { backgroundColor: iconBgColor },
         ]}
       >
-        {isEmoji ? (
-          <Text style={[styles.emoji, compact && styles.emojiCompact]}>{illustration}</Text>
-        ) : (
-          <Ionicons
-            name={illustration as any}
-            size={compact ? 40 : 56}
-            color={iconColor}
-          />
-        )}
+        <Ionicons
+          name={icon}
+          size={compact ? 36 : 48}
+          color={colors.primary[500]}
+        />
       </View>
 
       {/* Title */}
@@ -113,25 +101,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 24,
   },
-  illustrationContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+  iconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
   },
-  illustrationContainerCompact: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  iconContainerCompact: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     marginBottom: 16,
-  },
-  emoji: {
-    fontSize: 64,
-  },
-  emojiCompact: {
-    fontSize: 44,
   },
   title: {
     fontSize: 22,

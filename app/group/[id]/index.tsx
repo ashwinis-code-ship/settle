@@ -389,8 +389,7 @@ export default function GroupDetailScreen() {
   const renderEmptyActivity = () => (
     <View style={styles.emptyExpenses}>
       <EmptyState
-        illustration="🧾"
-        isEmoji
+        icon="receipt-outline"
         title="No activity yet"
         description="Add your first expense to start tracking spending with this group"
         actionLabel="Add Expense"

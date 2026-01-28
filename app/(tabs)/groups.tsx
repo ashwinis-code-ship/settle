@@ -167,8 +167,7 @@ export default function GroupsScreen() {
 
   const renderEmptyState = () => (
     <EmptyState
-      illustration="👥"
-      isEmoji
+      icon="people-outline"
       title="No groups yet"
       description="Create a group to start splitting expenses with your friends and family"
       actionLabel="Create Group"
