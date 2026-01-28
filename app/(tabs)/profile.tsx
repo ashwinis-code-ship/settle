@@ -16,21 +16,34 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActionSheetIOS,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
+import { useSettings, type ThemeMode } from '@/contexts/settings-context';
 import { useUser } from '@/hooks/use-user';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { hapticLight, hapticSelection } from '@/lib/haptics';
+import { CURRENCIES, type CurrencyCode } from '@/types/database';
 
 export default function ProfileScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { user: authUser, signOut } = useAuth();
   const { user, updateUser, isLoading: isUserLoading, refresh } = useUser();
+  const { 
+    themeMode, 
+    setThemeMode, 
+    defaultCurrency, 
+    setDefaultCurrency,
+    notificationsEnabled,
+    setNotificationsEnabled,
+  } = useSettings();
 
   // Edit mode state
   const [isEditingName, setIsEditingName] = useState(false);
@@ -154,6 +167,95 @@ export default function ProfileScreen() {
         },
       ]
     );
+  };
+
+  const handleThemeChange = () => {
+    hapticSelection();
+    const options: ThemeMode[] = ['system', 'light', 'dark'];
+    const labels = ['System Default', 'Light', 'Dark'];
+    const currentIndex = options.indexOf(themeMode);
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', ...labels],
+          cancelButtonIndex: 0,
+          title: 'Choose Theme',
+        },
+        (buttonIndex) => {
+          if (buttonIndex > 0) {
+            setThemeMode(options[buttonIndex - 1]);
+          }
+        }
+      );
+    } else {
+      Alert.alert(
+        'Choose Theme',
+        undefined,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          ...labels.map((label, index) => ({
+            text: label + (index === currentIndex ? ' ✓' : ''),
+            onPress: () => setThemeMode(options[index]),
+          })),
+        ]
+      );
+    }
+  };
+
+  const handleCurrencyChange = () => {
+    hapticSelection();
+    const currencyOptions = Object.entries(CURRENCIES);
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', ...currencyOptions.map(([code, { name, symbol }]) => `${symbol} ${name} (${code})`)],
+          cancelButtonIndex: 0,
+          title: 'Default Currency',
+        },
+        (buttonIndex) => {
+          if (buttonIndex > 0) {
+            setDefaultCurrency(currencyOptions[buttonIndex - 1][0] as CurrencyCode);
+          }
+        }
+      );
+    } else {
+      Alert.alert(
+        'Default Currency',
+        undefined,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          ...currencyOptions.map(([code, { name, symbol }]) => ({
+            text: `${symbol} ${name} (${code})${code === defaultCurrency ? ' ✓' : ''}`,
+            onPress: () => setDefaultCurrency(code as CurrencyCode),
+          })),
+        ]
+      );
+    }
+  };
+
+  const handleNotificationToggle = async (value: boolean) => {
+    hapticLight();
+    await setNotificationsEnabled(value);
+  };
+
+  const handleAbout = () => {
+    hapticLight();
+    router.push('/settings/about');
+  };
+
+  const getThemeLabel = () => {
+    switch (themeMode) {
+      case 'system': return 'System';
+      case 'light': return 'Light';
+      case 'dark': return 'Dark';
+    }
+  };
+
+  const getCurrencyLabel = () => {
+    const currency = CURRENCIES[defaultCurrency];
+    return currency ? `${currency.symbol} ${defaultCurrency}` : defaultCurrency;
   };
 
   // Get user info
@@ -321,7 +423,7 @@ export default function ProfileScreen() {
 
           </MotiView>
 
-          {/* Settings Section */}
+          {/* Preferences Section */}
           <MotiView
             from={{ opacity: 0, translateY: 20 }}
             animate={{ opacity: 1, translateY: 0 }}
@@ -329,26 +431,57 @@ export default function ProfileScreen() {
             style={[styles.card, { backgroundColor: cardBg }]}
           >
             <Text style={[styles.sectionTitle, { color: textColor }]}>
-              Settings
+              Preferences
             </Text>
 
-            {/* Theme Toggle Placeholder */}
-            <Pressable style={styles.settingItem}>
+            {/* Theme Selector */}
+            <Pressable 
+              style={styles.settingItem}
+              onPress={handleThemeChange}
+            >
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: colors.primary[100] }]}>
-                  <Ionicons name="moon-outline" size={20} color={colors.primary[500]} />
+                  <Ionicons 
+                    name={isDark ? 'moon' : 'sunny-outline'} 
+                    size={20} 
+                    color={colors.primary[500]} 
+                  />
                 </View>
                 <Text style={[styles.settingLabel, { color: textColor }]}>
-                  Dark Mode
+                  Theme
                 </Text>
               </View>
-              <Text style={[styles.settingValue, { color: secondaryTextColor }]}>
-                {isDark ? 'On' : 'Off'}
-              </Text>
+              <View style={styles.settingRight}>
+                <Text style={[styles.settingValue, { color: secondaryTextColor }]}>
+                  {getThemeLabel()}
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+              </View>
             </Pressable>
 
-            {/* Notifications Placeholder */}
-            <Pressable style={styles.settingItem}>
+            {/* Default Currency */}
+            <Pressable 
+              style={styles.settingItem}
+              onPress={handleCurrencyChange}
+            >
+              <View style={styles.settingLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: colors.success + '20' }]}>
+                  <Ionicons name="cash-outline" size={20} color={colors.success} />
+                </View>
+                <Text style={[styles.settingLabel, { color: textColor }]}>
+                  Default Currency
+                </Text>
+              </View>
+              <View style={styles.settingRight}>
+                <Text style={[styles.settingValue, { color: secondaryTextColor }]}>
+                  {getCurrencyLabel()}
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+              </View>
+            </Pressable>
+
+            {/* Notifications Toggle */}
+            <View style={[styles.settingItem, styles.settingItemLast]}>
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: colors.warning + '20' }]}>
                   <Ionicons name="notifications-outline" size={20} color={colors.warning} />
@@ -357,17 +490,69 @@ export default function ProfileScreen() {
                   Notifications
                 </Text>
               </View>
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={handleNotificationToggle}
+                trackColor={{ false: colors.gray[300], true: colors.primary[400] }}
+                thumbColor={notificationsEnabled ? colors.primary[500] : colors.gray[100]}
+              />
+            </View>
+          </MotiView>
+
+          {/* About Section */}
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: 500, delay: 350 }}
+            style={[styles.card, { backgroundColor: cardBg }]}
+          >
+            <Text style={[styles.sectionTitle, { color: textColor }]}>
+              About
+            </Text>
+
+            {/* Help & Support */}
+            <Pressable 
+              style={styles.settingItem}
+              onPress={handleAbout}
+            >
+              <View style={styles.settingLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: colors.info + '20' }]}>
+                  <Ionicons name="help-circle-outline" size={20} color={colors.info} />
+                </View>
+                <Text style={[styles.settingLabel, { color: textColor }]}>
+                  Help & Support
+                </Text>
+              </View>
               <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
             </Pressable>
 
-            {/* Privacy */}
-            <Pressable style={[styles.settingItem, styles.settingItemLast]}>
+            {/* Privacy Policy */}
+            <Pressable 
+              style={styles.settingItem}
+              onPress={handleAbout}
+            >
               <View style={styles.settingLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: colors.success + '20' }]}>
-                  <Ionicons name="shield-checkmark-outline" size={20} color={colors.success} />
+                <View style={[styles.settingIcon, { backgroundColor: colors.gray[200] }]}>
+                  <Ionicons name="document-text-outline" size={20} color={colors.gray[600]} />
                 </View>
                 <Text style={[styles.settingLabel, { color: textColor }]}>
-                  Privacy
+                  Privacy Policy
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+            </Pressable>
+
+            {/* Terms of Service */}
+            <Pressable 
+              style={[styles.settingItem, styles.settingItemLast]}
+              onPress={handleAbout}
+            >
+              <View style={styles.settingLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: colors.gray[200] }]}>
+                  <Ionicons name="shield-checkmark-outline" size={20} color={colors.gray[600]} />
+                </View>
+                <Text style={[styles.settingLabel, { color: textColor }]}>
+                  Terms of Service
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
@@ -575,6 +760,12 @@ const styles = StyleSheet.create({
   },
   settingValue: {
     fontSize: 14,
+    marginRight: 4,
+  },
+  settingRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   signOutContainer: {
     marginTop: 8,

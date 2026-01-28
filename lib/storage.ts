@@ -29,6 +29,11 @@ const STORAGE_KEYS = {
   
   // App state
   ONBOARDED: 'settle:onboarded',
+  
+  // User preferences
+  THEME: 'settle:theme',
+  DEFAULT_CURRENCY: 'settle:default_currency',
+  NOTIFICATIONS_ENABLED: 'settle:notifications_enabled',
 } as const;
 
 export { STORAGE_KEYS };

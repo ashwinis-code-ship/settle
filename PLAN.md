@@ -177,15 +177,15 @@ FORGOT PASSWORD:
 
 ---
 
-## ⚙️ Phase 9: Settings & Extras
+## ⚙️ Phase 9: Settings & Extras ✅
 
 **Goal**: User preferences and polish
 
-- [ ] 9.1 Settings screen
-- [ ] 9.2 Default currency preference
-- [ ] 9.3 Notification preferences
-- [ ] 9.4 About / Help
-- [ ] 9.5 Sign out
+- [x] 9.1 Settings screen ✅
+- [x] 9.2 Default currency preference ✅
+- [x] 9.3 Notification preferences ✅
+- [x] 9.4 About / Help ✅
+- [x] 9.5 Sign out ✅ (already implemented)
 
 ---
 

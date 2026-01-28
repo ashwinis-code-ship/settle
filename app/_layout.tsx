@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
+import { SettingsProvider } from '@/contexts/settings-context';
 import { SyncProvider } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRealtimeSync } from '@/hooks/use-realtime-sync';
@@ -62,11 +63,13 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <SyncProvider>
-            <RootLayoutNav />
-          </SyncProvider>
-        </AuthProvider>
+        <SettingsProvider>
+          <AuthProvider>
+            <SyncProvider>
+              <RootLayoutNav />
+            </SyncProvider>
+          </AuthProvider>
+        </SettingsProvider>
       </SafeAreaProvider>
     </QueryClientProvider>
   );
