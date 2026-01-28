@@ -11,6 +11,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
+import { EmptyState } from '@/components/ui/empty-state';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -281,13 +282,13 @@ export default function HomeScreen() {
             </View>
           ) : activities.length === 0 ? (
             <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
-              <Ionicons name="receipt-outline" size={48} color={colors.gray[400]} />
-              <Text style={[styles.emptyStateTitle, { color: textColor }]}>
-                No recent activity
-              </Text>
-              <Text style={[styles.emptyStateText, { color: secondaryTextColor }]}>
-                Your expenses and settlements will appear here
-              </Text>
+              <EmptyState
+                illustration="📋"
+                isEmoji
+                title="No recent activity"
+                description="Your expenses and settlements will appear here"
+                compact
+              />
             </View>
           ) : (
             <View style={styles.activityList}>

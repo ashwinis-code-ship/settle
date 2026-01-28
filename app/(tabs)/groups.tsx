@@ -19,6 +19,7 @@ import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
+import { EmptyState } from '@/components/ui/empty-state';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroups } from '@/hooks/use-groups';
@@ -165,32 +166,14 @@ export default function GroupsScreen() {
   };
 
   const renderEmptyState = () => (
-    <MotiView
-      from={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: 'spring', damping: 15 }}
-      style={styles.emptyContainer}
-    >
-      <View style={[styles.emptyIcon, { backgroundColor: colors.primary[100] }]}>
-        <Ionicons name="people-outline" size={48} color={colors.primary[500]} />
-      </View>
-      <Text style={[styles.emptyTitle, { color: textColor }]}>
-        No groups yet
-      </Text>
-      <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
-        Create a group to start splitting expenses with friends
-      </Text>
-      <Pressable
-        onPress={handleCreateGroup}
-        style={({ pressed }) => [
-          styles.createButton,
-          { backgroundColor: colors.primary[500], opacity: pressed ? 0.8 : 1 },
-        ]}
-      >
-        <Ionicons name="add" size={20} color={colors.white} />
-        <Text style={styles.createButtonText}>Create Group</Text>
-      </Pressable>
-    </MotiView>
+    <EmptyState
+      illustration="👥"
+      isEmoji
+      title="No groups yet"
+      description="Create a group to start splitting expenses with your friends and family"
+      actionLabel="Create Group"
+      onAction={handleCreateGroup}
+    />
   );
 
   const renderHeader = () => (

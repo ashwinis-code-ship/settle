@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { EmptyState } from '@/components/ui/empty-state';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFriendDetail, type GroupBalance } from '@/hooks/use-friend-detail';
@@ -443,18 +444,17 @@ export default function FriendDetailScreen() {
 
         {/* Empty State */}
         {transactions.length === 0 && groupBalances.length === 0 && !isLoading && (
-          <MotiView
-            from={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'spring', damping: 15, stiffness: 100, delay: 150 }}
-            style={[styles.emptyState, { backgroundColor: cardBg }]}
-          >
-            <Ionicons name="document-text-outline" size={48} color={colors.gray[400]} />
-            <Text style={[styles.emptyTitle, { color: textColor }]}>No transactions yet</Text>
-            <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
-              Add an expense to start tracking your shared expenses
-            </Text>
-          </MotiView>
+          <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
+            <EmptyState
+              illustration="💸"
+              isEmoji
+              title="No transactions yet"
+              description="Add an expense to start tracking your shared expenses with this friend"
+              actionLabel="Add Expense"
+              onAction={handleAddExpense}
+              compact
+            />
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>

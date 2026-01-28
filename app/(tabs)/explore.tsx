@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { EmptyState } from '@/components/ui/empty-state';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFriends } from '@/hooks/use-friends';
@@ -183,27 +184,17 @@ export default function FriendsScreen() {
   };
 
   const renderEmptyState = () => (
-    <MotiView
-      from={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: 'timing', duration: 500 }}
-      style={[styles.emptyState, { backgroundColor: cardBg }]}
-    >
-      <View style={[styles.emptyIcon, { backgroundColor: colors.primary[100] }]}>
-        <Ionicons name="people-outline" size={48} color={colors.primary[500]} />
-      </View>
-      <Text style={[styles.emptyTitle, { color: textColor }]}>No friends yet</Text>
-      <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
-        Friends will appear here when you share expenses in a group together
-      </Text>
-      <Pressable
-        onPress={() => router.push('/create-group')}
-        style={[styles.emptyButton, { backgroundColor: colors.primary[500] }]}
-      >
-        <Ionicons name="add" size={20} color={colors.white} />
-        <Text style={styles.emptyButtonText}>Create a Group</Text>
-      </Pressable>
-    </MotiView>
+    <EmptyState
+      illustration="🤝"
+      isEmoji
+      title="No friends yet"
+      description="Friends will appear here when you share expenses in a group together"
+      actionLabel="Create a Group"
+      onAction={() => {
+        hapticLight();
+        router.push('/create-group');
+      }}
+    />
   );
 
   const renderHeader = () => (

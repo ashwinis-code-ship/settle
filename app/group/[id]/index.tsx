@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { EmptyState } from '@/components/ui/empty-state';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -387,21 +388,14 @@ export default function GroupDetailScreen() {
 
   const renderEmptyActivity = () => (
     <View style={styles.emptyExpenses}>
-      <Ionicons name="receipt-outline" size={64} color={colors.gray[300]} />
-      <Text style={[styles.emptyTitle, { color: textColor }]}>No activity yet</Text>
-      <Text style={[styles.emptySubtitle, { color: secondaryTextColor }]}>
-        Add your first expense to start tracking
-      </Text>
-      <Pressable
-        onPress={handleAddExpense}
-        style={({ pressed }) => [
-          styles.emptyButton,
-          { backgroundColor: colors.primary[500], opacity: pressed ? 0.8 : 1 },
-        ]}
-      >
-        <Ionicons name="add" size={20} color={colors.white} />
-        <Text style={styles.emptyButtonText}>Add Expense</Text>
-      </Pressable>
+      <EmptyState
+        illustration="🧾"
+        isEmoji
+        title="No activity yet"
+        description="Add your first expense to start tracking spending with this group"
+        actionLabel="Add Expense"
+        onAction={handleAddExpense}
+      />
     </View>
   );
 
