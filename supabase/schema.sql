@@ -216,7 +216,7 @@ CREATE POLICY "Users can view groups they are members of" ON public.groups
         auth.uid() = created_by OR
         EXISTS (
             SELECT 1 FROM public.group_members
-            WHERE group_members.group_id = id
+            WHERE group_members.group_id = groups.id
             AND group_members.user_id = auth.uid()
         )
     );
@@ -228,7 +228,7 @@ CREATE POLICY "Group admins can update groups" ON public.groups
     FOR UPDATE USING (
         EXISTS (
             SELECT 1 FROM public.group_members
-            WHERE group_members.group_id = id
+            WHERE group_members.group_id = groups.id
             AND group_members.user_id = auth.uid()
             AND group_members.role = 'admin'
         )
@@ -238,7 +238,7 @@ CREATE POLICY "Group admins can delete groups" ON public.groups
     FOR DELETE USING (
         EXISTS (
             SELECT 1 FROM public.group_members
-            WHERE group_members.group_id = id
+            WHERE group_members.group_id = groups.id
             AND group_members.user_id = auth.uid()
             AND group_members.role = 'admin'
         )
