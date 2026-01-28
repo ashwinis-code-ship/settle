@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { EmptyState } from '@/components/ui/empty-state';
+import { SkeletonActivityList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -277,9 +278,7 @@ export default function HomeScreen() {
           <Text style={[styles.sectionTitle, { color: textColor }]}>Recent Activity</Text>
           
           {isLoadingActivity ? (
-            <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
-              <ActivityIndicator size="small" color={colors.primary[500]} />
-            </View>
+            <SkeletonActivityList count={4} />
           ) : activities.length === 0 ? (
             <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
               <EmptyState

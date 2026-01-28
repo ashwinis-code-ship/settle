@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
+import { Skeleton, SkeletonActivityList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -402,7 +403,29 @@ export default function GroupDetailScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary[500]} />
+          {/* Header skeleton */}
+          <View style={[styles.header, { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] }]}>
+            <View style={{ width: 40 }} />
+            <Skeleton width={120} height={20} borderRadius={6} />
+            <View style={{ width: 40 }} />
+          </View>
+          
+          {/* Group info skeleton */}
+          <View style={[styles.groupInfoCard, { backgroundColor: cardBg, marginHorizontal: 16, marginTop: 16 }]}>
+            <Skeleton width={64} height={64} circle />
+            <View style={{ marginLeft: 16, flex: 1 }}>
+              <Skeleton width="60%" height={18} borderRadius={4} />
+              <View style={{ height: 8 }} />
+              <Skeleton width="40%" height={14} borderRadius={4} />
+            </View>
+          </View>
+          
+          {/* Activity skeleton */}
+          <View style={{ padding: 16 }}>
+            <Skeleton width={100} height={16} borderRadius={4} />
+            <View style={{ height: 16 }} />
+            <SkeletonActivityList count={4} />
+          </View>
         </View>
       </SafeAreaView>
     );

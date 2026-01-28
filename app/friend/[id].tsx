@@ -21,6 +21,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
+import { Skeleton, SkeletonCard, SkeletonActivityList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFriendDetail, type GroupBalance } from '@/hooks/use-friend-detail';
@@ -291,7 +292,33 @@ export default function FriendDetailScreen() {
           <View style={styles.backButton} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary[500]} />
+          {/* Friend info skeleton */}
+          <View style={[styles.friendCard, { backgroundColor: cardBg }]}>
+            <Skeleton width={72} height={72} circle />
+            <View style={{ alignItems: 'center', marginTop: 16 }}>
+              <Skeleton width={120} height={20} borderRadius={6} />
+              <View style={{ height: 8 }} />
+              <Skeleton width={80} height={14} borderRadius={4} />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
+              <Skeleton width={120} height={40} borderRadius={20} />
+              <Skeleton width={100} height={40} borderRadius={20} />
+            </View>
+          </View>
+          
+          {/* Groups skeleton */}
+          <View style={{ padding: 16 }}>
+            <Skeleton width={120} height={16} borderRadius={4} />
+            <View style={{ height: 16 }} />
+            <SkeletonCard />
+          </View>
+          
+          {/* Transactions skeleton */}
+          <View style={{ padding: 16, paddingTop: 0 }}>
+            <Skeleton width={140} height={16} borderRadius={4} />
+            <View style={{ height: 16 }} />
+            <SkeletonActivityList count={3} />
+          </View>
         </View>
       </SafeAreaView>
     );

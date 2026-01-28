@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
+import { SkeletonList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFriends } from '@/hooks/use-friends';
@@ -295,7 +296,13 @@ export default function FriendsScreen() {
             {renderSummary()}
           </>
         }
-        ListEmptyComponent={!isLoading ? renderEmptyState : null}
+        ListEmptyComponent={
+          isLoading ? (
+            <SkeletonList count={4} />
+          ) : (
+            renderEmptyState()
+          )
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

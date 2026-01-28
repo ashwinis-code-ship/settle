@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
 import { EmptyState } from '@/components/ui/empty-state';
+import { SkeletonList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroups } from '@/hooks/use-groups';
@@ -218,9 +219,15 @@ export default function GroupsScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={[
           styles.listContent,
-          groups.length === 0 && styles.listContentEmpty,
+          groups.length === 0 && !isLoading && styles.listContentEmpty,
         ]}
-        ListEmptyComponent={!isLoading ? renderEmptyState : null}
+        ListEmptyComponent={
+          isLoading ? (
+            <SkeletonList count={4} />
+          ) : (
+            renderEmptyState()
+          )
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

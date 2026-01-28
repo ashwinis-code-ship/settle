@@ -155,7 +155,7 @@ FORGOT PASSWORD:
 - [x] 7.2 Recent activity feed ✅
 - [x] 7.3 Fluid animations throughout (Moti) ✅
 - [x] 7.4 Empty states with illustrations ✅
-- [ ] 7.5 Loading skeletons
+- [x] 7.5 Loading skeletons ✅
 
 ---
 
