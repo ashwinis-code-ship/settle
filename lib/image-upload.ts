@@ -6,8 +6,7 @@
 
 import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
-import { Alert, Platform } from 'react-native';
-import { decode } from 'base64-arraybuffer';
+import { Alert } from 'react-native';
 import { supabase } from './supabase';
 
 export type ImageBucket = 'avatars' | 'group-images';
@@ -93,15 +92,6 @@ export async function pickImageFromLibrary(): Promise<string | null> {
 }
 
 /**
- * Read file as base64 string using the new File API
- */
-async function readFileAsBase64(uri: string): Promise<string> {
-  const file = new File(uri);
-  const base64 = await file.base64();
-  return base64;
-}
-
-/**
  * Generate a unique filename for upload
  */
 function generateFilename(extension: string = 'jpg'): string {
@@ -117,54 +107,82 @@ function getFileExtension(uri: string): string {
 }
 
 /**
- * Upload image to Supabase Storage
+ * Upload image to Supabase Storage with retry
  */
 export async function uploadImage(
   uri: string,
   bucket: ImageBucket,
-  folder: string // userId for avatars, groupId for group-images
+  folder: string, // userId for avatars, groupId for group-images
+  retries: number = 2
 ): Promise<UploadResult> {
-  try {
-    const extension = getFileExtension(uri);
-    const filename = generateFilename(extension);
-    const path = `${folder}/${filename}`;
+  let lastError: string | null = null;
+  
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const extension = getFileExtension(uri);
+      const filename = generateFilename(extension);
+      const path = `${folder}/${filename}`;
 
-    // Read file as base64
-    const base64 = await readFileAsBase64(uri);
-    
-    // Convert base64 to ArrayBuffer for upload
-    const arrayBuffer = decode(base64);
+      // Use the new File API - File implements Blob
+      const file = new File(uri);
+      
+      // Check if file exists
+      if (!file.exists) {
+        return { success: false, url: null, error: 'File does not exist' };
+      }
 
-    // Get mime type
-    const mimeType = `image/${extension === 'jpg' ? 'jpeg' : extension}`;
+      // Get mime type
+      const mimeType = `image/${extension === 'jpg' ? 'jpeg' : extension}`;
 
-    // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .upload(path, arrayBuffer, {
-        contentType: mimeType,
-        upsert: false,
-      });
+      // Read as ArrayBuffer using the Blob interface
+      const arrayBuffer = await file.arrayBuffer();
+      
+      console.log(`[ImageUpload] Uploading to ${bucket}/${path}, size: ${arrayBuffer.byteLength} bytes, attempt: ${attempt + 1}`);
 
-    if (error) {
-      console.error('[ImageUpload] Upload error:', error);
-      return { success: false, url: null, error: error.message };
+      // Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .upload(path, arrayBuffer, {
+          contentType: mimeType,
+          upsert: false,
+        });
+
+      if (error) {
+        console.error(`[ImageUpload] Upload error (attempt ${attempt + 1}):`, error);
+        lastError = error.message;
+        
+        // If not last attempt, wait a bit and retry
+        if (attempt < retries) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+          continue;
+        }
+        return { success: false, url: null, error: error.message };
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(data.path);
+
+      console.log('[ImageUpload] Upload successful:', urlData.publicUrl);
+      return { success: true, url: urlData.publicUrl, error: null };
+    } catch (err) {
+      console.error(`[ImageUpload] Error (attempt ${attempt + 1}):`, err);
+      lastError = err instanceof Error ? err.message : 'Failed to upload image';
+      
+      // If not last attempt, wait a bit and retry
+      if (attempt < retries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+        continue;
+      }
     }
-
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(data.path);
-
-    return { success: true, url: urlData.publicUrl, error: null };
-  } catch (err) {
-    console.error('[ImageUpload] Error:', err);
-    return {
-      success: false,
-      url: null,
-      error: err instanceof Error ? err.message : 'Failed to upload image',
-    };
   }
+  
+  return {
+    success: false,
+    url: null,
+    error: lastError || 'Failed to upload image after retries',
+  };
 }
 
 /**
