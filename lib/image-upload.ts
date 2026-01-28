@@ -4,7 +4,7 @@
  * Handles image picking, compression, and upload to Supabase Storage.
  */
 
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert, Platform } from 'react-native';
 import { decode } from 'base64-arraybuffer';
@@ -93,12 +93,11 @@ export async function pickImageFromLibrary(): Promise<string | null> {
 }
 
 /**
- * Read file as base64 string
+ * Read file as base64 string using the new File API
  */
 async function readFileAsBase64(uri: string): Promise<string> {
-  const base64 = await FileSystem.readAsStringAsync(uri, {
-    encoding: 'base64',
-  });
+  const file = new File(uri);
+  const base64 = await file.base64();
   return base64;
 }
 
