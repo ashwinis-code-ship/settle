@@ -129,7 +129,8 @@ export function useFriends(): UseFriendsResult {
     queryKey: queryKeys.friends,
     queryFn: () => fetchFriends(user!.id),
     enabled: !!user && isOnline,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 30 * 1000, // 30 seconds - more responsive to changes
+    refetchOnMount: 'always', // Always refetch when component mounts
   });
 
   const refresh = async () => {
