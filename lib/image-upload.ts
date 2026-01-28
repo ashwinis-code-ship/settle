@@ -97,7 +97,7 @@ export async function pickImageFromLibrary(): Promise<string | null> {
  */
 async function readFileAsBase64(uri: string): Promise<string> {
   const base64 = await FileSystem.readAsStringAsync(uri, {
-    encoding: FileSystem.EncodingType.Base64,
+    encoding: 'base64',
   });
   return base64;
 }
