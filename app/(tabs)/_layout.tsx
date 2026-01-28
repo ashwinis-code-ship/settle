@@ -1,18 +1,24 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { OfflineBanner } from '@/components/ui/offline-banner';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
+  const insets = useSafeAreaInsets();
 
   return (
-    <Tabs
+    <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: isDark ? colors.gray[900] : colors.background.light }}>
+      <OfflineBanner />
+      <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.primary[500],
         tabBarInactiveTintColor: isDark ? colors.gray[500] : colors.gray[400],
@@ -75,6 +81,7 @@ export default function TabLayout() {
           ),
         }}
       />
-    </Tabs>
+      </Tabs>
+    </View>
   );
 }

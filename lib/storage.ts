@@ -23,6 +23,10 @@ const STORAGE_KEYS = {
   SYNC_QUEUE: 'settle:sync_queue',
   LAST_SYNC: 'settle:last_sync',
   
+  // Pending items (created offline, not yet synced)
+  PENDING_EXPENSES: 'settle:pending_expenses',
+  PENDING_SETTLEMENTS: 'settle:pending_settlements',
+  
   // App state
   ONBOARDED: 'settle:onboarded',
 } as const;

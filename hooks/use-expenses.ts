@@ -8,6 +8,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { syncQueue } from '@/lib/sync-queue';
+import { pendingExpenses, generatePendingId, type PendingExpense } from '@/lib/pending-items';
 import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
 import { queryKeys } from '@/lib/query-client';
@@ -18,7 +19,7 @@ import type {
   UserSummary,
   CurrencyCode,
 } from '@/types';
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 async function fetchExpenses(groupId: string, userId: string): Promise<ExpenseListItem[]> {
   // Fetch expenses with paid_by user and category
@@ -73,8 +74,15 @@ async function fetchExpenses(groupId: string, userId: string): Promise<ExpenseLi
   });
 }
 
+// Extended expense item with pending status
+export interface ExpenseListItemWithStatus extends ExpenseListItem {
+  isPending?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
+}
+
 interface UseExpensesResult {
-  expenses: ExpenseListItem[];
+  expenses: ExpenseListItemWithStatus[];
   isLoading: boolean;
   error: string | null;
   createExpense: (data: ExpenseFormData) => Promise<string | null>;
@@ -84,17 +92,61 @@ interface UseExpensesResult {
 
 export function useExpenses(groupId: string | undefined): UseExpensesResult {
   const { user } = useAuth();
-  const { isOnline } = useSync();
+  const { isOnline, canEditItem, refreshPendingItems } = useSync();
   const queryClient = useQueryClient();
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [localPendingExpenses, setLocalPendingExpenses] = useState<PendingExpense[]>([]);
 
-  // Query for fetching expenses
+  // Load pending expenses for this group
+  useEffect(() => {
+    if (groupId) {
+      pendingExpenses.getByGroup(groupId).then(setLocalPendingExpenses);
+    }
+  }, [groupId]);
+
+  // Query for fetching expenses from server
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.expenses(groupId || ''),
     queryFn: () => fetchExpenses(groupId!, user!.id),
     enabled: !!groupId && !!user && isOnline,
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
+
+  // Combine server expenses with pending expenses
+  const expenses = useMemo((): ExpenseListItemWithStatus[] => {
+    const serverExpenses: ExpenseListItemWithStatus[] = (data ?? []).map((e) => ({
+      ...e,
+      isPending: false,
+      canEdit: canEditItem(e.id),
+      canDelete: canEditItem(e.id),
+    }));
+
+    // Convert pending expenses to list items
+    const pendingItems: ExpenseListItemWithStatus[] = localPendingExpenses.map((p) => ({
+      id: p.id,
+      description: p.description,
+      amount: p.amount,
+      currency: p.currency,
+      paid_by: { id: p.paid_by, name: p.paid_by_name, phone: '', avatar_url: null },
+      category: p.category_id ? { id: p.category_id, name: '', icon: p.category_icon || '📦', color: '#C9C9C9', sort_order: 0 } : null,
+      expense_date: p.expense_date,
+      your_share: p.paid_by === user?.id ? 0 : (p.splits.find(s => s.user_id === user?.id)?.amount || 0),
+      you_paid: p.paid_by === user?.id,
+      split_count: p.splits.length,
+      isPending: true,
+      canEdit: true, // Pending items are always editable
+      canDelete: true, // Pending items are always deletable
+    }));
+
+    // Combine and sort by date (pending items first, then by date)
+    return [...pendingItems, ...serverExpenses].sort((a, b) => {
+      // Pending items first
+      if (a.isPending && !b.isPending) return -1;
+      if (!a.isPending && b.isPending) return 1;
+      // Then by date
+      return new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime();
+    });
+  }, [data, localPendingExpenses, user?.id, canEditItem]);
 
   // Helper to invalidate related queries
   const invalidateQueries = () => {
@@ -171,7 +223,9 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
 
         return newExpense.id;
       } else {
-        await syncQueue.add('CREATE_EXPENSE', {
+        // Offline: add to sync queue and store locally
+        const pendingId = generatePendingId();
+        const syncAction = await syncQueue.add('CREATE_EXPENSE', {
           group_id: groupId,
           paid_by: formData.paid_by,
           amount,
@@ -183,7 +237,30 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
           created_by: user.id,
           splits,
         });
-        return `temp_${Date.now()}`;
+
+        // Store pending expense locally for display
+        const pendingExpense: PendingExpense = {
+          id: pendingId,
+          syncActionId: syncAction.id,
+          group_id: groupId,
+          paid_by: formData.paid_by,
+          paid_by_name: user.name || 'You', // Will be replaced with actual name
+          amount,
+          currency: formData.currency,
+          description: formData.description,
+          category_id: formData.category_id,
+          notes: formData.notes || null,
+          expense_date: formData.expense_date.toISOString().split('T')[0],
+          created_by: user.id,
+          created_at: new Date().toISOString(),
+          splits,
+        };
+
+        await pendingExpenses.add(pendingExpense);
+        setLocalPendingExpenses((prev) => [...prev, pendingExpense]);
+        await refreshPendingItems();
+
+        return pendingId;
       }
     },
     onSuccess: invalidateQueries,
@@ -195,7 +272,20 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
   // Delete expense mutation
   const deleteExpenseMutation = useMutation({
     mutationFn: async (expenseId: string) => {
-      if (isOnline) {
+      const isPending = expenseId.startsWith('pending_');
+
+      if (isPending) {
+        // Delete pending expense locally
+        const pendingExpense = await pendingExpenses.get(expenseId);
+        if (pendingExpense) {
+          // Remove from sync queue
+          await syncQueue.remove(pendingExpense.syncActionId);
+          // Remove from pending storage
+          await pendingExpenses.remove(expenseId);
+          setLocalPendingExpenses((prev) => prev.filter((e) => e.id !== expenseId));
+          await refreshPendingItems();
+        }
+      } else if (isOnline) {
         const { error: deleteError } = await supabase
           .from('expenses')
           .delete()
@@ -203,7 +293,8 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
 
         if (deleteError) throw deleteError;
       } else {
-        await syncQueue.add('DELETE_EXPENSE', { id: expenseId });
+        // Can't delete synced items while offline
+        throw new Error('Cannot delete synced items while offline');
       }
     },
     onSuccess: invalidateQueries,
@@ -236,8 +327,8 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
   };
 
   return {
-    expenses: data ?? [],
-    isLoading,
+    expenses,
+    isLoading: isLoading && localPendingExpenses.length === 0,
     error: error ? (error instanceof Error ? error.message : 'Failed to fetch expenses') : mutationError,
     createExpense,
     deleteExpense,

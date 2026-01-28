@@ -16,7 +16,9 @@ import {
 import { useNetworkStatus } from '@/hooks/use-network-status';
 import { syncManager, type SyncResult } from '@/lib/sync-manager';
 import { syncQueue } from '@/lib/sync-queue';
+import { pendingExpenses, pendingSettlements, type PendingExpense, type PendingSettlement } from '@/lib/pending-items';
 import { useAuth } from './auth-context';
+import { queryClient } from '@/lib/query-client';
 
 // ============================================
 // TYPES
@@ -34,9 +36,18 @@ interface SyncContextType {
   lastSyncResult: SyncResult | null;
   lastSyncTime: Date | null;
   
+  // Pending items (for display)
+  pendingExpensesList: PendingExpense[];
+  pendingSettlementsList: PendingSettlement[];
+  
   // Actions
   sync: () => Promise<SyncResult | null>;
   refreshNetworkStatus: () => Promise<void>;
+  refreshPendingItems: () => Promise<void>;
+  
+  // Helpers
+  isPendingItem: (id: string) => boolean;
+  canEditItem: (id: string) => boolean;
 }
 
 const SyncContext = createContext<SyncContextType | undefined>(undefined);
@@ -54,12 +65,37 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [wasOffline, setWasOffline] = useState(false);
+  const [pendingExpensesList, setPendingExpensesList] = useState<PendingExpense[]>([]);
+  const [pendingSettlementsList, setPendingSettlementsList] = useState<PendingSettlement[]>([]);
+
+  // Refresh pending items from storage
+  const refreshPendingItems = useCallback(async () => {
+    const [expenses, settlements] = await Promise.all([
+      pendingExpenses.getAll(),
+      pendingSettlements.getAll(),
+    ]);
+    setPendingExpensesList(expenses);
+    setPendingSettlementsList(settlements);
+    setPendingCount(expenses.length + settlements.length);
+  }, []);
 
   // Update pending count
   const updatePendingCount = useCallback(async () => {
     const count = await syncQueue.count();
     setPendingCount(count);
+    await refreshPendingItems();
+  }, [refreshPendingItems]);
+
+  // Check if an ID is a pending (offline-created) item
+  const isPendingItem = useCallback((id: string): boolean => {
+    return id.startsWith('pending_');
   }, []);
+
+  // Check if an item can be edited (online, or pending item when offline)
+  const canEditItem = useCallback((id: string): boolean => {
+    if (isOnline) return true; // Can edit everything when online
+    return isPendingItem(id); // Offline: can only edit pending items
+  }, [isOnline, isPendingItem]);
 
   // Sync function
   const sync = useCallback(async (): Promise<SyncResult | null> => {
@@ -75,6 +111,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       setLastSyncTime(new Date());
       setSyncStatus(result.success ? 'success' : 'error');
       await updatePendingCount();
+      
+      // Invalidate all queries to get fresh data after sync
+      if (result.synced > 0) {
+        queryClient.invalidateQueries();
+      }
+      
       return result;
     } catch (error) {
       console.error('[SyncContext] Sync failed:', error);
@@ -119,8 +161,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         pendingCount,
         lastSyncResult,
         lastSyncTime,
+        pendingExpensesList,
+        pendingSettlementsList,
         sync,
         refreshNetworkStatus,
+        refreshPendingItems,
+        isPendingItem,
+        canEditItem,
       }}
     >
       {children}

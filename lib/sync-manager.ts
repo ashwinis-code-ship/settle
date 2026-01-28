@@ -8,6 +8,7 @@
 import { supabase } from './supabase';
 import { syncQueue, type SyncAction, type SyncActionType } from './sync-queue';
 import { cache, storage, STORAGE_KEYS } from './storage';
+import { pendingExpenses, pendingSettlements } from './pending-items';
 
 // ============================================
 // TYPES
@@ -209,6 +210,14 @@ export const syncManager = {
 
         await processor(action.payload);
         await syncQueue.remove(action.id);
+        
+        // Remove from pending items after successful sync
+        if (action.type === 'CREATE_EXPENSE') {
+          await pendingExpenses.removeBySyncActionId(action.id);
+        } else if (action.type === 'CREATE_SETTLEMENT') {
+          await pendingSettlements.removeBySyncActionId(action.id);
+        }
+        
         result.synced++;
         console.log(`[SyncManager] Synced action: ${action.type} (${action.id})`);
       } catch (error) {

@@ -20,20 +20,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
+import { PendingBadge } from '@/components/ui/offline-banner';
 import { Skeleton, SkeletonActivityList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useExpenses } from '@/hooks/use-expenses';
+import { useExpenses, type ExpenseListItemWithStatus } from '@/hooks/use-expenses';
 import { useGroup } from '@/hooks/use-group';
-import { useSettlements } from '@/hooks/use-settlements';
+import { useSettlements, type SettlementWithStatus } from '@/hooks/use-settlements';
 import { hapticLight } from '@/lib/haptics';
-import type { ExpenseListItem, Settlement } from '@/types';
 
 // Union type for activity items (expense or settlement)
 type ActivityItem = 
-  | { type: 'expense'; data: ExpenseListItem }
-  | { type: 'settlement'; data: Settlement };
+  | { type: 'expense'; data: ExpenseListItemWithStatus }
+  | { type: 'settlement'; data: SettlementWithStatus };
 
 // Utility functions
 const getInitials = (name: string) => {
@@ -358,9 +358,12 @@ export default function GroupDetailScreen() {
 
           {/* Expense Details */}
           <View style={styles.expenseDetails}>
-            <Text style={[styles.expenseDescription, { color: textColor }]} numberOfLines={1}>
-              {expense.description}
-            </Text>
+            <View style={styles.expenseDescriptionRow}>
+              <Text style={[styles.expenseDescription, { color: textColor }]} numberOfLines={1}>
+                {expense.description}
+              </Text>
+              {expense.isPending && <PendingBadge compact />}
+            </View>
             <Text style={[styles.expenseMeta, { color: secondaryTextColor }]}>
               {isYou ? 'You paid' : `${expense.paid_by.name} paid`} • {formatDate(expense.expense_date)}
             </Text>
@@ -629,10 +632,16 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
   },
+  expenseDescriptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   expenseDescription: {
     fontSize: 15,
     fontWeight: '500',
     marginBottom: 3,
+    flex: 1,
   },
   expenseMeta: {
     fontSize: 12,

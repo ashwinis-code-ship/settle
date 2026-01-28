@@ -159,14 +159,21 @@ FORGOT PASSWORD:
 
 ---
 
-## 📴 Phase 8: Offline & Sync
+## 📴 Phase 8: Offline & Sync ✅
 
-**Goal**: Full offline support
+**Goal**: Full offline support with simplified conflict-free approach
 
-- [ ] 8.1 Queue offline actions (create expense, settle, etc.)
-- [ ] 8.2 Sync queue when online
-- [ ] 8.3 Conflict resolution strategy
-- [ ] 8.4 Sync status indicator
+- [x] 8.1 Queue offline actions (create expense, settle, etc.) ✅
+- [x] 8.2 Auto-sync queue when back online ✅
+- [x] 8.3 Read-only mode for synced data when offline (no conflicts!) ✅
+- [x] 8.4 Sync status indicator & offline banner ✅
+- [x] 8.5 Pending badges on unsynced items ✅
+
+**Offline Rules Implemented:**
+- ✅ Create new expenses/settlements offline → stored locally with pending badge
+- ✅ Edit/delete pending items → allowed (not synced yet)
+- ✅ Edit/delete synced items when offline → blocked (read-only)
+- ✅ Auto-sync when connection restored → pending items pushed to server
 
 ---
 

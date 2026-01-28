@@ -8,6 +8,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { syncQueue } from '@/lib/sync-queue';
+import { pendingExpenses, type PendingExpense } from '@/lib/pending-items';
 import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
 import { queryKeys } from '@/lib/query-client';
@@ -19,7 +20,7 @@ import type {
   ExpenseSplitInfo,
   UserSummary,
 } from '@/types';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 async function fetchExpenseData(expenseId: string): Promise<Expense> {
   // Fetch expense with relations
@@ -75,17 +76,49 @@ interface UseExpenseResult {
 
 export function useExpense(expenseId: string | undefined): UseExpenseResult {
   const { user } = useAuth();
-  const { isOnline } = useSync();
+  const { isOnline, canEditItem, refreshPendingItems } = useSync();
   const queryClient = useQueryClient();
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [pendingExpense, setPendingExpense] = useState<PendingExpense | null>(null);
 
-  // Query for fetching expense
+  // Check if this is a pending expense
+  const isPending = expenseId?.startsWith('pending_') ?? false;
+
+  // Load pending expense if needed
+  useEffect(() => {
+    if (isPending && expenseId) {
+      pendingExpenses.get(expenseId).then(setPendingExpense);
+    }
+  }, [expenseId, isPending]);
+
+  // Query for fetching expense from server (only if not pending)
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['expense', expenseId],
     queryFn: () => fetchExpenseData(expenseId!),
-    enabled: !!expenseId && !!user && isOnline,
+    enabled: !!expenseId && !!user && isOnline && !isPending,
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
+
+  // Convert pending expense to Expense format if needed
+  const expense: Expense | null = isPending && pendingExpense
+    ? {
+        id: pendingExpense.id,
+        group_id: pendingExpense.group_id,
+        paid_by: pendingExpense.paid_by,
+        amount: pendingExpense.amount,
+        currency: pendingExpense.currency,
+        description: pendingExpense.description,
+        category_id: pendingExpense.category_id,
+        notes: pendingExpense.notes,
+        expense_date: pendingExpense.expense_date,
+        created_by: pendingExpense.created_by,
+        created_at: pendingExpense.created_at,
+        updated_at: pendingExpense.created_at,
+        paid_by_user: { id: pendingExpense.paid_by, name: pendingExpense.paid_by_name, phone: '', avatar_url: null },
+        category: pendingExpense.category_id ? { id: pendingExpense.category_id, name: '', icon: pendingExpense.category_icon || '📦', color: '#C9C9C9', sort_order: 0 } : null,
+        splits: pendingExpense.splits.map(s => ({ user_id: s.user_id, amount: s.amount, user: { id: s.user_id, name: '', phone: '', avatar_url: null } })),
+      }
+    : data ?? null;
 
   // Helper to invalidate related queries
   const invalidateQueries = (groupId?: string) => {
@@ -105,7 +138,29 @@ export function useExpense(expenseId: string | undefined): UseExpenseResult {
       updates: DbExpenseUpdate; 
       newSplits?: { user_id: string; amount: number }[] 
     }) => {
-      if (!expenseId || !data) throw new Error('No expense');
+      if (!expenseId || !expense) throw new Error('No expense');
+
+      // Handle pending expense update
+      if (isPending && pendingExpense) {
+        await pendingExpenses.update(expenseId, {
+          ...pendingExpense,
+          description: updates.description ?? pendingExpense.description,
+          amount: updates.amount ?? pendingExpense.amount,
+          category_id: updates.category_id ?? pendingExpense.category_id,
+          notes: updates.notes ?? pendingExpense.notes,
+          splits: newSplits ?? pendingExpense.splits,
+        });
+        // Update local state
+        const updated = await pendingExpenses.get(expenseId);
+        setPendingExpense(updated);
+        await refreshPendingItems();
+        return expense.group_id;
+      }
+
+      // Can't update synced items when offline
+      if (!isOnline) {
+        throw new Error('Cannot edit synced items while offline');
+      }
 
       if (isOnline) {
         // Update expense
@@ -155,7 +210,20 @@ export function useExpense(expenseId: string | undefined): UseExpenseResult {
     mutationFn: async () => {
       if (!expenseId) throw new Error('No expense ID');
 
-      const groupId = data?.group_id;
+      const groupId = expense?.group_id;
+
+      // Handle pending expense deletion
+      if (isPending && pendingExpense) {
+        await syncQueue.remove(pendingExpense.syncActionId);
+        await pendingExpenses.remove(expenseId);
+        await refreshPendingItems();
+        return groupId;
+      }
+
+      // Can't delete synced items when offline
+      if (!isOnline) {
+        throw new Error('Cannot delete synced items while offline');
+      }
 
       if (isOnline) {
         const { error: deleteError } = await supabase
@@ -164,8 +232,6 @@ export function useExpense(expenseId: string | undefined): UseExpenseResult {
           .eq('id', expenseId);
 
         if (deleteError) throw deleteError;
-      } else {
-        await syncQueue.add('DELETE_EXPENSE', { id: expenseId });
       }
       
       return groupId;
@@ -213,12 +279,15 @@ export function useExpense(expenseId: string | undefined): UseExpenseResult {
     await refetch();
   };
 
-  // User can edit if they created the expense
-  const canEdit = data?.created_by === user?.id;
+  // User can edit if:
+  // 1. They created the expense AND
+  // 2. Either online OR it's a pending item
+  const isCreator = expense?.created_by === user?.id;
+  const canEdit = isCreator && (isOnline || isPending);
 
   return {
-    expense: data ?? null,
-    isLoading,
+    expense,
+    isLoading: isLoading && !isPending,
     error: error ? (error instanceof Error ? error.message : 'Failed to fetch expense') : mutationError,
     updateExpense,
     deleteExpense,
