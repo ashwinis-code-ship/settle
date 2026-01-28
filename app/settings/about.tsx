@@ -6,13 +6,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
-import { Platform } from 'react-native';
-
-// Conditional import for expo-application (not available on web)
-let Application: { nativeApplicationVersion: string | null; nativeBuildVersion: string | null } | null = null;
-if (Platform.OS !== 'web') {
-  Application = require('expo-application');
-}
+import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { MotiView } from 'moti';
 import {
@@ -37,8 +31,8 @@ export default function AboutScreen() {
   const backgroundColor = isDark ? colors.background.dark : colors.background.light;
   const cardBg = isDark ? colors.gray[800] : colors.white;
 
-  const appVersion = Application?.nativeApplicationVersion || '1.0.0';
-  const buildVersion = Application?.nativeBuildVersion || '1';
+  const appVersion = Constants.expoConfig?.version || '1.0.0';
+  const buildVersion = Constants.expoConfig?.ios?.buildNumber || Constants.expoConfig?.android?.versionCode?.toString() || '1';
 
   const handleBack = () => {
     router.back();
