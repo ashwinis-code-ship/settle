@@ -4,8 +4,10 @@
  * Handles image picking, compression, and upload to Supabase Storage.
  */
 
+import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert, Platform } from 'react-native';
+import { decode } from 'base64-arraybuffer';
 import { supabase } from './supabase';
 
 export type ImageBucket = 'avatars' | 'group-images';
@@ -91,11 +93,13 @@ export async function pickImageFromLibrary(): Promise<string | null> {
 }
 
 /**
- * Convert image URI to blob for upload
+ * Read file as base64 string
  */
-async function uriToBlob(uri: string): Promise<Blob> {
-  const response = await fetch(uri);
-  return response.blob();
+async function readFileAsBase64(uri: string): Promise<string> {
+  const base64 = await FileSystem.readAsStringAsync(uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  return base64;
 }
 
 /**
@@ -126,8 +130,11 @@ export async function uploadImage(
     const filename = generateFilename(extension);
     const path = `${folder}/${filename}`;
 
-    // Convert URI to blob
-    const blob = await uriToBlob(uri);
+    // Read file as base64
+    const base64 = await readFileAsBase64(uri);
+    
+    // Convert base64 to ArrayBuffer for upload
+    const arrayBuffer = decode(base64);
 
     // Get mime type
     const mimeType = `image/${extension === 'jpg' ? 'jpeg' : extension}`;
@@ -135,7 +142,7 @@ export async function uploadImage(
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
       .from(bucket)
-      .upload(path, blob, {
+      .upload(path, arrayBuffer, {
         contentType: mimeType,
         upsert: false,
       });
