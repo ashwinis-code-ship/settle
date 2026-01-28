@@ -10,6 +10,7 @@ import 'react-native-reanimated';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { SyncProvider } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useRealtimeSync } from '@/hooks/use-realtime-sync';
 import { colors } from '@/constants/colors';
 import { queryClient } from '@/lib/query-client';
 
@@ -18,6 +19,9 @@ function RootLayoutNav() {
   const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  // Subscribe to realtime database changes
+  useRealtimeSync();
 
   useEffect(() => {
     if (isLoading) return;
