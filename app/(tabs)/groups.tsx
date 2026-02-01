@@ -188,7 +188,14 @@ export default function GroupsScreen() {
       transition={{ type: 'timing', duration: 500 }}
       style={styles.header}
     >
-      <Text style={[styles.title, { color: textColor }]}>Groups</Text>
+      <View>
+        <Text style={[styles.title, { color: textColor }]}>Groups</Text>
+        <Text style={[styles.subtitle, { color: secondaryTextColor }]}>
+          {groups.length > 0
+            ? `${groups.length} group${groups.length !== 1 ? 's' : ''}`
+            : 'Split for trips, roommates & more'}
+        </Text>
+      </View>
       {groups.length > 0 && (
         <Pressable
           onPress={handleCreateGroup}
@@ -262,6 +269,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
+  },
+  subtitle: {
+    fontSize: 14,
+    marginTop: 2,
   },
   addButton: {
     width: 44,

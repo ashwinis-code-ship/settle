@@ -198,11 +198,11 @@ export default function FriendsScreen() {
     <EmptyState
       icon="person-add-outline"
       title="No friends yet"
-      description="Friends will appear here when you share expenses in a group together"
-      actionLabel="Create a Group"
+      description="Add an expense with someone to see them here"
+      actionLabel="Add Expense"
       onAction={() => {
         hapticLight();
-        router.push('/create-group');
+        router.push('/add-expense');
       }}
     />
   );
@@ -219,7 +219,7 @@ export default function FriendsScreen() {
         <Text style={[styles.headerSubtitle, { color: secondaryTextColor }]}>
           {friends.length > 0
             ? `${friends.length} friend${friends.length !== 1 ? 's' : ''}`
-            : 'Your shared expenses'}
+            : 'Split and see who owes what'}
         </Text>
       </View>
     </MotiView>

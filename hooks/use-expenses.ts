@@ -85,7 +85,7 @@ interface UseExpensesResult {
   expenses: ExpenseListItemWithStatus[];
   isLoading: boolean;
   error: string | null;
-  createExpense: (data: ExpenseFormData) => Promise<string | null>;
+  createExpense: (data: ExpenseFormData, overrideGroupId?: string) => Promise<string | null>;
   deleteExpense: (expenseId: string) => Promise<boolean>;
   refresh: () => Promise<void>;
 }
@@ -159,8 +159,9 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
 
   // Create expense mutation
   const createExpenseMutation = useMutation({
-    mutationFn: async (formData: ExpenseFormData): Promise<string> => {
-      if (!groupId || !user) throw new Error('No group or user');
+    mutationFn: async ({ formData, overrideGroupId }: { formData: ExpenseFormData; overrideGroupId?: string }): Promise<string> => {
+      const effectiveGroupId = overrideGroupId || groupId;
+      if (!effectiveGroupId || !user) throw new Error('No group or user');
 
       const amount = parseFloat(formData.amount);
       if (isNaN(amount) || amount <= 0) {
@@ -174,7 +175,7 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
         const { data: members } = await supabase
           .from('group_members')
           .select('user_id')
-          .eq('group_id', groupId);
+          .eq('group_id', effectiveGroupId);
 
         const memberIds = members?.map((m) => m.user_id) || [user.id];
         const splitAmount = amount / memberIds.length;
@@ -195,7 +196,7 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
         const { data: newExpense, error: expenseError } = await supabase
           .from('expenses')
           .insert({
-            group_id: groupId,
+            group_id: effectiveGroupId,
             paid_by: formData.paid_by,
             amount,
             currency: formData.currency,
@@ -226,7 +227,7 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
         // Offline: add to sync queue and store locally
         const pendingId = generatePendingId();
         const syncAction = await syncQueue.add('CREATE_EXPENSE', {
-          group_id: groupId,
+          group_id: effectiveGroupId,
           paid_by: formData.paid_by,
           amount,
           currency: formData.currency,
@@ -242,7 +243,7 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
         const pendingExpense: PendingExpense = {
           id: pendingId,
           syncActionId: syncAction.id,
-          group_id: groupId,
+          group_id: effectiveGroupId,
           paid_by: formData.paid_by,
           paid_by_name: user.name || 'You', // Will be replaced with actual name
           amount,
@@ -303,10 +304,10 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
     },
   });
 
-  const createExpense = async (formData: ExpenseFormData): Promise<string | null> => {
+  const createExpense = async (formData: ExpenseFormData, overrideGroupId?: string): Promise<string | null> => {
     setMutationError(null);
     try {
-      return await createExpenseMutation.mutateAsync(formData);
+      return await createExpenseMutation.mutateAsync({ formData, overrideGroupId });
     } catch {
       return null;
     }

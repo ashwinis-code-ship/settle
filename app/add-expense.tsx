@@ -72,6 +72,7 @@ export default function AddExpenseScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [hasSelectedTarget, setHasSelectedTarget] = useState(hasPreselection);
+  const [isCreatingShadowUser, setIsCreatingShadowUser] = useState(false);
 
   // Form state
   const [description, setDescription] = useState('');
@@ -79,7 +80,7 @@ export default function AddExpenseScreen() {
   const [currency, setCurrency] = useState<CurrencyCode>('INR');
   const [selectedCategory, setSelectedCategory] = useState<DbCategory | null>(null);
   const [paidBy, setPaidBy] = useState<string>('');
-  const [splitType, setSplitType] = useState<SplitType>('equal_all');
+  const [splitType] = useState<SplitType>('equal_selected');
   const [splitBetween, setSplitBetween] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -124,9 +125,63 @@ export default function AddExpenseScreen() {
         // User already exists in app
         setSelectedFriendId(contact.userId);
       } else {
-        // Need to create shadow user when expense is submitted
-        // For now, store the phone number and create on submit
-        setSelectedFriendId(undefined);
+        // Create shadow user immediately so the form can work with their ID
+        setIsCreatingShadowUser(true);
+        
+        try {
+          // Normalize phone
+          let normalizedPhone = contact.phone.replace(/[\s-]/g, '');
+          if (!normalizedPhone.startsWith('+')) {
+            if (normalizedPhone.startsWith('91') && normalizedPhone.length > 10) {
+              normalizedPhone = `+${normalizedPhone}`;
+            } else {
+              normalizedPhone = `+91${normalizedPhone.replace(/^0/, '')}`;
+            }
+          }
+
+          // Check if user exists (might have been created by another flow)
+          const { data: existingUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('phone', normalizedPhone)
+            .single();
+
+          if (existingUser) {
+            setSelectedFriendId(existingUser.id);
+          } else {
+            // Create shadow user
+            const { data: shadowUser, error: shadowError } = await supabase
+              .from('users')
+              .insert({
+                phone: normalizedPhone,
+                name: contact.name,
+                is_registered: false,
+              })
+              .select('id')
+              .single();
+
+            if (shadowError) {
+              console.error('Failed to create shadow user:', shadowError);
+              // Try to fetch again in case of race condition
+              const { data: retryUser } = await supabase
+                .from('users')
+                .select('id')
+                .eq('phone', normalizedPhone)
+                .single();
+              
+              if (retryUser) {
+                setSelectedFriendId(retryUser.id);
+              } else {
+                // Fall back to storing phone, will handle on submit
+                setSelectedFriendId(undefined);
+              }
+            } else {
+              setSelectedFriendId(shadowUser.id);
+            }
+          }
+        } finally {
+          setIsCreatingShadowUser(false);
+        }
       }
     }
   }, []);
@@ -166,15 +221,22 @@ export default function AddExpenseScreen() {
         const memberIds = group.members.map((m) => m.user_id);
         setSplitBetween(memberIds);
       }
-    } else if (hasSelectedTarget && user && (selectedFriendId || params.friendId)) {
-      // For direct expense, set up split between user and friend
+    } else if (hasSelectedTarget && user) {
+      // For direct expense, set up paidBy (always the current user initially)
+      setPaidBy(user.id);
+      
+      // Set up split between user and friend (if we have a friendId)
       const friendId = selectedFriendId || params.friendId;
       if (friendId) {
-        setPaidBy(user.id);
         setSplitBetween([user.id, friendId]);
+      } else if (selectedFriendPhone) {
+        // Contact selected but no userId yet - will be created on submit
+        // For now, just set the current user in the split
+        // The friend will be added to split after shadow user creation
+        setSplitBetween([user.id]);
       }
     }
-  }, [group, user, hasSelectedTarget, selectedFriendId, params.friendId]);
+  }, [group, user, hasSelectedTarget, selectedFriendId, selectedFriendPhone, params.friendId]);
 
   // Get member info by ID
   const getMember = useCallback((userId: string): GroupMember | undefined => {
@@ -220,6 +282,8 @@ export default function AddExpenseScreen() {
 
     if (splitBetween.length === 0) {
       newErrors.split = 'Select at least one person to split with';
+    } else if (splitBetween.length === 1 && splitBetween[0] === paidBy) {
+      newErrors.split = 'The person who paid cannot be the only one in the split';
     }
 
     setErrors(newErrors);
@@ -291,19 +355,34 @@ export default function AddExpenseScreen() {
         setIsSubmitting(false);
         return;
       }
-      setResolvedGroupId(directGroupId);
-      setSelectedFriendId(actualFriendId);
       
-      // Update split to include the new friend ID
-      if (user && actualFriendId) {
-        setSplitBetween([user.id, actualFriendId]);
-      }
+      // Create expense directly with the new groupId and proper split
+      // (Don't rely on React state which is async)
+      const formData: ExpenseFormData = {
+        description: description.trim(),
+        amount,
+        currency,
+        category_id: selectedCategory?.id || null,
+        paid_by: paidBy || user.id,
+        split_type: 'equal_selected',
+        split_between: [user.id, actualFriendId],
+        notes: notes.trim(),
+        expense_date: new Date(),
+      };
 
-      // Wait a moment for state to update, then continue with expense creation
-      // This is a bit hacky - ideally we'd refactor to pass the groupId directly
-      await new Promise(resolve => setTimeout(resolve, 100));
+      const expenseId = await createExpense(formData, directGroupId);
+      setIsSubmitting(false);
+
+      if (expenseId) {
+        hapticSuccess();
+        router.back();
+      } else {
+        setErrors({ form: 'Failed to create expense. Please try again.' });
+      }
+      return;
     }
 
+    // Normal flow - groupId already resolved
     const formData: ExpenseFormData = {
       description: description.trim(),
       amount,
@@ -316,7 +395,7 @@ export default function AddExpenseScreen() {
       expense_date: new Date(),
     };
 
-    const expenseId = await createExpense(formData);
+    const expenseId = await createExpense(formData, resolvedGroupId);
     setIsSubmitting(false);
 
     if (expenseId) {
@@ -326,21 +405,29 @@ export default function AddExpenseScreen() {
   };
 
   const toggleMemberInSplit = (userId: string) => {
-    hapticSelection();
     setSplitBetween((prev) => {
       if (prev.includes(userId)) {
-        return prev.filter((id) => id !== userId);
+        // Trying to deselect
+        const newList = prev.filter((id) => id !== userId);
+        
+        // Rule 1: At least one person must be in the split
+        if (newList.length === 0) {
+          hapticWarning();
+          return prev; // Don't allow
+        }
+        
+        // Rule 2: If only one person remains, they can't be the payer
+        if (newList.length === 1 && newList[0] === paidBy) {
+          hapticWarning();
+          return prev; // Don't allow
+        }
+        
+        hapticSelection();
+        return newList;
       }
+      hapticSelection();
       return [...prev, userId];
     });
-  };
-
-  const handleSplitTypeChange = (type: SplitType) => {
-    setSplitType(type);
-    if (type === 'equal_all' && group) {
-      // Reset to all members
-      setSplitBetween(group.members.map((m) => m.user_id));
-    }
   };
 
   const getInitials = (name: string) => {
@@ -354,7 +441,7 @@ export default function AddExpenseScreen() {
 
   // Show loading while setting up group (either loading existing or creating direct)
   // In search mode, don't show loading until user has selected something
-  const isSettingUp = hasSelectedTarget && (isLoadingGroup || isCreatingDirectGroup || (selectedFriendId && !resolvedGroupId));
+  const isSettingUp = hasSelectedTarget && (isLoadingGroup || isCreatingDirectGroup || isCreatingShadowUser || (selectedFriendId && !resolvedGroupId));
   
   if (isSettingUp) {
     return (
@@ -792,70 +879,6 @@ export default function AddExpenseScreen() {
             {errors.paidBy && <Text style={styles.errorMessage}>{errors.paidBy}</Text>}
           </MotiView>
 
-          {/* Split Type - Only show for group expenses with 2+ members */}
-          {!isDirectExpense && (group?.members?.length || 0) > 2 && (
-            <MotiView
-              from={{ opacity: 0, translateY: 10 }}
-              animate={{ opacity: 1, translateY: 0 }}
-              transition={{ type: 'timing', duration: 300, delay: 300 }}
-              style={styles.section}
-            >
-              <Text style={[styles.sectionLabel, { color: secondaryTextColor }]}>Split</Text>
-              <View style={styles.splitTypeContainer}>
-                <Pressable
-                  style={[
-                    styles.splitTypeButton,
-                    { backgroundColor: cardBg, borderColor },
-                    splitType === 'equal_all' && {
-                      backgroundColor: colors.primary[50],
-                      borderColor: colors.primary[500],
-                    },
-                  ]}
-                  onPress={() => handleSplitTypeChange('equal_all')}
-                >
-                  <Ionicons
-                    name="people"
-                    size={20}
-                    color={splitType === 'equal_all' ? colors.primary[500] : secondaryTextColor}
-                  />
-                  <Text
-                    style={[
-                      styles.splitTypeText,
-                      { color: splitType === 'equal_all' ? colors.primary[500] : textColor },
-                    ]}
-                  >
-                    Equal (All)
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.splitTypeButton,
-                    { backgroundColor: cardBg, borderColor },
-                    splitType === 'equal_selected' && {
-                      backgroundColor: colors.primary[50],
-                      borderColor: colors.primary[500],
-                    },
-                  ]}
-                  onPress={() => handleSplitTypeChange('equal_selected')}
-                >
-                  <Ionicons
-                    name="person"
-                    size={20}
-                    color={splitType === 'equal_selected' ? colors.primary[500] : secondaryTextColor}
-                  />
-                  <Text
-                    style={[
-                      styles.splitTypeText,
-                      { color: splitType === 'equal_selected' ? colors.primary[500] : textColor },
-                    ]}
-                  >
-                    Select Members
-                  </Text>
-                </Pressable>
-              </View>
-            </MotiView>
-          )}
-
           {/* Member Selection for Split */}
           <MotiView
             from={{ opacity: 0, translateY: 10 }}
@@ -878,12 +901,7 @@ export default function AddExpenseScreen() {
                       styles.splitMemberItem,
                       { borderBottomColor: borderColor },
                     ]}
-                    onPress={() => {
-                      if (splitType === 'equal_selected') {
-                        toggleMemberInSplit(member.user_id);
-                      }
-                    }}
-                    disabled={splitType === 'equal_all'}
+                    onPress={() => toggleMemberInSplit(member.user_id)}
                   >
                     <View style={styles.splitMemberInfo}>
                       <View
@@ -908,22 +926,20 @@ export default function AddExpenseScreen() {
                           {CURRENCIES[currency].symbol}{splitAmount.toFixed(2)}
                         </Text>
                       )}
-                      {splitType === 'equal_selected' && (
-                        <View
-                          style={[
-                            styles.checkbox,
-                            isSelected && {
-                              backgroundColor: colors.primary[500],
-                              borderColor: colors.primary[500],
-                            },
-                            { borderColor },
-                          ]}
-                        >
-                          {isSelected && (
-                            <Ionicons name="checkmark" size={14} color={colors.white} />
-                          )}
-                        </View>
-                      )}
+                      <View
+                        style={[
+                          styles.checkbox,
+                          isSelected && {
+                            backgroundColor: colors.primary[500],
+                            borderColor: colors.primary[500],
+                          },
+                          { borderColor },
+                        ]}
+                      >
+                        {isSelected && (
+                          <Ionicons name="checkmark" size={14} color={colors.white} />
+                        )}
+                      </View>
                     </View>
                   </Pressable>
                 );
@@ -1268,24 +1284,6 @@ const styles = StyleSheet.create({
   memberName: {
     flex: 1,
     fontSize: 15,
-  },
-  splitTypeContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  splitTypeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 8,
-  },
-  splitTypeText: {
-    fontSize: 14,
-    fontWeight: '500',
   },
   splitMemberList: {
     borderRadius: 12,
