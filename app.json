@@ -3,6 +3,7 @@
     "name": "settle",
     "slug": "settle",
     "version": "1.0.0",
+    "platforms": ["ios", "android"],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "settle",
