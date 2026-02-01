@@ -55,7 +55,7 @@ export default function ExpenseDetailScreen() {
   const [selectedCategory, setSelectedCategory] = useState<DbCategory | null>(null);
   const [notes, setNotes] = useState('');
   const [paidBy, setPaidBy] = useState<string>('');
-  const [splitType, setSplitType] = useState<SplitType>('equal_all');
+  const [splitType] = useState<SplitType>('equal_selected');
   const [splitBetween, setSplitBetween] = useState<string[]>([]);
 
   // UI state for pickers
@@ -91,16 +91,8 @@ export default function ExpenseDetailScreen() {
       setNotes(expense.notes || '');
       setPaidBy(expense.paid_by);
       
-      // Determine split type based on current splits
+      // Set the split between from current expense splits
       const currentSplitUserIds = expense.splits.map(s => s.user_id);
-      const allMemberIds = group?.members.map(m => m.user_id) || [];
-      
-      // If all members are in the split, it's equal_all, otherwise equal_selected
-      const isAllMembers = allMemberIds.length > 0 && 
-        allMemberIds.every(id => currentSplitUserIds.includes(id)) &&
-        currentSplitUserIds.length === allMemberIds.length;
-      
-      setSplitType(isAllMembers ? 'equal_all' : 'equal_selected');
       setSplitBetween(currentSplitUserIds);
     }
   }, [expense, isEditing, group]);
@@ -130,6 +122,12 @@ export default function ExpenseDetailScreen() {
     if (splitBetween.length === 0) {
       hapticWarning();
       Alert.alert('Invalid Split', 'Please select at least one person to split with.');
+      return;
+    }
+
+    if (splitBetween.length === 1 && splitBetween[0] === paidBy) {
+      hapticWarning();
+      Alert.alert('Invalid Split', 'The person who paid cannot be the only one in the split.');
       return;
     }
 
@@ -171,23 +169,29 @@ export default function ExpenseDetailScreen() {
   };
 
   const toggleMemberInSplit = (userId: string) => {
-    hapticSelection();
     setSplitBetween((prev) => {
       if (prev.includes(userId)) {
-        // Don't allow removing the last person
-        if (prev.length === 1) return prev;
-        return prev.filter((id) => id !== userId);
+        // Trying to deselect
+        const newList = prev.filter((id) => id !== userId);
+        
+        // Rule 1: At least one person must be in the split
+        if (newList.length === 0) {
+          hapticWarning();
+          return prev; // Don't allow
+        }
+        
+        // Rule 2: If only one person remains, they can't be the payer
+        if (newList.length === 1 && newList[0] === paidBy) {
+          hapticWarning();
+          return prev; // Don't allow
+        }
+        
+        hapticSelection();
+        return newList;
       }
+      hapticSelection();
       return [...prev, userId];
     });
-  };
-
-  const handleSplitTypeChange = (type: SplitType) => {
-    setSplitType(type);
-    if (type === 'equal_all' && group) {
-      // Reset to all members
-      setSplitBetween(group.members.map((m) => m.user_id));
-    }
   };
 
   const handleDelete = () => {
@@ -525,70 +529,6 @@ export default function ExpenseDetailScreen() {
             )}
           </MotiView>
 
-          {/* Split Type (Edit Mode Only) */}
-          {isEditing && group && (
-            <MotiView
-              from={{ opacity: 0, translateY: 10 }}
-              animate={{ opacity: 1, translateY: 0 }}
-              transition={{ type: 'timing', duration: 300, delay: 225 }}
-              style={[styles.card, { backgroundColor: cardBg }]}
-            >
-              <Text style={[styles.cardLabel, { color: secondaryTextColor }]}>Split Type</Text>
-              <View style={styles.splitTypeContainer}>
-                <Pressable
-                  style={[
-                    styles.splitTypeButton,
-                    { backgroundColor: cardBg, borderColor },
-                    splitType === 'equal_all' && {
-                      backgroundColor: colors.primary[50],
-                      borderColor: colors.primary[500],
-                    },
-                  ]}
-                  onPress={() => handleSplitTypeChange('equal_all')}
-                >
-                  <Ionicons
-                    name="people"
-                    size={20}
-                    color={splitType === 'equal_all' ? colors.primary[500] : secondaryTextColor}
-                  />
-                  <Text
-                    style={[
-                      styles.splitTypeText,
-                      { color: splitType === 'equal_all' ? colors.primary[500] : textColor },
-                    ]}
-                  >
-                    Equal (All)
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.splitTypeButton,
-                    { backgroundColor: cardBg, borderColor },
-                    splitType === 'equal_selected' && {
-                      backgroundColor: colors.primary[50],
-                      borderColor: colors.primary[500],
-                    },
-                  ]}
-                  onPress={() => handleSplitTypeChange('equal_selected')}
-                >
-                  <Ionicons
-                    name="person"
-                    size={20}
-                    color={splitType === 'equal_selected' ? colors.primary[500] : secondaryTextColor}
-                  />
-                  <Text
-                    style={[
-                      styles.splitTypeText,
-                      { color: splitType === 'equal_selected' ? colors.primary[500] : textColor },
-                    ]}
-                  >
-                    Select Members
-                  </Text>
-                </Pressable>
-              </View>
-            </MotiView>
-          )}
-
           {/* Split Breakdown */}
           <MotiView
             from={{ opacity: 0, translateY: 10 }}
@@ -618,12 +558,7 @@ export default function ExpenseDetailScreen() {
                         borderBottomColor: borderColor,
                       },
                     ]}
-                    onPress={() => {
-                      if (splitType === 'equal_selected') {
-                        toggleMemberInSplit(member.user_id);
-                      }
-                    }}
-                    disabled={splitType === 'equal_all'}
+                    onPress={() => toggleMemberInSplit(member.user_id)}
                   >
                     <View style={styles.splitUser}>
                       <View
@@ -646,22 +581,20 @@ export default function ExpenseDetailScreen() {
                           {formatCurrency(memberSplitAmount, expense.currency)}
                         </Text>
                       )}
-                      {splitType === 'equal_selected' && (
-                        <View
-                          style={[
-                            styles.checkbox,
-                            isSelected && {
-                              backgroundColor: colors.primary[500],
-                              borderColor: colors.primary[500],
-                            },
-                            { borderColor },
-                          ]}
-                        >
-                          {isSelected && (
-                            <Ionicons name="checkmark" size={14} color={colors.white} />
-                          )}
-                        </View>
-                      )}
+                      <View
+                        style={[
+                          styles.checkbox,
+                          isSelected && {
+                            backgroundColor: colors.primary[500],
+                            borderColor: colors.primary[500],
+                          },
+                          { borderColor },
+                        ]}
+                      >
+                        {isSelected && (
+                          <Ionicons name="checkmark" size={14} color={colors.white} />
+                        )}
+                      </View>
                     </View>
                   </Pressable>
                 );
@@ -1034,24 +967,6 @@ const styles = StyleSheet.create({
   memberPickerName: {
     flex: 1,
     fontSize: 15,
-  },
-  splitTypeContainer: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  splitTypeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    gap: 8,
-  },
-  splitTypeText: {
-    fontSize: 14,
-    fontWeight: '500',
   },
   splitRight: {
     flexDirection: 'row',
