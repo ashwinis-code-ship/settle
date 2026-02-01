@@ -86,15 +86,34 @@ serve(async (req) => {
     const digits = phone.replace(/\D/g, '');
     const email = `${digits}@settle.phone`;
 
-    // Check if user already exists
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const existingUser = existingUsers?.users.find(u => u.email === email);
+    // Check if user already exists in public.users (consistent with send-otp check)
+    // This is our source of truth for registered vs shadow users
+    const { data: existingProfile } = await supabaseAdmin
+      .from('users')
+      .select('id, is_registered')
+      .eq('phone', phone)
+      .single();
 
-    if (existingUser) {
+    // Block only if user exists AND is registered (not a shadow user)
+    if (existingProfile?.is_registered === true) {
       return jsonResponse({
         success: false,
         message: 'This phone number is already registered. Please sign in.'
       });
+    }
+
+    // Check for orphaned auth user (auth user without proper profile)
+    const { data: existingAuthUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const existingAuthUser = existingAuthUsers?.users.find(u => u.email === email);
+
+    // If auth user exists but profile says not registered (or doesn't exist), clean up the orphan
+    if (existingAuthUser && existingProfile?.is_registered !== true) {
+      console.log(`Cleaning up orphaned auth user: ${existingAuthUser.id}`);
+      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(existingAuthUser.id);
+      if (deleteError) {
+        console.error('Error deleting orphaned auth user:', deleteError);
+        // Continue anyway - createUser might still work or give a clear error
+      }
     }
 
     // Create user with admin API
@@ -115,17 +134,10 @@ serve(async (req) => {
 
     // Create user profile in users table
     if (authData.user) {
-      // Check for existing shadow user
-      const { data: shadowUser } = await supabaseAdmin
-        .from('users')
-        .select('id')
-        .eq('phone', phone)
-        .eq('is_registered', false)
-        .single();
-
       let profileCreated = false;
 
-      if (shadowUser) {
+      // Check if we have a shadow user to claim (existingProfile with is_registered = false)
+      if (existingProfile && existingProfile.is_registered === false) {
         // Claim shadow account: Update ID to match auth user and set registered
         // This relies on ON UPDATE CASCADE for foreign keys
         const { error: claimError } = await supabaseAdmin
@@ -136,13 +148,13 @@ serve(async (req) => {
             is_registered: true,
             updated_at: new Date().toISOString()
           })
-          .eq('id', shadowUser.id);
+          .eq('id', existingProfile.id);
 
         if (claimError) {
           console.error('Error claiming shadow profile:', claimError);
           // Will try fallback below
         } else {
-          console.log(`Successfully claimed shadow user ${shadowUser.id} -> ${authData.user.id}`);
+          console.log(`Successfully claimed shadow user ${existingProfile.id} -> ${authData.user.id}`);
           profileCreated = true;
         }
       }
@@ -150,11 +162,11 @@ serve(async (req) => {
       // If no shadow user OR claiming failed, create new profile
       if (!profileCreated) {
         // First, delete any orphaned shadow user with this phone (in case claim failed due to constraint)
-        if (shadowUser) {
+        if (existingProfile && existingProfile.is_registered === false) {
           await supabaseAdmin
             .from('users')
             .delete()
-            .eq('id', shadowUser.id)
+            .eq('id', existingProfile.id)
             .eq('is_registered', false);
         }
 
