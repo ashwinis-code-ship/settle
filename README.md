@@ -1,50 +1,116 @@
-# Welcome to your Expo app 👋
+# Settle
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A modern expense splitting app for iOS and Android. Split bills with friends, track shared expenses, and settle up easily.
 
-## Get started
+## Features
 
-1. Install dependencies
+- **Split Expenses** - Equal splits among all or selected members
+- **Groups** - Create groups for trips, roommates, events, and more
+- **1:1 Expenses** - Quick expense tracking with individual friends
+- **Multi-Currency** - Support for INR, USD, EUR, GBP, and more
+- **Settlements** - Track payments and settle debts
+- **Offline Support** - Full offline functionality with automatic sync
+- **Real-time Sync** - Changes sync instantly across devices
+- **Categories** - Organize expenses with icons and categories
 
+## Tech Stack
+
+- **Framework**: React Native with Expo
+- **Navigation**: Expo Router (file-based routing)
+- **Backend**: Supabase (PostgreSQL, Auth, Edge Functions, Realtime)
+- **Animations**: Moti + React Native Reanimated
+- **State Management**: TanStack Query (React Query)
+- **Storage**: AsyncStorage for offline data
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
+- iOS Simulator (Mac) or Android Emulator
+- Expo Go app (for physical device testing)
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd settle
+   ```
+
+2. Install dependencies:
    ```bash
    npm install
    ```
 
-2. Start the app
+3. Set up environment variables:
+   - Copy `.env.example` to `.env` (if applicable)
+   - Add your Supabase project URL and anon key
 
+4. Start the development server:
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+5. Run on your device:
+   - Press `i` for iOS Simulator
+   - Press `a` for Android Emulator
+   - Scan QR code with Expo Go app for physical device
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Project Structure
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+settle/
+├── app/                    # Screens (file-based routing)
+│   ├── (auth)/            # Authentication screens
+│   ├── (tabs)/            # Main tab screens
+│   ├── group/             # Group detail screens
+│   └── friend/            # Friend detail screens
+├── components/            # Reusable UI components
+├── constants/             # Colors, themes, static data
+├── contexts/              # React contexts (auth, sync)
+├── hooks/                 # Custom React hooks
+├── lib/                   # Utilities and services
+├── supabase/              # Database schema and Edge Functions
+│   ├── functions/         # Supabase Edge Functions
+│   └── schema.sql         # Database schema
+└── types/                 # TypeScript type definitions
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Key Screens
 
-## Learn more
+| Screen | Description |
+|--------|-------------|
+| Home | Dashboard with balance summary and recent activity |
+| Groups | List of expense groups |
+| Friends | Individual friend balances |
+| Profile | User settings and preferences |
+| Add Expense | Create new expense with splits |
+| Settle Up | Record payments between users |
 
-To learn more about developing your project with Expo, look at the following resources:
+## Offline Support
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Settle works fully offline:
+- Create expenses and settlements when offline
+- Changes are queued and synced when back online
+- Read-only access to synced data when offline
+- Visual indicators for pending/unsynced items
 
-## Join the community
+## Authentication
 
-Join our community of developers creating universal apps.
+- Phone number + OTP verification
+- Secure password authentication
+- Shadow user support (invite friends before they sign up)
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is proprietary software.
