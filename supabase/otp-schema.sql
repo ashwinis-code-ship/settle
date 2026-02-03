@@ -13,7 +13,7 @@
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS public.otp_requests (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     phone TEXT NOT NULL,
     otp_hash TEXT NOT NULL,           -- SHA-256 hash of OTP
     purpose TEXT NOT NULL CHECK (purpose IN ('signup', 'forgot_password')),

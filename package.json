@@ -8,13 +8,16 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "lint": "expo lint",
-    "supabase:cli": "supabase",
-    "supabase:link": "supabase link",
-    "supabase:functions:deploy": "supabase functions deploy",
-    "supabase:functions:serve": "supabase functions serve",
-    "supabase:secrets:set": "supabase secrets set",
-    "supabase:secrets:list": "supabase secrets list",
-    "supabase:db:push": "supabase db push"
+    "env:dev": "cp .env.dev .env && echo '✅ Switched to DEV environment'",
+    "env:prod": "cp .env.prod .env && echo '✅ Switched to PROD environment'",
+    "build:dev": "npm run env:dev && npx expo export",
+    "build:prod": "npm run env:prod && npx expo export",
+    "link:dev": "supabase link --project-ref xfgjrllpniwipycwecky",
+    "link:prod": "supabase link --project-ref lxlxeotdanecurofzxzk",
+    "db:push": "supabase db push",
+    "functions:deploy": "supabase functions deploy --no-verify-jwt",
+    "deploy:dev": "npm run link:dev && npm run db:push && npm run functions:deploy",
+    "deploy:prod": "npm run link:prod && npm run db:push && npm run functions:deploy"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
