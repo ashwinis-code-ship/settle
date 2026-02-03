@@ -3,7 +3,10 @@
     "name": "settle",
     "slug": "settle",
     "version": "1.0.0",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "settle",
@@ -41,7 +44,8 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to set profile pictures and group images.",
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to take profile pictures and group photos."
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true,
