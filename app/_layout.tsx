@@ -4,16 +4,39 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { colors } from '@/constants/colors';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { SettingsProvider } from '@/contexts/settings-context';
 import { SyncProvider } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRealtimeSync } from '@/hooks/use-realtime-sync';
-import { colors } from '@/constants/colors';
+import {
+  posthogApiKey,
+  posthogHost,
+  PostHogProvider,
+  setPostHogClient,
+  usePostHog
+} from '@/lib/analytics';
 import { queryClient } from '@/lib/query-client';
+
+/**
+ * Component that captures the PostHog client and makes it available
+ * to the analytics utility functions outside of React components
+ */
+function AnalyticsSetup({ children }: { children: React.ReactNode }) {
+  const posthog = usePostHog();
+
+  useEffect(() => {
+    if (posthog) {
+      setPostHogClient(posthog);
+    }
+  }, [posthog]);
+
+  return <>{children}</>;
+}
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -61,16 +84,27 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <SafeAreaProvider>
-        <SettingsProvider>
-          <AuthProvider>
-            <SyncProvider>
-              <RootLayoutNav />
-            </SyncProvider>
-          </AuthProvider>
-        </SettingsProvider>
-      </SafeAreaProvider>
-    </QueryClientProvider>
+    <PostHogProvider 
+      apiKey={posthogApiKey} 
+      options={{
+        host: posthogHost,
+        // Enable debug mode in development
+        debug: __DEV__,
+      }}
+    >
+      <AnalyticsSetup>
+        <QueryClientProvider client={queryClient}>
+          <SafeAreaProvider>
+            <SettingsProvider>
+              <AuthProvider>
+                <SyncProvider>
+                  <RootLayoutNav />
+                </SyncProvider>
+              </AuthProvider>
+            </SettingsProvider>
+          </SafeAreaProvider>
+        </QueryClientProvider>
+      </AnalyticsSetup>
+    </PostHogProvider>
   );
 }

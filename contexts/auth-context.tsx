@@ -1,7 +1,9 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { Analytics } from '@/lib/analytics';
+import { AUTH_EVENTS } from '@/lib/analytics-events';
 import { supabase } from '@/lib/supabase';
 import { syncManager } from '@/lib/sync-manager';
 import type { Session, User } from '@supabase/supabase-js';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 /**
  * Convert phone number to a unique email for Supabase Auth
@@ -40,6 +42,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       setIsLoading(false);
+
+      // Identify returning user in analytics
+      if (session?.user) {
+        Analytics.identify(session.user.id, {
+          phone: session.user.phone,
+          name: session.user.user_metadata?.name,
+        });
+      }
     });
 
     // Listen for auth changes
@@ -52,17 +62,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (phone: string, password: string) => {
+    // Track sign in attempt (only log phone prefix for privacy)
+    Analytics.track(AUTH_EVENTS.SIGN_IN_STARTED, { 
+      phone_prefix: phone.slice(0, 4) + '***' 
+    });
+
     try {
       // Convert phone to email for Supabase Auth
       const email = phoneToEmail(phone);
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error, data } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
         console.error('[Auth] Sign in error:', error);
+        
+        // Track sign in failure
+        Analytics.track(AUTH_EVENTS.SIGN_IN_FAILED, { 
+          error_type: error.message?.includes('Invalid login credentials') 
+            ? 'invalid_credentials' 
+            : 'unknown'
+        });
+
         // Provide user-friendly error messages
         if (error.message?.includes('Invalid login credentials')) {
           return { error: new Error('Invalid phone number or password') };
@@ -71,14 +94,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: new Error('Something went wrong. Please try again later.') };
       }
 
+      // Identify user in analytics on successful sign in
+      if (data.user) {
+        Analytics.identify(data.user.id, {
+          phone: phone,
+          name: data.user.user_metadata?.name,
+          created_at: data.user.created_at,
+        });
+        Analytics.track(AUTH_EVENTS.SIGN_IN_COMPLETED);
+      }
+
       return { error: null };
     } catch (error) {
       console.error('[Auth] Sign in exception:', error);
+      Analytics.track(AUTH_EVENTS.SIGN_IN_FAILED, { error_type: 'exception' });
       return { error: new Error('Something went wrong. Please try again later.') };
     }
   };
 
   const signOut = async () => {
+    // Track sign out event
+    Analytics.track(AUTH_EVENTS.SIGN_OUT);
+    
+    // Reset analytics identity (unlink future events from this user)
+    Analytics.reset();
+
     // Clear all cached data before signing out
     await syncManager.clearLocalData();
     await supabase.auth.signOut();
