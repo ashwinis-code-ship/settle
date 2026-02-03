@@ -9,6 +9,8 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { OfflineBanner } from '@/components/ui/offline-banner';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Analytics } from '@/lib/analytics';
+import { NAV_EVENTS } from '@/lib/analytics-events';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -27,6 +29,23 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: isDark ? colors.gray[900] : colors.white,
           borderTopColor: isDark ? colors.gray[800] : colors.gray[200],
+        },
+      }}
+      screenListeners={{
+        tabPress: (e) => {
+          // Extract route name from target (format: "routeName-uniqueId")
+          const routeName = e.target?.split('-')[0];
+          
+          const eventMap: Record<string, string> = {
+            index: NAV_EVENTS.TAB_HOME_VIEWED,
+            groups: NAV_EVENTS.TAB_GROUPS_VIEWED,
+            explore: NAV_EVENTS.TAB_EXPLORE_VIEWED,
+            profile: NAV_EVENTS.TAB_PROFILE_VIEWED,
+          };
+          
+          if (routeName && eventMap[routeName]) {
+            Analytics.track(eventMap[routeName]);
+          }
         },
       }}>
       <Tabs.Screen
