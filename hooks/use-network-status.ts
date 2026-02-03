@@ -5,7 +5,7 @@
  * Uses expo-network for accurate detection across platforms.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 
 // Simple online detection using fetch
@@ -69,11 +69,13 @@ export function useNetworkStatus(): NetworkStatus {
     return () => subscription.remove();
   }, [refresh]);
 
-  // Periodic check every 30 seconds when online
+  // Periodic check - faster when offline to detect recovery quickly
   useEffect(() => {
-    if (!isOnline) return;
-
-    const interval = setInterval(refresh, 30000);
+    // When offline: check every 5 seconds to detect network recovery
+    // When online: check every 10 seconds as a heartbeat
+    const intervalMs = isOnline ? 10000 : 5000;
+    
+    const interval = setInterval(refresh, intervalMs);
     return () => clearInterval(interval);
   }, [isOnline, refresh]);
 

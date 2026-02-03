@@ -27,6 +27,8 @@ export interface SearchResultContact {
   userId?: string;
   /** Avatar URL if user exists */
   avatarUrl?: string | null;
+  /** Whether a direct (1:1) group exists - needed for offline expense creation */
+  hasDirectGroup?: boolean;
 }
 
 export type SearchResult = SearchResultGroup | SearchResultContact;
@@ -48,6 +50,7 @@ export function useContactGroupSearch(): UseContactGroupSearchResult {
   const [isLoading, setIsLoading] = useState(false);
   const [hasContactPermission, setHasContactPermission] = useState<boolean | null>(null);
   const [userPhoneMap, setUserPhoneMap] = useState<Map<string, { id: string; avatarUrl: string | null }>>(new Map());
+  const [directGroupUserIds, setDirectGroupUserIds] = useState<Set<string>>(new Set());
 
   // Load contacts from phone
   const loadContacts = useCallback(async () => {
@@ -127,17 +130,20 @@ export function useContactGroupSearch(): UseContactGroupSearchResult {
 
       const groupIds = memberData.map((m) => m.group_id);
 
-      // Fetch group details (only explicit groups, not direct groups, exclude deleted)
-      const { data: groupsData } = await supabase
+      // Fetch all group details (including direct groups for hasDirectGroup check)
+      const { data: allGroupsData } = await supabase
         .from('groups')
-        .select('id, name')
+        .select('id, name, type')
         .in('id', groupIds)
-        .eq('type', 'group')
         .is('deleted_at', null);
 
-      if (!groupsData) return;
+      if (!allGroupsData) return;
 
-      // Get member counts
+      // Separate regular groups (for display) from direct groups (for tracking)
+      const regularGroups = allGroupsData.filter(g => g.type === 'group');
+      const directGroups = allGroupsData.filter(g => g.type === 'direct');
+
+      // Get member counts for regular groups
       const { data: allMembers } = await supabase
         .from('group_members')
         .select('group_id')
@@ -148,7 +154,7 @@ export function useContactGroupSearch(): UseContactGroupSearchResult {
         memberCounts[m.group_id] = (memberCounts[m.group_id] || 0) + 1;
       });
 
-      const groupResults: SearchResultGroup[] = groupsData.map((g) => ({
+      const groupResults: SearchResultGroup[] = regularGroups.map((g) => ({
         type: 'group',
         id: g.id,
         name: g.name,
@@ -156,6 +162,21 @@ export function useContactGroupSearch(): UseContactGroupSearchResult {
       }));
 
       setGroups(groupResults);
+
+      // Find which users have direct groups with current user
+      if (directGroups.length > 0) {
+        const directGroupIds = directGroups.map(g => g.id);
+        const { data: directGroupMembers } = await supabase
+          .from('group_members')
+          .select('user_id')
+          .in('group_id', directGroupIds)
+          .neq('user_id', user.id);
+
+        if (directGroupMembers) {
+          const userIdsWithDirectGroups = new Set(directGroupMembers.map(m => m.user_id));
+          setDirectGroupUserIds(userIdsWithDirectGroups);
+        }
+      }
     } catch (error) {
       console.error('[useContactGroupSearch] Error loading groups:', error);
     }
@@ -172,22 +193,25 @@ export function useContactGroupSearch(): UseContactGroupSearchResult {
   const search = useCallback((query: string) => {
     const trimmedQuery = query.trim().toLowerCase();
 
+    const mapContactToResult = (c: ContactEntry): SearchResultContact => {
+      const normalizedPhone = normalizePhone(c.phone);
+      const existingUser = userPhoneMap.get(normalizedPhone);
+      return {
+        type: 'contact',
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        userId: existingUser?.id,
+        avatarUrl: existingUser?.avatarUrl,
+        hasDirectGroup: existingUser?.id ? directGroupUserIds.has(existingUser.id) : false,
+      };
+    };
+
     if (!trimmedQuery) {
       // Show some default results (first few groups + contacts)
       const defaultResults: SearchResult[] = [
         ...groups.slice(0, 3),
-        ...contacts.slice(0, 5).map((c): SearchResultContact => {
-          const normalizedPhone = normalizePhone(c.phone);
-          const existingUser = userPhoneMap.get(normalizedPhone);
-          return {
-            type: 'contact',
-            id: c.id,
-            name: c.name,
-            phone: c.phone,
-            userId: existingUser?.id,
-            avatarUrl: existingUser?.avatarUrl,
-          };
-        }),
+        ...contacts.slice(0, 5).map(mapContactToResult),
       ];
       setSearchResults(defaultResults);
       return;
@@ -205,21 +229,10 @@ export function useContactGroupSearch(): UseContactGroupSearchResult {
         c.phone.includes(trimmedQuery)
       )
       .slice(0, 10) // Limit contacts
-      .map((c): SearchResultContact => {
-        const normalizedPhone = normalizePhone(c.phone);
-        const existingUser = userPhoneMap.get(normalizedPhone);
-        return {
-          type: 'contact',
-          id: c.id,
-          name: c.name,
-          phone: c.phone,
-          userId: existingUser?.id,
-          avatarUrl: existingUser?.avatarUrl,
-        };
-      });
+      .map(mapContactToResult);
 
     setSearchResults([...matchingGroups, ...matchingContacts]);
-  }, [groups, contacts, userPhoneMap]);
+  }, [groups, contacts, userPhoneMap, directGroupUserIds]);
 
   // Load data on mount
   useEffect(() => {

@@ -10,9 +10,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
+import { cache } from '@/lib/storage';
 import type { FriendTransaction, CurrencyCode, UserSummary } from '@/types';
 
-interface FriendDetail {
+export interface FriendDetail {
   user: UserSummary;
   total_balance: number;
   shared_groups: number;
@@ -59,7 +60,17 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
 
     try {
       if (!isOnline) {
-        // TODO: Load from cache
+        // Load from cache when offline
+        const cached = await cache.getFriendDetail<{
+          friend: FriendDetail;
+          groupBalances: GroupBalance[];
+          transactions: FriendTransaction[];
+        }>(friendId);
+        if (cached) {
+          setFriend(cached.friend);
+          setGroupBalances(cached.groupBalances);
+          setTransactions(cached.transactions);
+        }
         setIsLoading(false);
         return;
       }
@@ -253,18 +264,42 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       );
 
-      setFriend({
+      const friendData: FriendDetail = {
         user: friendUser as UserSummary,
         total_balance: Number(balance) || 0,
         shared_groups: regularGroupIds.length, // Only count regular groups
         primary_currency: 'INR',
-      });
+      };
+
+      setFriend(friendData);
       setGroupBalances(groupBalancesArray);
       setTransactions(allTransactions);
+
+      // Cache the result for offline access
+      await cache.setFriendDetail(friendId, {
+        friend: friendData,
+        groupBalances: groupBalancesArray,
+        transactions: allTransactions,
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to fetch friend details';
-      setError(message);
-      console.error('[useFriendDetail] Error:', err);
+      // If network error and we have cache, use cache instead
+      const cached = await cache.getFriendDetail<{
+        friend: FriendDetail;
+        groupBalances: GroupBalance[];
+        transactions: FriendTransaction[];
+      }>(friendId);
+      
+      if (cached) {
+        console.log('[useFriendDetail] Network error, using cached data');
+        setFriend(cached.friend);
+        setGroupBalances(cached.groupBalances);
+        setTransactions(cached.transactions);
+        setError(null); // Clear error since we have cache
+      } else {
+        const message = err instanceof Error ? err.message : 'Failed to fetch friend details';
+        setError(message);
+        console.error('[useFriendDetail] Error:', err);
+      }
     } finally {
       setIsLoading(false);
     }

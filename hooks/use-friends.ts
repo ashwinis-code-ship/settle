@@ -5,12 +5,13 @@
  * Uses TanStack Query for caching and deduplication.
  */
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
 import { queryKeys } from '@/lib/query-client';
-import type { Friend, CurrencyCode, UserSummary } from '@/types';
+import { cache } from '@/lib/storage';
+import { supabase } from '@/lib/supabase';
+import type { CurrencyCode, Friend, UserSummary } from '@/types';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 async function fetchFriends(userId: string): Promise<Friend[]> {
   // Get all groups user is member of
@@ -98,17 +99,26 @@ async function fetchFriends(userId: string): Promise<Friend[]> {
       (gid) => groupTypeMap.get(gid) !== 'direct'
     ).length;
 
+    // Check if a direct (1:1) group exists with this friend
+    const hasDirectGroup = data.groupIds.some(
+      (gid) => groupTypeMap.get(gid) === 'direct'
+    );
+
     friendsData.push({
       user: data.user,
       total_balance: Number(balance) || 0,
       primary_currency: 'INR' as CurrencyCode, // TODO: Calculate most common currency
       shared_groups: regularGroupsCount,
       last_activity: lastExpense?.created_at || null,
+      hasDirectGroup,
     });
   }
 
   // Sort by absolute balance (highest first)
   friendsData.sort((a, b) => Math.abs(b.total_balance) - Math.abs(a.total_balance));
+
+  // Cache the result for offline access
+  await cache.setFriends(friendsData);
 
   return friendsData;
 }
@@ -127,10 +137,28 @@ export function useFriends(): UseFriendsResult {
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.friends,
-    queryFn: () => fetchFriends(user!.id),
-    enabled: !!user && isOnline,
+    queryFn: async () => {
+      // Return cached data when offline
+      if (!isOnline) {
+        return cache.getFriends<Friend>();
+      }
+      
+      // Online: try to fetch, but catch network errors gracefully
+      try {
+        return await fetchFriends(user!.id);
+      } catch (err) {
+        // If network error and we have cache, return cache instead
+        const cached = await cache.getFriends<Friend>();
+        if (cached && cached.length > 0) {
+          console.log('[useFriends] Network error, using cached data');
+          return cached;
+        }
+        throw err; // Re-throw if no cache available
+      }
+    },
+    enabled: !!user, // Allow query to run offline (will use cache)
     staleTime: 30 * 1000, // 30 seconds - more responsive to changes
-    refetchOnMount: 'always', // Always refetch when component mounts
+    refetchOnMount: isOnline ? 'always' : false, // Only refetch when online
   });
 
   const refresh = async () => {

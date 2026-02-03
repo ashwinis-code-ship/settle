@@ -12,12 +12,19 @@ const STORAGE_KEYS = {
   // Cached data
   USER: 'settle:user',
   GROUPS: 'settle:groups',
+  GROUPS_LIST: 'settle:groups_list', // Transformed GroupListItem[]
   GROUP_MEMBERS: 'settle:group_members',
   EXPENSES: 'settle:expenses',
   EXPENSE_SPLITS: 'settle:expense_splits',
   SETTLEMENTS: 'settle:settlements',
   CATEGORIES: 'settle:categories',
   FRIENDS: 'settle:friends',
+  RECENT_ACTIVITY: 'settle:recent_activity',
+  
+  // Dynamic cache keys (prefixes - append ID)
+  GROUP_DETAIL_PREFIX: 'settle:group_detail:',
+  FRIEND_DETAIL_PREFIX: 'settle:friend_detail:',
+  EXPENSES_PREFIX: 'settle:expenses:',
   
   // Sync state
   SYNC_QUEUE: 'settle:sync_queue',
@@ -138,7 +145,9 @@ export const storage = {
  * Cache helpers for specific entity types
  */
 export const cache = {
-  // User
+  // ============================================
+  // USER
+  // ============================================
   async getUser() {
     return storage.get(STORAGE_KEYS.USER);
   },
@@ -146,7 +155,9 @@ export const cache = {
     return storage.set(STORAGE_KEYS.USER, user);
   },
 
-  // Groups
+  // ============================================
+  // GROUPS (raw data)
+  // ============================================
   async getGroups() {
     return storage.get<unknown[]>(STORAGE_KEYS.GROUPS) ?? [];
   },
@@ -154,7 +165,69 @@ export const cache = {
     return storage.set(STORAGE_KEYS.GROUPS, groups);
   },
 
-  // Categories
+  // ============================================
+  // GROUPS LIST (transformed GroupListItem[])
+  // ============================================
+  async getGroupsList<T>(): Promise<T[]> {
+    return (await storage.get<T[]>(STORAGE_KEYS.GROUPS_LIST)) ?? [];
+  },
+  async setGroupsList<T>(groups: T[]) {
+    return storage.set(STORAGE_KEYS.GROUPS_LIST, groups);
+  },
+
+  // ============================================
+  // FRIENDS
+  // ============================================
+  async getFriends<T>(): Promise<T[]> {
+    return (await storage.get<T[]>(STORAGE_KEYS.FRIENDS)) ?? [];
+  },
+  async setFriends<T>(friends: T[]) {
+    return storage.set(STORAGE_KEYS.FRIENDS, friends);
+  },
+
+  // ============================================
+  // RECENT ACTIVITY
+  // ============================================
+  async getRecentActivity<T>(): Promise<T[]> {
+    return (await storage.get<T[]>(STORAGE_KEYS.RECENT_ACTIVITY)) ?? [];
+  },
+  async setRecentActivity<T>(activity: T[]) {
+    return storage.set(STORAGE_KEYS.RECENT_ACTIVITY, activity);
+  },
+
+  // ============================================
+  // GROUP DETAIL (dynamic key by groupId)
+  // ============================================
+  async getGroupDetail<T>(groupId: string): Promise<T | null> {
+    return storage.get<T>(`${STORAGE_KEYS.GROUP_DETAIL_PREFIX}${groupId}`);
+  },
+  async setGroupDetail<T>(groupId: string, data: T) {
+    return storage.set(`${STORAGE_KEYS.GROUP_DETAIL_PREFIX}${groupId}`, data);
+  },
+
+  // ============================================
+  // FRIEND DETAIL (dynamic key by friendId)
+  // ============================================
+  async getFriendDetail<T>(friendId: string): Promise<T | null> {
+    return storage.get<T>(`${STORAGE_KEYS.FRIEND_DETAIL_PREFIX}${friendId}`);
+  },
+  async setFriendDetail<T>(friendId: string, data: T) {
+    return storage.set(`${STORAGE_KEYS.FRIEND_DETAIL_PREFIX}${friendId}`, data);
+  },
+
+  // ============================================
+  // EXPENSES (dynamic key by groupId)
+  // ============================================
+  async getExpenses<T>(groupId: string): Promise<T[]> {
+    return (await storage.get<T[]>(`${STORAGE_KEYS.EXPENSES_PREFIX}${groupId}`)) ?? [];
+  },
+  async setExpenses<T>(groupId: string, expenses: T[]) {
+    return storage.set(`${STORAGE_KEYS.EXPENSES_PREFIX}${groupId}`, expenses);
+  },
+
+  // ============================================
+  // CATEGORIES
+  // ============================================
   async getCategories() {
     return storage.get<unknown[]>(STORAGE_KEYS.CATEGORIES) ?? [];
   },
@@ -162,7 +235,9 @@ export const cache = {
     return storage.set(STORAGE_KEYS.CATEGORIES, categories);
   },
 
-  // Last sync time
+  // ============================================
+  // LAST SYNC TIME
+  // ============================================
   async getLastSync(): Promise<string | null> {
     return storage.get<string>(STORAGE_KEYS.LAST_SYNC);
   },

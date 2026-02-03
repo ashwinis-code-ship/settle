@@ -5,21 +5,22 @@
  * Uses TanStack Query for caching and deduplication.
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
-import { syncQueue } from '@/lib/sync-queue';
-import { pendingExpenses, generatePendingId, type PendingExpense } from '@/lib/pending-items';
 import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
+import { pendingExpenses, type PendingExpense } from '@/lib/pending-items';
 import { queryKeys } from '@/lib/query-client';
+import { cache } from '@/lib/storage';
+import { supabase } from '@/lib/supabase';
+import { syncQueue } from '@/lib/sync-queue';
 import type {
-  DbCategory,
-  ExpenseFormData,
-  ExpenseListItem,
-  UserSummary,
-  CurrencyCode,
+    CurrencyCode,
+    DbCategory,
+    ExpenseFormData,
+    ExpenseListItem,
+    UserSummary,
 } from '@/types';
-import { useState, useEffect, useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
 
 async function fetchExpenses(groupId: string, userId: string): Promise<ExpenseListItem[]> {
   // Fetch expenses with paid_by user and category
@@ -54,7 +55,7 @@ async function fetchExpenses(groupId: string, userId: string): Promise<ExpenseLi
   });
 
   // Transform to ExpenseListItem
-  return (expensesData || []).map((e) => {
+  const expensesList: ExpenseListItem[] = (expensesData || []).map((e) => {
     const splits = splitsMap[e.id] || [];
     const userSplit = splits.find((s) => s.user_id === userId);
     const youPaid = e.paid_by === userId;
@@ -72,6 +73,11 @@ async function fetchExpenses(groupId: string, userId: string): Promise<ExpenseLi
       split_count: splits.length,
     };
   });
+
+  // Cache the result for offline access
+  await cache.setExpenses(groupId, expensesList);
+
+  return expensesList;
 }
 
 // Extended expense item with pending status
@@ -192,77 +198,41 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
         }));
       }
 
-      if (isOnline) {
-        const { data: newExpense, error: expenseError } = await supabase
-          .from('expenses')
-          .insert({
-            group_id: effectiveGroupId,
-            paid_by: formData.paid_by,
-            amount,
-            currency: formData.currency,
-            description: formData.description,
-            category_id: formData.category_id,
-            notes: formData.notes || null,
-            expense_date: formData.expense_date.toISOString().split('T')[0],
-            created_by: user.id,
-          })
-          .select('id')
-          .single();
-
-        if (expenseError) throw expenseError;
-
-        const splitsWithExpenseId = splits.map((s) => ({
-          ...s,
-          expense_id: newExpense.id,
-        }));
-
-        const { error: splitsError } = await supabase
-          .from('expense_splits')
-          .insert(splitsWithExpenseId);
-
-        if (splitsError) throw splitsError;
-
-        return newExpense.id;
-      } else {
-        // Offline: add to sync queue and store locally
-        const pendingId = generatePendingId();
-        const syncAction = await syncQueue.add('CREATE_EXPENSE', {
-          group_id: effectiveGroupId,
-          paid_by: formData.paid_by,
-          amount,
-          currency: formData.currency,
-          description: formData.description,
-          category_id: formData.category_id,
-          notes: formData.notes || null,
-          expense_date: formData.expense_date.toISOString().split('T')[0],
-          created_by: user.id,
-          splits,
-        });
-
-        // Store pending expense locally for display
-        const pendingExpense: PendingExpense = {
-          id: pendingId,
-          syncActionId: syncAction.id,
-          group_id: effectiveGroupId,
-          paid_by: formData.paid_by,
-          paid_by_name: user.name || 'You', // Will be replaced with actual name
-          amount,
-          currency: formData.currency,
-          description: formData.description,
-          category_id: formData.category_id,
-          notes: formData.notes || null,
-          expense_date: formData.expense_date.toISOString().split('T')[0],
-          created_by: user.id,
-          created_at: new Date().toISOString(),
-          splits,
-        };
-
-        await pendingExpenses.add(pendingExpense);
-        setLocalPendingExpenses((prev) => [...prev, pendingExpense]);
-        await refreshPendingItems();
-
-        return pendingId;
+      // Block offline - screens should prevent this, but guard here too
+      if (!isOnline) {
+        throw new Error('Adding expenses requires an internet connection');
       }
+
+      const { data: newExpense, error: expenseError } = await supabase
+        .from('expenses')
+        .insert({
+          group_id: effectiveGroupId,
+          paid_by: formData.paid_by,
+          amount,
+          currency: formData.currency,
+          description: formData.description,
+          category_id: formData.category_id,
+          notes: formData.notes || null,
+          expense_date: formData.expense_date.toISOString().split('T')[0],
+          created_by: user.id,
+        })
+        .select('id')
+        .single();
+
+      if (expenseError) throw expenseError;
+
+      const splitsWithExpenseId = splits.map((s) => ({
+        ...s,
+        expense_id: newExpense.id,
+      }));
+
+      const { error: splitsError } = await supabase
+        .from('expense_splits')
+        .insert(splitsWithExpenseId);
+
+      if (splitsError) throw splitsError;
+
+      return newExpense.id;
     },
     onSuccess: invalidateQueries,
     onError: (err) => {

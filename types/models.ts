@@ -168,6 +168,8 @@ export interface Friend {
   shared_groups: number;
   /** Last transaction date */
   last_activity: string | null;
+  /** Whether a direct (1:1) group exists with this friend - used for offline expense creation */
+  hasDirectGroup?: boolean;
 }
 
 /**

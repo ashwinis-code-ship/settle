@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
+import { syncManager } from '@/lib/sync-manager';
 import type { Session, User } from '@supabase/supabase-js';
 
 /**
@@ -78,6 +79,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    // Clear all cached data before signing out
+    await syncManager.clearLocalData();
     await supabase.auth.signOut();
   };
 

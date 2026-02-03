@@ -5,26 +5,31 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { router } from 'expo-router';
 import { MotiView } from 'moti';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonActivityList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
+import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFriends } from '@/hooks/use-friends';
 import { useRecentActivity, type ActivityItem } from '@/hooks/use-recent-activity';
-import { hapticLight } from '@/lib/haptics';
+import { useUser } from '@/hooks/use-user';
+import { hapticLight, hapticWarning } from '@/lib/haptics';
 import { formatCurrency } from '@/lib/utils';
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
+  const { user } = useUser();
+  const { isOnline } = useSync();
   const { friends, isLoading: isLoadingFriends, refresh: refreshFriends } = useFriends();
   const { activities, isLoading: isLoadingActivity, refresh: refreshActivity } = useRecentActivity();
   const [refreshing, setRefreshing] = useState(false);
@@ -34,6 +39,16 @@ export default function HomeScreen() {
     await Promise.all([refreshFriends(), refreshActivity()]);
     setRefreshing(false);
   }, [refreshFriends, refreshActivity]);
+
+  // Refetch when screen comes into focus (e.g., after adding expense)
+  useFocusEffect(
+    useCallback(() => {
+      if (isOnline) {
+        refreshFriends();
+        refreshActivity();
+      }
+    }, [isOnline, refreshFriends, refreshActivity])
+  );
 
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
   const secondaryTextColor = isDark ? colors.text.dark.secondary : colors.text.light.secondary;
@@ -64,8 +79,8 @@ export default function HomeScreen() {
     };
   }, [friends]);
 
-  // Get user info from metadata
-  const userName = user?.user_metadata?.name || 'User';
+  // Get user info from database, fallback to auth metadata
+  const userName = user?.name || authUser?.user_metadata?.name || 'User';
   const userInitials = userName
     .split(' ')
     .map((n: string) => n[0])
@@ -74,6 +89,15 @@ export default function HomeScreen() {
     .slice(0, 2);
 
   const handleAddExpense = () => {
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Adding expenses requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     hapticLight();
     router.push('/add-expense');
   };
@@ -84,6 +108,15 @@ export default function HomeScreen() {
   };
 
   const handleSettleUp = () => {
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Settling up requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     hapticLight();
     router.push('/settle-up');
   };
@@ -116,6 +149,24 @@ export default function HomeScreen() {
       .toUpperCase()
       .slice(0, 2);
   };
+
+  const isLoading = isLoadingFriends || isLoadingActivity;
+  const hasNoData = (!friends || friends.length === 0) && (!activities || activities.length === 0);
+
+  // Show offline empty state when no cached data available
+  if (!isOnline && !isLoading && hasNoData) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+        <View style={styles.offlineEmptyState}>
+          <EmptyState
+            icon="cloud-offline-outline"
+            title="No cached data"
+            description="Connect to the internet to load your dashboard"
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
@@ -408,6 +459,12 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  offlineEmptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
   },
   content: {
     flex: 1,

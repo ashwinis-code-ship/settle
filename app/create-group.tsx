@@ -29,6 +29,7 @@ import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { colors } from '@/constants/colors';
+import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroups } from '@/hooks/use-groups';
 import { hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
@@ -54,6 +55,18 @@ export default function CreateGroupScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { createGroup } = useGroups();
+  const { isOnline } = useSync();
+
+  // Block if offline
+  useEffect(() => {
+    if (!isOnline) {
+      Alert.alert(
+        'No Connection',
+        'Creating groups requires an internet connection.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    }
+  }, [isOnline]);
 
   // Bottom sheet ref
   const bottomSheetRef = useRef<BottomSheet>(null);

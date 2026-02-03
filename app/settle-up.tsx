@@ -26,6 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
+import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSettlements } from '@/hooks/use-settlements';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
@@ -51,7 +52,19 @@ export default function SettleUpScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { user } = useAuth();
+  const { isOnline } = useSync();
   const { createSettlement } = useSettlements();
+
+  // Block if offline
+  useEffect(() => {
+    if (!isOnline) {
+      Alert.alert(
+        'No Connection',
+        'Settling up requires an internet connection.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    }
+  }, [isOnline]);
 
   // State
   const [isSearchMode, setIsSearchMode] = useState(!params.friendId);

@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
+import { cache } from '@/lib/storage';
 import type { CurrencyCode, UserSummary } from '@/types';
 
 export interface ActivityItem {
@@ -140,7 +141,12 @@ async function fetchRecentActivity(userId: string): Promise<ActivityItem[]> {
   allActivities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   // Return top 10
-  return allActivities.slice(0, 10);
+  const result = allActivities.slice(0, 10);
+
+  // Cache the result for offline access
+  await cache.setRecentActivity(result);
+
+  return result;
 }
 
 interface UseRecentActivityResult {
@@ -156,9 +162,28 @@ export function useRecentActivity(): UseRecentActivityResult {
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['recentActivity'],
-    queryFn: () => fetchRecentActivity(user!.id),
-    enabled: !!user && isOnline,
+    queryFn: async () => {
+      // Return cached data when offline
+      if (!isOnline) {
+        return cache.getRecentActivity<ActivityItem>();
+      }
+      
+      // Online: try to fetch, but catch network errors gracefully
+      try {
+        return await fetchRecentActivity(user!.id);
+      } catch (err) {
+        // If network error and we have cache, return cache instead
+        const cached = await cache.getRecentActivity<ActivityItem>();
+        if (cached && cached.length > 0) {
+          console.log('[useRecentActivity] Network error, using cached data');
+          return cached;
+        }
+        throw err; // Re-throw if no cache available
+      }
+    },
+    enabled: !!user, // Allow query to run offline (will use cache)
     staleTime: 2 * 60 * 1000, // 2 minutes
+    refetchOnMount: isOnline ? 'always' : false, // Only refetch when online
   });
 
   return {

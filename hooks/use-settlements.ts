@@ -178,45 +178,23 @@ export function useSettlements(options: UseSettlementsOptions = {}): UseSettleme
         notes: formData.notes || null,
       };
 
-      if (isOnline) {
-        console.log('[useSettlements] Creating settlement:', settlementData);
-        const { data: newSettlement, error: createError } = await supabase
-          .from('settlements')
-          .insert(settlementData)
-          .select('id')
-          .single();
-
-        console.log('[useSettlements] Result:', { data: newSettlement, error: createError });
-
-        if (createError) throw createError;
-
-        return newSettlement.id;
-      } else {
-        // Offline: add to sync queue and store locally
-        const pendingId = generatePendingId();
-        const syncAction = await syncQueue.add('CREATE_SETTLEMENT', settlementData);
-
-        // Store pending settlement locally for display
-        const pendingSettlement: PendingSettlement = {
-          id: pendingId,
-          syncActionId: syncAction.id,
-          group_id: formData.group_id,
-          paid_by: paidBy,
-          paid_by_name: user.name || 'You',
-          paid_to: formData.paid_to,
-          paid_to_name: 'Contact', // Will need actual name from context
-          amount,
-          currency: formData.currency,
-          notes: formData.notes || null,
-          created_at: new Date().toISOString(),
-        };
-
-        await pendingSettlements.add(pendingSettlement);
-        setLocalPendingSettlements((prev) => [...prev, pendingSettlement]);
-        await refreshPendingItems();
-
-        return pendingId;
+      // Block offline - screens should prevent this, but guard here too
+      if (!isOnline) {
+        throw new Error('Settling up requires an internet connection');
       }
+
+      console.log('[useSettlements] Creating settlement:', settlementData);
+      const { data: newSettlement, error: createError } = await supabase
+        .from('settlements')
+        .insert(settlementData)
+        .select('id')
+        .single();
+
+      console.log('[useSettlements] Result:', { data: newSettlement, error: createError });
+
+      if (createError) throw createError;
+
+      return newSettlement.id;
     },
     onSuccess: invalidateQueries,
     onError: (err) => {

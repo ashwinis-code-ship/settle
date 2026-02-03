@@ -5,16 +5,16 @@
  * Uses TanStack Query for caching and deduplication.
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
+import { uploadGroupImage } from '@/lib/image-upload';
+import { queryKeys } from '@/lib/query-client';
 import { cache } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import { syncQueue } from '@/lib/sync-queue';
 import { formatPhoneNumber } from '@/lib/utils';
-import { uploadGroupImage } from '@/lib/image-upload';
-import { queryKeys } from '@/lib/query-client';
 import type { DbGroup, GroupFormData, GroupListItem } from '@/types';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 async function fetchGroups(userId: string): Promise<GroupListItem[]> {
@@ -94,6 +94,9 @@ async function fetchGroups(userId: string): Promise<GroupListItem[]> {
     last_activity: g.updated_at,
   }));
 
+  // Cache the transformed list for offline access
+  await cache.setGroupsList(groupsList);
+
   return groupsList;
 }
 
@@ -116,7 +119,12 @@ export function useGroups(): UseGroupsResult {
     queryKey: queryKeys.groups,
     queryFn: async () => {
       if (!isOnline) {
-        // Return cached data when offline
+        // First try cached transformed list (has full data with balances)
+        const cachedList = await cache.getGroupsList<GroupListItem>();
+        if (cachedList && cachedList.length > 0) {
+          return cachedList;
+        }
+        // Fallback to raw groups cache (limited data)
         const cached = await cache.getGroups();
         if (cached && cached.length > 0) {
           return (cached as DbGroup[])
@@ -133,11 +141,23 @@ export function useGroups(): UseGroupsResult {
         }
         return [];
       }
-      return fetchGroups(user!.id);
+      
+      // Online: try to fetch, but catch network errors gracefully
+      try {
+        return await fetchGroups(user!.id);
+      } catch (err) {
+        // If network error and we have cache, return cache instead
+        const cachedList = await cache.getGroupsList<GroupListItem>();
+        if (cachedList && cachedList.length > 0) {
+          console.log('[useGroups] Network error, using cached data');
+          return cachedList;
+        }
+        throw err; // Re-throw if no cache available
+      }
     },
     enabled: !!user,
     staleTime: 30 * 1000, // 30 seconds - more responsive to changes
-    refetchOnMount: 'always', // Always refetch when component mounts
+    refetchOnMount: isOnline ? 'always' : false, // Only refetch when online
   });
 
   // Mutation for creating groups
