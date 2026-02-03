@@ -5,34 +5,38 @@
  * Shows balance summary per group.
  */
 
-import { useState, useCallback } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  FlatList,
-  Pressable,
-  RefreshControl,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
+import { MotiView } from 'moti';
+import { useCallback, useState } from 'react';
+import {
+    Alert,
+    FlatList,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
+import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroups } from '@/hooks/use-groups';
-import { hapticLight } from '@/lib/haptics';
-import { CURRENCIES } from '@/types/database';
+import { hapticLight, hapticWarning } from '@/lib/haptics';
 import type { GroupListItem } from '@/types';
+import { CURRENCIES } from '@/types/database';
 
 export default function GroupsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { groups, isLoading, error, refresh } = useGroups();
+  const { isOnline } = useSync();
   const [refreshing, setRefreshing] = useState(false);
 
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
@@ -46,7 +50,25 @@ export default function GroupsScreen() {
     setRefreshing(false);
   }, [refresh]);
 
+  // Refetch when screen comes into focus (e.g., after creating a group)
+  useFocusEffect(
+    useCallback(() => {
+      if (isOnline) {
+        refresh();
+      }
+    }, [isOnline, refresh])
+  );
+
   const handleCreateGroup = () => {
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Creating groups requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     hapticLight();
     router.push('/create-group');
   };
@@ -171,15 +193,28 @@ export default function GroupsScreen() {
     );
   };
 
-  const renderEmptyState = () => (
-    <EmptyState
-      icon="people-outline"
-      title="No groups yet"
-      description="Create a group to start splitting expenses with your friends and family"
-      actionLabel="Create Group"
-      onAction={handleCreateGroup}
-    />
-  );
+  const renderEmptyState = () => {
+    // Show offline empty state when no cached data
+    if (!isOnline) {
+      return (
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="No cached data"
+          description="Connect to the internet to load your groups"
+        />
+      );
+    }
+    
+    return (
+      <EmptyState
+        icon="people-outline"
+        title="No groups yet"
+        description="Create a group to start splitting expenses with your friends and family"
+        actionLabel="Create Group"
+        onAction={handleCreateGroup}
+      />
+    );
+  };
 
   const renderHeader = () => (
     <MotiView

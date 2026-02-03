@@ -4,17 +4,23 @@
  * Shows when the user is offline with optional pending count.
  */
 
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { colors } from '@/constants/colors';
+import { useSync } from '@/contexts/sync-context';
+import { formatDistanceToNow } from '@/lib/utils';
 import { Ionicons } from '@expo/vector-icons';
 import { MotiView } from 'moti';
-import { useSync } from '@/contexts/sync-context';
-import { colors } from '@/constants/colors';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export function OfflineBanner() {
-  const { isOnline, pendingCount, syncStatus, sync } = useSync();
+  const { isOnline, pendingCount, syncStatus, lastSyncTime } = useSync();
 
   // Don't show if online
   if (isOnline) return null;
+
+  // Format last sync text
+  const lastSyncText = lastSyncTime
+    ? `Last synced ${formatDistanceToNow(lastSyncTime)}`
+    : 'Not synced yet';
 
   return (
     <MotiView
@@ -26,15 +32,11 @@ export function OfflineBanner() {
     >
       <View style={styles.content}>
         <View style={styles.iconContainer}>
-          <Ionicons name="cloud-offline-outline" size={18} color={colors.white} />
+          <Ionicons name="eye-outline" size={18} color={colors.white} />
         </View>
         <View style={styles.textContainer}>
-          <Text style={styles.title}>You're offline</Text>
-          <Text style={styles.subtitle}>
-            {pendingCount > 0
-              ? `${pendingCount} item${pendingCount > 1 ? 's' : ''} pending sync`
-              : 'Changes will sync when online'}
-          </Text>
+          <Text style={styles.title}>View-only mode</Text>
+          <Text style={styles.subtitle}>{lastSyncText}</Text>
         </View>
       </View>
 
@@ -124,6 +126,26 @@ export function SyncStatusButton() {
         {syncStatus === 'syncing' ? 'Syncing...' : `Sync ${pendingCount}`}
       </Text>
     </Pressable>
+  );
+}
+
+/**
+ * Stale Data Notice
+ * 
+ * Subtle notice shown when viewing cached data while offline.
+ * Use this on individual screens to indicate data may be stale.
+ */
+export function StaleDataNotice({ style }: { style?: object }) {
+  const { isOnline } = useSync();
+
+  // Don't show if online
+  if (isOnline) return null;
+
+  return (
+    <View style={[styles.staleNotice, style]}>
+      <Ionicons name="information-circle-outline" size={14} color={colors.gray[500]} />
+      <Text style={styles.staleNoticeText}>Showing cached data</Text>
+    </View>
   );
 }
 
@@ -226,5 +248,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: colors.white,
+  },
+  staleNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: colors.gray[100],
+    borderRadius: 8,
+    gap: 6,
+  },
+  staleNoticeText: {
+    fontSize: 12,
+    color: colors.gray[500],
   },
 });

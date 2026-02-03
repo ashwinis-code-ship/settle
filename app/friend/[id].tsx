@@ -11,29 +11,31 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
 import { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    Alert,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
-import { Skeleton, SkeletonCard, SkeletonActivityList } from '@/components/ui/skeleton';
+import { Skeleton, SkeletonActivityList, SkeletonCard } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
+import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFriendDetail, type GroupBalance } from '@/hooks/use-friend-detail';
-import { hapticLight } from '@/lib/haptics';
-import { CURRENCIES } from '@/types/database';
+import { hapticLight, hapticWarning } from '@/lib/haptics';
 import type { FriendTransaction } from '@/types';
+import { CURRENCIES } from '@/types/database';
 
 export default function FriendDetailScreen() {
   const params = useLocalSearchParams<{ id: string; name?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
+  const { isOnline } = useSync();
   const { friend, groupBalances, transactions, isLoading, error, refresh } = useFriendDetail(params.id);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -53,6 +55,15 @@ export default function FriendDetailScreen() {
   };
 
   const handleAddExpense = () => {
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Adding expenses requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     hapticLight();
     router.push({
       pathname: '/add-expense',
@@ -61,6 +72,15 @@ export default function FriendDetailScreen() {
   };
 
   const handleSettleUp = () => {
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Settling up requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     hapticLight();
     router.push({
       pathname: '/settle-up',
@@ -344,6 +364,28 @@ export default function FriendDetailScreen() {
           >
             <Text style={styles.retryButtonText}>Retry</Text>
           </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show offline empty state when no cached data available
+  if (!isOnline && !isLoading && !friend) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={textColor} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: textColor }]}>{params.name || 'Friend'}</Text>
+          <View style={styles.backButton} />
+        </View>
+        <View style={styles.errorContainer}>
+          <EmptyState
+            icon="cloud-offline-outline"
+            title="No cached data"
+            description="Connect to the internet to view this friend's details"
+          />
         </View>
       </SafeAreaView>
     );

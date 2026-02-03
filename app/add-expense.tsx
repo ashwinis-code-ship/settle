@@ -15,15 +15,16 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -31,13 +32,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
+import { useSync } from '@/contexts/sync-context';
 import { useCategories } from '@/hooks/use-categories';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useContactGroupSearch, type SearchResult, type SearchResultContact, type SearchResultGroup } from '@/hooks/use-contact-group-search';
 import { useDirectGroup } from '@/hooks/use-direct-group';
 import { useExpenses } from '@/hooks/use-expenses';
 import { useGroup } from '@/hooks/use-group';
-import { hapticLight, hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import type { CurrencyCode, DbCategory, ExpenseFormData, GroupMember, SplitType } from '@/types';
 import { CURRENCIES } from '@/types/database';
@@ -51,6 +53,7 @@ export default function AddExpenseScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { user } = useAuth();
+  const { isOnline } = useSync();
 
   // Determine mode: group expense, 1:1 with friend, or search mode
   const hasPreselection = !!params.groupId || !!params.friendId;
@@ -67,6 +70,17 @@ export default function AddExpenseScreen() {
   const { createExpense } = useExpenses(resolvedGroupId);
   const { findOrCreateDirectGroup, isLoading: isCreatingDirectGroup } = useDirectGroup();
   const { searchResults, isLoading: isLoadingSearch, hasContactPermission, search } = useContactGroupSearch();
+
+  // Block if offline - view-only mode
+  useEffect(() => {
+    if (!isOnline) {
+      Alert.alert(
+        'No Connection',
+        'Adding expenses requires an internet connection.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    }
+  }, [isOnline]);
 
   // Search UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -599,7 +613,7 @@ export default function AddExpenseScreen() {
                 <View style={styles.searchEmptyState}>
                   <Ionicons name="search-outline" size={32} color={colors.gray[400]} />
                   <Text style={[styles.searchEmptyText, { color: secondaryTextColor }]}>
-                    {searchQuery ? 'No results found' : 'Type to search'}
+                    {searchQuery ? (isOnline ? 'No results found' : 'No results found (offline: only existing connections shown)') : 'Type to search'}
                   </Text>
                 </View>
               ) : (

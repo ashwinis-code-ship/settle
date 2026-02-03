@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -24,8 +24,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
+import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroup } from '@/hooks/use-group';
+import { hapticWarning } from '@/lib/haptics';
 import { formatPhoneNumber } from '@/lib/utils';
 import { ContactEntry } from '@/types';
 
@@ -34,6 +36,7 @@ export default function GroupSettingsScreen() {
     const colorScheme = useColorScheme() ?? 'light';
     const isDark = colorScheme === 'dark';
     const { user } = useAuth();
+    const { isOnline } = useSync();
 
     const {
         group,
@@ -59,11 +62,28 @@ export default function GroupSettingsScreen() {
     const isAdmin = group?.members.find(m => m.user_id === user?.id)?.role === 'admin';
     const isCreator = group?.created_by === user?.id;
 
+    // Auto-close contact picker sheet when going offline
+    useEffect(() => {
+        if (!isOnline && bottomSheetRef.current) {
+            bottomSheetRef.current.close();
+            setSelectedContacts([]); // Clear selection
+        }
+    }, [isOnline]);
+
     const handleBack = () => {
         router.back();
     };
 
     const handleAddMemberPress = () => {
+        if (!isOnline) {
+            hapticWarning();
+            Alert.alert(
+                'No Connection',
+                'Adding members requires an internet connection.',
+                [{ text: 'OK' }]
+            );
+            return;
+        }
         bottomSheetRef.current?.expand();
     };
 
@@ -79,6 +99,18 @@ export default function GroupSettingsScreen() {
     };
 
     const handleAddMembers = async () => {
+        // Block if offline
+        if (!isOnline) {
+            hapticWarning();
+            Alert.alert(
+                'No Connection',
+                'Adding members requires an internet connection.',
+                [{ text: 'OK' }]
+            );
+            bottomSheetRef.current?.close();
+            return;
+        }
+
         if (selectedContacts.length === 0) {
             bottomSheetRef.current?.close();
             return;
@@ -123,6 +155,15 @@ export default function GroupSettingsScreen() {
     };
 
     const handleRemoveMember = (memberId: string, memberName: string) => {
+        if (!isOnline) {
+            hapticWarning();
+            Alert.alert(
+                'No Connection',
+                'Removing members requires an internet connection.',
+                [{ text: 'OK' }]
+            );
+            return;
+        }
         Alert.alert(
             'Remove Member',
             `Are you sure you want to remove ${memberName} from the group?`,
@@ -132,6 +173,16 @@ export default function GroupSettingsScreen() {
                     text: 'Remove',
                     style: 'destructive',
                     onPress: async () => {
+                        // Double-check offline status before executing (user might have gone offline while dialog was open)
+                        if (!isOnline) {
+                            hapticWarning();
+                            Alert.alert(
+                                'No Connection',
+                                'Removing members requires an internet connection.',
+                                [{ text: 'OK' }]
+                            );
+                            return;
+                        }
                         setIsSubmitting(true);
                         const success = await removeMember(memberId);
                         setIsSubmitting(false);
@@ -145,6 +196,15 @@ export default function GroupSettingsScreen() {
     };
 
     const handleLeaveGroup = () => {
+        if (!isOnline) {
+            hapticWarning();
+            Alert.alert(
+                'No Connection',
+                'Leaving groups requires an internet connection.',
+                [{ text: 'OK' }]
+            );
+            return;
+        }
         Alert.alert(
             'Leave Group',
             'Are you sure you want to leave this group?',
@@ -154,6 +214,16 @@ export default function GroupSettingsScreen() {
                     text: 'Leave',
                     style: 'destructive',
                     onPress: async () => {
+                        // Double-check offline status before executing (user might have gone offline while dialog was open)
+                        if (!isOnline) {
+                            hapticWarning();
+                            Alert.alert(
+                                'No Connection',
+                                'Leaving groups requires an internet connection.',
+                                [{ text: 'OK' }]
+                            );
+                            return;
+                        }
                         setIsSubmitting(true);
                         const success = await leaveGroup();
                         setIsSubmitting(false);
@@ -170,6 +240,15 @@ export default function GroupSettingsScreen() {
     };
 
     const handleDeleteGroup = () => {
+        if (!isOnline) {
+            hapticWarning();
+            Alert.alert(
+                'No Connection',
+                'Deleting groups requires an internet connection.',
+                [{ text: 'OK' }]
+            );
+            return;
+        }
         Alert.alert(
             'Delete Group',
             'Are you sure you want to delete this group? The group will be hidden but can be restored later if needed.',
@@ -179,6 +258,16 @@ export default function GroupSettingsScreen() {
                     text: 'Delete',
                     style: 'destructive',
                     onPress: async () => {
+                        // Double-check offline status before executing (user might have gone offline while dialog was open)
+                        if (!isOnline) {
+                            hapticWarning();
+                            Alert.alert(
+                                'No Connection',
+                                'Deleting groups requires an internet connection.',
+                                [{ text: 'OK' }]
+                            );
+                            return;
+                        }
                         setIsSubmitting(true);
                         const success = await deleteGroup();
                         setIsSubmitting(false);
@@ -263,8 +352,8 @@ export default function GroupSettingsScreen() {
                                         {isAdmin && !isMe && member.user_id !== group.created_by && (
                                             <Pressable
                                                 onPress={() => handleRemoveMember(member.user_id, memberName)}
-                                                style={styles.removeButton}
-                                                disabled={isSubmitting}
+                                                style={[styles.removeButton, { opacity: (!isOnline || isSubmitting) ? 0.5 : 1 }]}
+                                                disabled={isSubmitting || !isOnline}
                                             >
                                                 <Ionicons name="trash-outline" size={20} color={dangerColor} />
                                             </Pressable>
@@ -275,8 +364,12 @@ export default function GroupSettingsScreen() {
 
                             {isAdmin && (
                                 <Pressable
-                                    style={styles.addMemberButton}
+                                    style={[
+                                        styles.addMemberButton,
+                                        { opacity: !isOnline ? 0.5 : 1 }
+                                    ]}
                                     onPress={handleAddMemberPress}
+                                    disabled={!isOnline}
                                 >
                                     <Ionicons name="add" size={20} color={colors.primary[500]} />
                                     <Text style={[styles.addMemberText, { color: colors.primary[500] }]}>Add Member</Text>
@@ -289,9 +382,12 @@ export default function GroupSettingsScreen() {
                     <Text style={[styles.sectionTitle, { color: dangerColor, marginTop: 24 }]}>Danger Zone</Text>
                     <View style={[styles.sectionCard, { backgroundColor: cardBg }]}>
                         <Pressable
-                            style={styles.dangerAction}
+                            style={[
+                                styles.dangerAction,
+                                { opacity: (!isOnline || isSubmitting) ? 0.5 : 1 }
+                            ]}
                             onPress={handleLeaveGroup}
-                            disabled={isSubmitting}
+                            disabled={isSubmitting || !isOnline}
                         >
                             <Ionicons name="exit-outline" size={20} color={dangerColor} />
                             <Text style={[styles.dangerText, { color: dangerColor }]}>Leave Group</Text>
@@ -301,9 +397,12 @@ export default function GroupSettingsScreen() {
                             <>
                                 <View style={{ height: 1, backgroundColor: isDark ? colors.gray[700] : colors.gray[200] }} />
                                 <Pressable
-                                    style={styles.dangerAction}
+                                    style={[
+                                        styles.dangerAction,
+                                        { opacity: (!isOnline || isSubmitting) ? 0.5 : 1 }
+                                    ]}
                                     onPress={handleDeleteGroup}
-                                    disabled={isSubmitting}
+                                    disabled={isSubmitting || !isOnline}
                                 >
                                     <Ionicons name="trash" size={20} color={dangerColor} />
                                     <Text style={[styles.dangerText, { color: dangerColor }]}>Delete Group</Text>

@@ -4,48 +4,49 @@
  * View and edit user profile information.
  */
 
-import { useState, useRef, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  TextInput,
-  ScrollView,
-  Pressable,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ActionSheetIOS,
-  Switch,
-  ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
+import { MotiView } from 'moti';
+import { useEffect, useRef, useState } from 'react';
+import {
+    ActionSheetIOS,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useSettings, type ThemeMode } from '@/contexts/settings-context';
-import { useUser } from '@/hooks/use-user';
+import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useUser } from '@/hooks/use-user';
 import { hapticLight, hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
-import { pickImageFromCamera, pickImageFromLibrary, uploadAvatar, getPathFromUrl, deleteImage } from '@/lib/image-upload';
+import { deleteImage, getPathFromUrl, pickImageFromCamera, pickImageFromLibrary, uploadAvatar } from '@/lib/image-upload';
 import { CURRENCIES, type CurrencyCode } from '@/types/database';
 
 export default function ProfileScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { user: authUser, signOut } = useAuth();
+  const { isOnline } = useSync();
   const { user, updateUser, isLoading: isUserLoading, refresh } = useUser();
   const { 
     themeMode, 
     setThemeMode, 
     defaultCurrency, 
     setDefaultCurrency,
-    notificationsEnabled,
-    setNotificationsEnabled,
+    // notificationsEnabled,
+    // setNotificationsEnabled,
   } = useSettings();
 
   // Edit mode state
@@ -63,7 +64,26 @@ export default function ProfileScreen() {
     setName(userName);
   }, [user, authUser]);
 
+  // Exit edit mode when going offline
+  useEffect(() => {
+    if (!isOnline && isEditingName) {
+      setIsEditingName(false);
+      // Reset name to original
+      const userName = user?.name || authUser?.user_metadata?.name || '';
+      setName(userName);
+    }
+  }, [isOnline, isEditingName, user, authUser]);
+
   const handleEditName = () => {
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Editing your profile requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     setIsEditingName(true);
     setError('');
     setTimeout(() => nameInputRef.current?.focus(), 100);
@@ -78,6 +98,16 @@ export default function ProfileScreen() {
   };
 
   const handleSaveName = async () => {
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Updating your profile requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     const trimmedName = name.trim();
     
     if (!trimmedName) {
@@ -141,6 +171,16 @@ export default function ProfileScreen() {
   };
 
   const handleTakePhoto = async () => {
+    // Double-check offline status (user might have gone offline while action sheet was open)
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Changing your photo requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     hapticSelection();
     const uri = await pickImageFromCamera();
     if (uri) {
@@ -149,6 +189,16 @@ export default function ProfileScreen() {
   };
 
   const handleChooseFromLibrary = async () => {
+    // Double-check offline status (user might have gone offline while action sheet was open)
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Changing your photo requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     hapticSelection();
     const uri = await pickImageFromLibrary();
     if (uri) {
@@ -158,6 +208,16 @@ export default function ProfileScreen() {
 
   const handleRemovePhoto = async () => {
     if (!user?.avatar_url) return;
+    
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Removing your photo requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     
     hapticSelection();
     setIsUploadingPhoto(true);
@@ -190,6 +250,16 @@ export default function ProfileScreen() {
   const handleChangePhoto = () => {
     if (isUploadingPhoto) return;
     
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Changing your photo requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
     const hasPhoto = !!user?.avatar_url;
     
     if (Platform.OS === 'ios') {
@@ -202,6 +272,16 @@ export default function ProfileScreen() {
           destructiveButtonIndex: hasPhoto ? 3 : undefined,
         },
         (buttonIndex) => {
+          // Double-check offline status before executing (user might have gone offline while sheet was open)
+          if (!isOnline && buttonIndex > 0 && buttonIndex !== 3) {
+            hapticWarning();
+            Alert.alert(
+              'No Connection',
+              'Changing your photo requires an internet connection.',
+              [{ text: 'OK' }]
+            );
+            return;
+          }
           if (buttonIndex === 1) {
             handleTakePhoto();
           } else if (buttonIndex === 2) {
@@ -215,15 +295,45 @@ export default function ProfileScreen() {
       // Android - use Alert as a simple alternative
       const options: any[] = [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Take Photo', onPress: handleTakePhoto },
-        { text: 'Choose from Library', onPress: handleChooseFromLibrary },
+        { 
+          text: 'Take Photo', 
+          onPress: () => {
+            // Double-check offline status (user might have gone offline while dialog was open)
+            if (!isOnline) {
+              hapticWarning();
+              Alert.alert(
+                'No Connection',
+                'Changing your photo requires an internet connection.',
+                [{ text: 'OK' }]
+              );
+              return;
+            }
+            handleTakePhoto();
+          }
+        },
+        { 
+          text: 'Choose from Library', 
+          onPress: () => {
+            // Double-check offline status (user might have gone offline while dialog was open)
+            if (!isOnline) {
+              hapticWarning();
+              Alert.alert(
+                'No Connection',
+                'Changing your photo requires an internet connection.',
+                [{ text: 'OK' }]
+              );
+              return;
+            }
+            handleChooseFromLibrary();
+          }
+        },
       ];
       
       if (hasPhoto) {
         options.push({ 
           text: 'Remove Photo', 
           style: 'destructive',
-          onPress: handleRemovePhoto,
+          onPress: handleRemovePhoto, // Already has offline check
         });
       }
       
@@ -283,6 +393,16 @@ export default function ProfileScreen() {
   };
 
   const handleCurrencyChange = () => {
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Changing default currency requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
     hapticSelection();
     const currencyOptions = Object.entries(CURRENCIES);
 
@@ -295,6 +415,16 @@ export default function ProfileScreen() {
         },
         (buttonIndex) => {
           if (buttonIndex > 0) {
+            // Double-check offline status before executing (user might have gone offline while sheet was open)
+            if (!isOnline) {
+              hapticWarning();
+              Alert.alert(
+                'No Connection',
+                'Changing default currency requires an internet connection.',
+                [{ text: 'OK' }]
+              );
+              return;
+            }
             setDefaultCurrency(currencyOptions[buttonIndex - 1][0] as CurrencyCode);
           }
         }
@@ -307,17 +437,29 @@ export default function ProfileScreen() {
           { text: 'Cancel', style: 'cancel' },
           ...currencyOptions.map(([code, { name, symbol }]) => ({
             text: `${symbol} ${name} (${code})${code === defaultCurrency ? ' ✓' : ''}`,
-            onPress: () => setDefaultCurrency(code as CurrencyCode),
+            onPress: () => {
+              // Double-check offline status before executing (user might have gone offline while dialog was open)
+              if (!isOnline) {
+                hapticWarning();
+                Alert.alert(
+                  'No Connection',
+                  'Changing default currency requires an internet connection.',
+                  [{ text: 'OK' }]
+                );
+                return;
+              }
+              setDefaultCurrency(code as CurrencyCode);
+            },
           })),
         ]
       );
     }
   };
 
-  const handleNotificationToggle = async (value: boolean) => {
-    hapticLight();
-    await setNotificationsEnabled(value);
-  };
+  // const handleNotificationToggle = async (value: boolean) => {
+  //   hapticLight();
+  //   await setNotificationsEnabled(value);
+  // };
 
   const handleAbout = () => {
     hapticLight();
@@ -392,7 +534,11 @@ export default function ProfileScreen() {
             transition={{ type: 'spring', damping: 15, delay: 100 }}
             style={styles.avatarSection}
           >
-            <Pressable onPress={handleChangePhoto} disabled={isUploadingPhoto}>
+            <Pressable 
+              onPress={handleChangePhoto} 
+              disabled={isUploadingPhoto || !isOnline}
+              style={{ opacity: (!isOnline || isUploadingPhoto) ? 0.5 : 1 }}
+            >
               <View style={[styles.avatar, { backgroundColor: colors.primary[500] }]}>
                 {isUploadingPhoto ? (
                   <ActivityIndicator size="large" color={colors.white} />
@@ -454,7 +600,11 @@ export default function ProfileScreen() {
                     returnKeyType="done"
                     onSubmitEditing={handleSaveName}
                     onBlur={handleCancelNameEdit}
-                    style={[styles.nameInput, { color: textColor }]}
+                    editable={isOnline}
+                    style={[
+                      styles.nameInput, 
+                      { color: textColor, opacity: !isOnline ? 0.5 : 1 }
+                    ]}
                   />
                   {isSaving ? (
                     <View style={styles.savingIndicator}>
@@ -462,15 +612,23 @@ export default function ProfileScreen() {
                     </View>
                   ) : (
                     <Pressable 
-                      onPress={handleSaveName} 
-                      style={[styles.saveButton, { backgroundColor: colors.primary[500] }]}
+                      onPress={handleSaveName}
+                      disabled={!isOnline}
+                      style={[
+                        styles.saveButton, 
+                        { backgroundColor: colors.primary[500], opacity: !isOnline ? 0.5 : 1 }
+                      ]}
                     >
                       <Text style={styles.saveButtonText}>Save</Text>
                     </Pressable>
                   )}
                 </View>
               ) : (
-                <Pressable onPress={handleEditName}>
+                <Pressable 
+                  onPress={handleEditName}
+                  disabled={!isOnline}
+                  style={{ opacity: !isOnline ? 0.5 : 1 }}
+                >
                   <View style={[styles.fieldValue, { backgroundColor: inputBg }]}>
                     <Ionicons
                       name="person-outline"
@@ -551,8 +709,13 @@ export default function ProfileScreen() {
 
             {/* Default Currency */}
             <Pressable 
-              style={styles.settingItem}
+              style={[
+                styles.settingItem, 
+                styles.settingItemLast,
+                { opacity: !isOnline ? 0.5 : 1 }
+              ]}
               onPress={handleCurrencyChange}
+              disabled={!isOnline}
             >
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: colors.success + '20' }]}>
@@ -570,8 +733,8 @@ export default function ProfileScreen() {
               </View>
             </Pressable>
 
-            {/* Notifications Toggle */}
-            <View style={[styles.settingItem, styles.settingItemLast]}>
+            {/* Notifications Toggle - Hidden until notifications are implemented */}
+            {/* <View style={[styles.settingItem, styles.settingItemLast]}>
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: colors.warning + '20' }]}>
                   <Ionicons name="notifications-outline" size={20} color={colors.warning} />
@@ -586,7 +749,7 @@ export default function ProfileScreen() {
                 trackColor={{ false: colors.gray[300], true: colors.primary[400] }}
                 thumbColor={notificationsEnabled ? colors.primary[500] : colors.gray[100]}
               />
-            </View>
+            </View> */}
           </MotiView>
 
           {/* About Section */}

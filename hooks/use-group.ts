@@ -11,6 +11,7 @@ import { useSync } from '@/contexts/sync-context';
 import { supabase } from '@/lib/supabase';
 import { syncQueue } from '@/lib/sync-queue';
 import { queryKeys } from '@/lib/query-client';
+import { cache } from '@/lib/storage';
 import type {
   DbGroup,
   DbGroupUpdate,
@@ -20,7 +21,7 @@ import type {
 } from '@/types';
 import { useState } from 'react';
 
-interface GroupDetail extends DbGroup {
+export interface GroupDetail extends DbGroup {
   members: GroupMember[];
   balances: GroupMemberBalance[];
 }
@@ -78,11 +79,16 @@ async function fetchGroupData(groupId: string, userId: string): Promise<GroupDet
     };
   });
 
-  return {
+  const result: GroupDetail = {
     ...groupData,
     members,
     balances,
   };
+
+  // Cache the result for offline access
+  await cache.setGroupDetail(groupId, result);
+
+  return result;
 }
 
 interface UseGroupResult {
@@ -107,9 +113,28 @@ export function useGroup(groupId: string | undefined): UseGroupResult {
   // Query for fetching group data
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.group(groupId || ''),
-    queryFn: () => fetchGroupData(groupId!, user!.id),
-    enabled: !!groupId && !!user && isOnline,
+    queryFn: async () => {
+      // Return cached data when offline
+      if (!isOnline) {
+        return cache.getGroupDetail<GroupDetail>(groupId!);
+      }
+      
+      // Online: try to fetch, but catch network errors gracefully
+      try {
+        return await fetchGroupData(groupId!, user!.id);
+      } catch (err) {
+        // If network error and we have cache, return cache instead
+        const cached = await cache.getGroupDetail<GroupDetail>(groupId!);
+        if (cached) {
+          console.log('[useGroup] Network error, using cached data');
+          return cached;
+        }
+        throw err; // Re-throw if no cache available
+      }
+    },
+    enabled: !!groupId && !!user, // Allow query to run offline (will use cache)
     staleTime: 2 * 60 * 1000, // 2 minutes for group details
+    refetchOnMount: isOnline ? 'always' : false, // Only refetch when online
   });
 
   // Helper to invalidate related queries
@@ -146,36 +171,37 @@ export function useGroup(groupId: string | undefined): UseGroupResult {
     mutationFn: async ({ phone, name }: { phone: string; name: string }) => {
       if (!groupId) throw new Error('No group ID');
 
-      if (isOnline) {
-        let userId: string;
+      // Block offline - screens should prevent this, but guard here too
+      if (!isOnline) {
+        throw new Error('Adding members requires an internet connection');
+      }
 
-        const { data: userData } = await supabase
+      let userId: string;
+
+      const { data: userData } = await supabase
+        .from('users')
+        .select('id')
+        .eq('phone', phone)
+        .single();
+
+      if (userData) {
+        userId = userData.id;
+      } else {
+        const { data: shadowUser, error: shadowError } = await supabase
           .from('users')
+          .insert({ phone, name, is_registered: false })
           .select('id')
-          .eq('phone', phone)
           .single();
 
-        if (userData) {
-          userId = userData.id;
-        } else {
-          const { data: shadowUser, error: shadowError } = await supabase
-            .from('users')
-            .insert({ phone, name, is_registered: false })
-            .select('id')
-            .single();
-
-          if (shadowError) throw shadowError;
-          userId = shadowUser.id;
-        }
-
-        const { error: addError } = await supabase
-          .from('group_members')
-          .insert({ group_id: groupId, user_id: userId, role: 'member' });
-
-        if (addError) throw addError;
-      } else {
-        await syncQueue.add('ADD_GROUP_MEMBER', { group_id: groupId, phone, name });
+        if (shadowError) throw shadowError;
+        userId = shadowUser.id;
       }
+
+      const { error: addError } = await supabase
+        .from('group_members')
+        .insert({ group_id: groupId, user_id: userId, role: 'member' });
+
+      if (addError) throw addError;
     },
     onSuccess: invalidateQueries,
     onError: (err) => {
@@ -188,17 +214,18 @@ export function useGroup(groupId: string | undefined): UseGroupResult {
     mutationFn: async (userId: string) => {
       if (!groupId) throw new Error('No group ID');
 
-      if (isOnline) {
-        const { error: removeError } = await supabase
-          .from('group_members')
-          .delete()
-          .eq('group_id', groupId)
-          .eq('user_id', userId);
-
-        if (removeError) throw removeError;
-      } else {
-        await syncQueue.add('REMOVE_GROUP_MEMBER', { group_id: groupId, user_id: userId });
+      // Block offline - screens should prevent this, but guard here too
+      if (!isOnline) {
+        throw new Error('Leaving groups requires an internet connection');
       }
+
+      const { error: removeError } = await supabase
+        .from('group_members')
+        .delete()
+        .eq('group_id', groupId)
+        .eq('user_id', userId);
+
+      if (removeError) throw removeError;
     },
     onSuccess: invalidateQueries,
     onError: (err) => {
@@ -211,14 +238,15 @@ export function useGroup(groupId: string | undefined): UseGroupResult {
     mutationFn: async () => {
       if (!groupId) throw new Error('No group ID');
 
-      if (isOnline) {
-        const { error: deleteError } = await supabase
-          .rpc('soft_delete_group', { p_group_id: groupId });
-
-        if (deleteError) throw deleteError;
-      } else {
-        await syncQueue.add('DELETE_GROUP', { id: groupId });
+      // Block offline - screens should prevent this, but guard here too
+      if (!isOnline) {
+        throw new Error('Deleting groups requires an internet connection');
       }
+
+      const { error: deleteError } = await supabase
+        .rpc('soft_delete_group', { p_group_id: groupId });
+
+      if (deleteError) throw deleteError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.groups });

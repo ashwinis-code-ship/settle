@@ -6,33 +6,37 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { MotiView } from 'moti';
 import { useCallback, useState } from 'react';
 import {
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
+    Alert,
+    FlatList,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
+import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFriends } from '@/hooks/use-friends';
-import { hapticLight } from '@/lib/haptics';
-import { CURRENCIES } from '@/types/database';
+import { hapticLight, hapticWarning } from '@/lib/haptics';
 import type { Friend } from '@/types';
+import { CURRENCIES } from '@/types/database';
 
 export default function FriendsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { friends, isLoading, error, refresh } = useFriends();
+  const { isOnline } = useSync();
   const [refreshing, setRefreshing] = useState(false);
 
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
@@ -46,6 +50,15 @@ export default function FriendsScreen() {
     setRefreshing(false);
   }, [refresh]);
 
+  // Refetch when screen comes into focus (e.g., after adding expense)
+  useFocusEffect(
+    useCallback(() => {
+      if (isOnline) {
+        refresh();
+      }
+    }, [isOnline, refresh])
+  );
+
   const handleFriendPress = (friend: Friend) => {
     hapticLight();
     router.push({
@@ -55,6 +68,16 @@ export default function FriendsScreen() {
   };
 
   const handleAddExpense = (friend: Friend) => {
+    // Block ALL offline - view-only mode
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Adding expenses requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     hapticLight();
     router.push({
       pathname: '/add-expense',
@@ -289,6 +312,20 @@ export default function FriendsScreen() {
             <Text style={styles.retryButtonText}>Retry</Text>
           </Pressable>
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show offline empty state when no cached data available
+  if (!isOnline && !isLoading && friends.length === 0) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+        {renderHeader()}
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="No cached data"
+          description="Connect to the internet to load your friends"
+        />
       </SafeAreaView>
     );
   }

@@ -9,13 +9,13 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
 import { useCallback, useMemo } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
+    Alert,
+    FlatList,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -24,11 +24,12 @@ import { PendingBadge } from '@/components/ui/offline-banner';
 import { Skeleton, SkeletonActivityList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
+import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useExpenses, type ExpenseListItemWithStatus } from '@/hooks/use-expenses';
 import { useGroup } from '@/hooks/use-group';
 import { useSettlements, type SettlementWithStatus } from '@/hooks/use-settlements';
-import { hapticLight } from '@/lib/haptics';
+import { hapticLight, hapticWarning } from '@/lib/haptics';
 
 // Union type for activity items (expense or settlement)
 type ActivityItem = 
@@ -80,6 +81,7 @@ export default function GroupDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { user } = useAuth();
+  const { isOnline } = useSync();
 
   const { group, isLoading: isLoadingGroup, refresh: refreshGroup } = useGroup(id);
   const { expenses, isLoading: isLoadingExpenses, refresh: refreshExpenses } = useExpenses(id);
@@ -115,6 +117,15 @@ export default function GroupDetailScreen() {
   }, [refreshGroup, refreshExpenses, refreshSettlements]);
 
   const handleAddExpense = () => {
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Adding expenses requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     hapticLight();
     router.push(`/add-expense?groupId=${id}`);
   };
@@ -429,6 +440,28 @@ export default function GroupDetailScreen() {
             <View style={{ height: 16 }} />
             <SkeletonActivityList count={4} />
           </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show offline empty state when no cached data available
+  if (!isOnline && !isLoading && !group) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+        <View style={[styles.header, { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] }]}>
+          <Pressable onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={textColor} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: textColor }]}>Group</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.emptyExpenses}>
+          <EmptyState
+            icon="cloud-offline-outline"
+            title="No cached data"
+            description="Connect to the internet to view this group's details"
+          />
         </View>
       </SafeAreaView>
     );
