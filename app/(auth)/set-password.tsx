@@ -7,7 +7,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiText, MotiView } from 'moti';
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -25,6 +25,8 @@ import { Input } from '@/components/ui/input';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { supabase } from '@/lib/supabase';
+import { Analytics } from '@/lib/analytics';
+import { AUTH_EVENTS } from '@/lib/analytics-events';
 
 export default function SetPasswordScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -44,6 +46,11 @@ export default function SetPasswordScreen() {
 
   // Refs
   const confirmPasswordRef = useRef<TextInput>(null);
+
+  // Track screen view
+  useEffect(() => {
+    Analytics.trackScreen('set_password');
+  }, []);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -81,15 +88,26 @@ export default function SetPasswordScreen() {
       // If we have valid data response, use it (includes business logic errors)
       if (data && typeof data.success === 'boolean') {
         if (!data.success) {
+          Analytics.track(AUTH_EVENTS.SIGN_UP_FAILED, { 
+            error_stage: 'password_set',
+            error_type: 'account_creation_failed',
+          });
           setErrors({ form: data.message || 'Failed to create account. Please try again.' });
           return;
         }
       } else if (error) {
         // Technical error - don't show details to user
         console.error('[SetPassword] Error:', error);
+        Analytics.track(AUTH_EVENTS.SIGN_UP_FAILED, { 
+          error_stage: 'password_set',
+          error_type: 'exception',
+        });
         setErrors({ form: 'Something went wrong. Please try again later.' });
         return;
       }
+
+      // Track password set successfully
+      Analytics.track(AUTH_EVENTS.SIGN_UP_PASSWORD_SET);
 
       // Sign in the user after account creation
       const digits = phone.replace(/\D/g, '');
@@ -102,6 +120,10 @@ export default function SetPasswordScreen() {
 
       if (signInError) {
         // Account created but couldn't auto-sign in, redirect to sign-in
+        Analytics.track(AUTH_EVENTS.SIGN_UP_COMPLETED, { 
+          auto_sign_in: false,
+          signup_method: 'phone_otp',
+        });
         router.replace('/(auth)/sign-in');
         return;
       }
@@ -116,6 +138,30 @@ export default function SetPasswordScreen() {
         console.error('[SetPassword] Claim account error:', claimError);
         // Continue anyway, user is signed in
       }
+
+      // Get the user ID for identification
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user) {
+        // Identify the new user in analytics
+        Analytics.identify(userData.user.id, {
+          phone: phone,
+          name: name,
+          created_at: userData.user.created_at,
+        });
+        
+        // Set properties that should only be set once
+        Analytics.setUserPropertiesOnce({
+          first_seen_at: new Date().toISOString(),
+          signup_platform: Platform.OS,
+          signup_method: 'phone_otp',
+        });
+      }
+
+      // Track sign up completed
+      Analytics.track(AUTH_EVENTS.SIGN_UP_COMPLETED, { 
+        auto_sign_in: true,
+        signup_method: 'phone_otp',
+      });
 
       // Navigate to main app
       router.replace('/(tabs)');

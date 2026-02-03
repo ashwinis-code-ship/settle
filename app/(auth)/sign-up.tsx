@@ -4,7 +4,7 @@
  * Collect name and phone number, then send OTP.
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -27,6 +27,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { colors } from '@/constants/colors';
 import { DEFAULT_COUNTRY, type Country } from '@/constants/countries';
 import { sendOtp } from '@/lib/otp-service';
+import { Analytics } from '@/lib/analytics';
+import { AUTH_EVENTS } from '@/lib/analytics-events';
 
 export default function SignUpScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -41,6 +43,12 @@ export default function SignUpScreen() {
 
   // Refs for focus management
   const phoneRef = useRef<TextInput>(null);
+
+  // Track screen view and sign up started
+  useEffect(() => {
+    Analytics.trackScreen('sign_up');
+    Analytics.track(AUTH_EVENTS.SIGN_UP_STARTED);
+  }, []);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -74,9 +82,18 @@ export default function SignUpScreen() {
       const result = await sendOtp(fullPhone, 'signup');
 
       if (!result.success) {
+        Analytics.track(AUTH_EVENTS.SIGN_UP_FAILED, { 
+          error_stage: 'otp_request',
+          error_type: 'otp_failed',
+        });
         setErrors({ form: result.message });
         return;
       }
+
+      // Track OTP requested
+      Analytics.track(AUTH_EVENTS.SIGN_UP_OTP_REQUESTED, {
+        country_code: country.code,
+      });
 
       // Navigate to OTP verification screen
       router.push({
@@ -89,6 +106,10 @@ export default function SignUpScreen() {
       });
     } catch (err) {
       console.error('[SignUp] Exception:', err);
+      Analytics.track(AUTH_EVENTS.SIGN_UP_FAILED, { 
+        error_stage: 'otp_request',
+        error_type: 'exception',
+      });
       setErrors({ form: 'Something went wrong. Please try again later.' });
     } finally {
       setIsLoading(false);

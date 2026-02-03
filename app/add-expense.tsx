@@ -41,6 +41,8 @@ import { useExpenses } from '@/hooks/use-expenses';
 import { useGroup } from '@/hooks/use-group';
 import { hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
+import { Analytics } from '@/lib/analytics';
+import { EXPENSE_EVENTS } from '@/lib/analytics-events';
 import type { CurrencyCode, DbCategory, ExpenseFormData, GroupMember, SplitType } from '@/types';
 import { CURRENCIES } from '@/types/database';
 
@@ -81,6 +83,17 @@ export default function AddExpenseScreen() {
       );
     }
   }, [isOnline]);
+
+  // Track screen view and add expense started
+  useEffect(() => {
+    const entryPoint = params.groupId ? 'group' : params.friendId ? 'friend' : 'home';
+    Analytics.trackScreen('add_expense', { entry_point: entryPoint });
+    Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_STARTED, {
+      entry_point: entryPoint,
+      has_preselection: hasPreselection,
+      is_direct_expense: isDirectExpense,
+    });
+  }, []);
 
   // Search UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -126,12 +139,18 @@ export default function AddExpenseScreen() {
 
     if (result.type === 'group') {
       // Selected a group
+      Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_GROUP_SELECTED, {
+        group_id: result.id,
+      });
       setResolvedGroupId(result.id);
       setSelectedFriendId(undefined);
       setSelectedFriendName(undefined);
     } else {
       // Selected a contact - need to find or create user
       const contact = result as SearchResultContact;
+      Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_CONTACT_SELECTED, {
+        is_existing_user: !!contact.userId,
+      });
       setSelectedFriendName(contact.name);
       setSelectedFriendPhone(contact.phone);
       
@@ -388,9 +407,21 @@ export default function AddExpenseScreen() {
       setIsSubmitting(false);
 
       if (expenseId) {
+        Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_COMPLETED, {
+          expense_id: expenseId,
+          amount: parseFloat(amount),
+          currency: currency,
+          category_id: selectedCategory?.id,
+          category_name: selectedCategory?.name,
+          split_type: 'equal_selected',
+          member_count: 2,
+          is_group_expense: false,
+          has_notes: notes.trim().length > 0,
+        });
         hapticSuccess();
         router.back();
       } else {
+        Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_FAILED, { error_stage: 'submission' });
         setErrors({ form: 'Failed to create expense. Please try again.' });
       }
       return;
@@ -413,8 +444,21 @@ export default function AddExpenseScreen() {
     setIsSubmitting(false);
 
     if (expenseId) {
+      Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_COMPLETED, {
+        expense_id: expenseId,
+        amount: parseFloat(amount),
+        currency: currency,
+        category_id: selectedCategory?.id,
+        category_name: selectedCategory?.name,
+        split_type: splitType,
+        member_count: splitBetween.length,
+        is_group_expense: true,
+        has_notes: notes.trim().length > 0,
+      });
       hapticSuccess();
       router.back();
+    } else {
+      Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_FAILED, { error_stage: 'submission' });
     }
   };
 

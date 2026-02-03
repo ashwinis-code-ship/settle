@@ -34,6 +34,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroups } from '@/hooks/use-groups';
 import { hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { pickImageFromCamera, pickImageFromLibrary } from '@/lib/image-upload';
+import { Analytics } from '@/lib/analytics';
+import { GROUP_EVENTS } from '@/lib/analytics-events';
 import { ContactEntry } from '@/types';
 
 // Utility functions
@@ -67,6 +69,12 @@ export default function CreateGroupScreen() {
       );
     }
   }, [isOnline]);
+
+  // Track screen view and group creation started
+  useEffect(() => {
+    Analytics.trackScreen('create_group');
+    Analytics.track(GROUP_EVENTS.CREATE_GROUP_STARTED);
+  }, []);
 
   // Bottom sheet ref
   const bottomSheetRef = useRef<BottomSheet>(null);
@@ -208,9 +216,16 @@ export default function CreateGroupScreen() {
       });
 
       if (groupId) {
+        // Track successful group creation
+        Analytics.track(GROUP_EVENTS.CREATE_GROUP_COMPLETED, {
+          group_id: groupId,
+          member_count: members.length + 1, // +1 for creator
+          has_image: !!groupImageUri,
+        });
         hapticSuccess();
         router.back();
       } else {
+        Analytics.track(GROUP_EVENTS.CREATE_GROUP_FAILED);
         hapticWarning();
         setErrors({ form: 'Failed to create group. Please try again.' });
       }

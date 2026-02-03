@@ -25,6 +25,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { colors } from '@/constants/colors';
 import { sendOtp, verifyOtp, getResendCooldown } from '@/lib/otp-service';
 import type { OtpPurpose } from '@/lib/otp-service';
+import { Analytics } from '@/lib/analytics';
+import { AUTH_EVENTS } from '@/lib/analytics-events';
 
 const OTP_LENGTH = 6;
 
@@ -55,8 +57,9 @@ export default function VerifyOtpScreen() {
     }
   }, [resendTimer]);
 
-  // Focus first input on mount
+  // Focus first input on mount and track screen view
   useEffect(() => {
+    Analytics.trackScreen('verify_otp', { purpose });
     setTimeout(() => inputRefs.current[0]?.focus(), 500);
   }, []);
 
@@ -108,12 +111,20 @@ export default function VerifyOtpScreen() {
       const result = await verifyOtp(phone, code, purpose);
 
       if (!result.success) {
+        Analytics.track(AUTH_EVENTS.SIGN_UP_FAILED, { 
+          error_stage: 'otp_verification',
+          error_type: 'invalid_otp',
+          purpose,
+        });
         setError(result.message);
         // Clear OTP on error
         setOtp(Array(OTP_LENGTH).fill(''));
         setTimeout(() => inputRefs.current[0]?.focus(), 100);
         return;
       }
+
+      // Track successful OTP verification
+      Analytics.track(AUTH_EVENTS.SIGN_UP_OTP_VERIFIED, { purpose });
 
       // Navigate based on purpose
       if (purpose === 'forgot_password') {

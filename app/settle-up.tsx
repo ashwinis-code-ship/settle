@@ -31,6 +31,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSettlements } from '@/hooks/use-settlements';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
+import { Analytics } from '@/lib/analytics';
+import { SETTLEMENT_EVENTS } from '@/lib/analytics-events';
 import type { UserSummary } from '@/types';
 import { type CurrencyCode } from '@/types/database';
 
@@ -65,6 +67,16 @@ export default function SettleUpScreen() {
       );
     }
   }, [isOnline]);
+
+  // Track screen view and settle up started
+  useEffect(() => {
+    const entryPoint = params.friendId ? 'friend_detail' : 'home';
+    Analytics.trackScreen('settle_up', { entry_point: entryPoint });
+    Analytics.track(SETTLEMENT_EVENTS.SETTLE_UP_STARTED, {
+      entry_point: entryPoint,
+      has_prefilled_friend: !!params.friendId,
+    });
+  }, []);
 
   // State
   const [isSearchMode, setIsSearchMode] = useState(!params.friendId);
@@ -230,6 +242,14 @@ export default function SettleUpScreen() {
 
   const handleSelectTarget = (target: SettleTarget) => {
     hapticLight();
+    
+    // Track friend selection
+    Analytics.track(SETTLEMENT_EVENTS.SETTLE_UP_FRIEND_SELECTED, {
+      friend_id: target.user.id,
+      balance_direction: target.balance > 0 ? 'they_owe_you' : 'you_owe_them',
+      balance_amount: Math.abs(target.balance),
+    });
+    
     setSelectedTarget(target);
     setIsSearchMode(false);
     // Pre-fill amount
@@ -293,6 +313,14 @@ export default function SettleUpScreen() {
       console.log('[SettleUp] Settlement result:', result);
 
       if (result) {
+        // Track successful settlement
+        Analytics.track(SETTLEMENT_EVENTS.SETTLE_UP_COMPLETED, {
+          amount: parsedAmount,
+          currency: selectedTarget.currency,
+          direction: balance > 0 ? 'received' : 'paid',
+          is_full_settlement: parsedAmount >= Math.abs(balance),
+        });
+        
         hapticSuccess();
         Alert.alert(
           'Settlement Recorded',
@@ -300,6 +328,7 @@ export default function SettleUpScreen() {
           [{ text: 'OK', onPress: () => router.back() }]
         );
       } else {
+        Analytics.track(SETTLEMENT_EVENTS.SETTLE_UP_FAILED);
         console.error('[SettleUp] Settlement failed - no result returned');
         Alert.alert('Error', 'Failed to record settlement. Please try again.');
       }
