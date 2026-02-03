@@ -104,6 +104,7 @@ CREATE INDEX idx_users_phone ON public.users(phone);
 CREATE INDEX idx_groups_created_by ON public.groups(created_by);
 CREATE INDEX idx_groups_created_at ON public.groups(created_at DESC);
 CREATE INDEX idx_groups_deleted_at ON public.groups(deleted_at) WHERE deleted_at IS NULL; -- Partial index for active groups
+CREATE INDEX idx_groups_type ON public.groups(type);
 
 -- Group members indexes
 CREATE INDEX idx_group_members_user_id ON public.group_members(user_id);

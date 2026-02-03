@@ -26,9 +26,6 @@ CREATE TABLE IF NOT EXISTS public.otp_requests (
 -- Index for quick lookups by phone and purpose
 CREATE INDEX IF NOT EXISTS idx_otp_phone_purpose ON public.otp_requests(phone, purpose, expires_at DESC);
 
--- Index for cleanup queries
-CREATE INDEX IF NOT EXISTS idx_otp_expires ON public.otp_requests(expires_at);
-
 -- ============================================
 -- RLS POLICIES
 -- ============================================
@@ -37,7 +34,7 @@ ALTER TABLE public.otp_requests ENABLE ROW LEVEL SECURITY;
 
 -- Block all direct client access - Edge Functions use service role key
 -- This ensures OTPs can only be managed through our secure functions
-CREATE POLICY "Block client access" ON public.otp_requests
+CREATE POLICY "Service role only" ON public.otp_requests
     FOR ALL USING (false);
 
 -- ============================================
