@@ -45,18 +45,48 @@ A modern expense splitting app for iOS and Android. Split bills with friends, tr
    ```
 
 3. Set up environment variables:
-   - Copy `.env.example` to `.env` (if applicable)
-   - Add your Supabase project URL and anon key
+   ```bash
+   # Copy the example and fill in your Supabase credentials
+   cp .env.example .env
+   
+   # Or use the dev environment (if you have .env.dev)
+   npm run env:dev
+   ```
 
 4. Start the development server:
    ```bash
-   npx expo start
+   npm start
    ```
 
 5. Run on your device:
    - Press `i` for iOS Simulator
    - Press `a` for Android Emulator
    - Scan QR code with Expo Go app for physical device
+
+## Environment Setup
+
+The app supports multiple environments:
+
+| File | Purpose |
+|------|---------|
+| `.env` | Active environment (gitignored) |
+| `.env.dev` | Development Supabase project (gitignored) |
+| `.env.prod` | Production Supabase project (gitignored) |
+| `.env.example` | Template for new developers (committed) |
+
+### Switching Environments
+
+```bash
+npm run env:dev     # Switch to development
+npm run env:prod    # Switch to production
+```
+
+### Building for Release
+
+```bash
+npm run build:dev   # Build with dev environment
+npm run build:prod  # Build with prod environment
+```
 
 ## Project Structure
 
@@ -72,10 +102,50 @@ settle/
 ├── contexts/              # React contexts (auth, sync)
 ├── hooks/                 # Custom React hooks
 ├── lib/                   # Utilities and services
-├── supabase/              # Database schema and Edge Functions
-│   ├── functions/         # Supabase Edge Functions
-│   └── schema.sql         # Database schema
+├── supabase/              # Supabase configuration
+│   ├── functions/         # Edge Functions
+│   │   ├── _shared/       # Shared utilities
+│   │   ├── send-otp/      # OTP sending
+│   │   ├── verify-otp/    # OTP verification
+│   │   ├── create-account/# Account creation
+│   │   └── reset-password/# Password reset
+│   └── migrations/        # Database migrations (source of truth)
 └── types/                 # TypeScript type definitions
+```
+
+## Database Migrations
+
+The database schema is managed through migrations in `supabase/migrations/`.
+
+### Creating a New Migration
+
+1. Create a new migration file:
+   ```bash
+   # Format: YYYYMMDDHHMMSS_description.sql
+   touch supabase/migrations/20260203120000_add_new_feature.sql
+   ```
+
+2. Write your SQL changes in the file
+
+3. Deploy to dev and test:
+   ```bash
+   npm run deploy:dev
+   ```
+
+4. When ready, deploy to prod:
+   ```bash
+   npm run deploy:prod
+   ```
+
+### Deployment Commands
+
+```bash
+npm run link:dev        # Link CLI to dev project
+npm run link:prod       # Link CLI to prod project
+npm run db:push         # Push migrations to linked project
+npm run functions:deploy # Deploy Edge Functions to linked project
+npm run deploy:dev      # Full deploy to dev (link + db + functions)
+npm run deploy:prod     # Full deploy to prod (link + db + functions)
 ```
 
 ## Key Screens
