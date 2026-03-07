@@ -43,6 +43,8 @@ export default function FriendDetailScreen() {
   const secondaryTextColor = isDark ? colors.text.dark.secondary : colors.text.light.secondary;
   const backgroundColor = isDark ? colors.background.dark : colors.background.light;
   const cardBg = isDark ? colors.gray[800] : colors.white;
+  const settlementLineColor = isDark ? colors.gray[600] : colors.gray[300];
+  const settlementTextColor = textColor; // Neutral solid color, no green/red
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -214,13 +216,35 @@ export default function FriendDetailScreen() {
   const renderTransactionItem = (item: FriendTransaction, index: number) => {
     const isPositive = item.amount > 0;
     const isSettlement = item.type === 'settlement';
-    
-    // For settlements: positive = you received, negative = you paid
-    // For expenses: positive = you get (friend owes you), negative = you owe (you owe friend)
-    const amountColor = isSettlement ? colors.primary[500] : (isPositive ? colors.success : colors.error);
-    const amountLabel = isSettlement 
-      ? (isPositive ? 'you received' : 'you paid')
-      : (isPositive ? 'you get' : 'you owe');
+    const friendName = friend?.user.name || params.name || 'Friend';
+
+    // Settlement: thin line with neutral text, visually distinct from expenses
+    if (isSettlement) {
+      const settlementText =
+        item.amount > 0
+          ? `${friendName} paid you ${formatBalance(item.amount, item.currency)}`
+          : `you paid ${friendName} ${formatBalance(Math.abs(item.amount), item.currency)}`;
+
+      return (
+        <MotiView
+          key={item.id}
+          from={{ opacity: 0, translateX: -20 }}
+          animate={{ opacity: 1, translateX: 0 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 120, delay: Math.min(index * 50, 300) }}
+          style={styles.settlementContainer}
+        >
+          <View style={[styles.settlementLine, { backgroundColor: settlementLineColor }]} />
+          <Text style={[styles.settlementText, { color: settlementTextColor }]} numberOfLines={1}>
+            {settlementText}
+          </Text>
+          <View style={[styles.settlementLine, { backgroundColor: settlementLineColor }]} />
+        </MotiView>
+      );
+    }
+
+    // Expense: card layout with colors
+    const amountColor = isPositive ? colors.success : colors.error;
+    const amountLabel = isPositive ? 'you get' : 'you owe';
 
     const content = (
       <View style={[styles.transactionItem, { backgroundColor: cardBg }]}>
@@ -229,18 +253,14 @@ export default function FriendDetailScreen() {
           style={[
             styles.transactionIcon,
             {
-              backgroundColor: isSettlement
-                ? colors.primary[100]
-                : isPositive
-                ? colors.success + '20'
-                : colors.error + '20',
+              backgroundColor: isPositive ? colors.success + '20' : colors.error + '20',
             },
           ]}
         >
           <Ionicons
-            name={isSettlement ? 'swap-horizontal' : 'receipt-outline'}
+            name="receipt-outline"
             size={18}
-            color={isSettlement ? colors.primary[500] : (isPositive ? colors.success : colors.error)}
+            color={isPositive ? colors.success : colors.error}
           />
         </View>
 
@@ -274,10 +294,7 @@ export default function FriendDetailScreen() {
           </Text>
         </View>
 
-        {/* Chevron for expenses */}
-        {!isSettlement && (
-          <Ionicons name="chevron-forward" size={16} color={secondaryTextColor} style={{ marginLeft: 4 }} />
-        )}
+        <Ionicons name="chevron-forward" size={16} color={secondaryTextColor} style={{ marginLeft: 4 }} />
       </View>
     );
 
@@ -288,16 +305,12 @@ export default function FriendDetailScreen() {
         animate={{ opacity: 1, translateX: 0, scale: 1 }}
         transition={{ type: 'spring', damping: 18, stiffness: 120, delay: Math.min(index * 50, 300) }}
       >
-        {isSettlement ? (
-          content
-        ) : (
-          <Pressable
-            onPress={() => handleTransactionPress(item)}
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-          >
-            {content}
-          </Pressable>
-        )}
+        <Pressable
+          onPress={() => handleTransactionPress(item)}
+          style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+        >
+          {content}
+        </Pressable>
       </MotiView>
     );
   };
@@ -716,6 +729,20 @@ const styles = StyleSheet.create({
   },
   transactionsList: {
     gap: 8,
+  },
+  settlementContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 12,
+  },
+  settlementLine: {
+    flex: 1,
+    height: 1,
+  },
+  settlementText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   transactionItem: {
     flexDirection: 'row',

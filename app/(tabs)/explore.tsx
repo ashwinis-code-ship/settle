@@ -85,6 +85,20 @@ export default function FriendsScreen() {
     });
   };
 
+  const handleAddExpenseFromHeader = () => {
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Adding expenses requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    hapticLight();
+    router.push('/add-expense?contactsOnly=true');
+  };
+
   const formatBalance = (balance: number, currency: string) => {
     const currencyInfo = CURRENCIES[currency as keyof typeof CURRENCIES] || CURRENCIES.INR;
     const absBalance = Math.abs(balance).toFixed(2);
@@ -245,6 +259,17 @@ export default function FriendsScreen() {
             : 'Split and see who owes what'}
         </Text>
       </View>
+      {friends.length > 0 && (
+        <Pressable
+          onPress={handleAddExpenseFromHeader}
+          style={({ pressed }) => [
+            styles.headerAddButton,
+            { backgroundColor: colors.primary[500], opacity: pressed ? 0.8 : 1 },
+          ]}
+        >
+          <Ionicons name="add" size={24} color={colors.white} />
+        </Pressable>
+      )}
     </MotiView>
   );
 
@@ -369,11 +394,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: 24,
+    paddingTop: 16,
     paddingBottom: 100,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 20,
+    paddingBottom: 16,
     marginBottom: 16,
+  },
+  headerAddButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 28,

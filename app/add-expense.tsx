@@ -51,6 +51,7 @@ export default function AddExpenseScreen() {
     groupId?: string; 
     friendId?: string; 
     friendName?: string;
+    contactsOnly?: string;
   }>();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
@@ -61,6 +62,7 @@ export default function AddExpenseScreen() {
   const hasPreselection = !!params.groupId || !!params.friendId;
   const isDirectExpense = !!params.friendId && !params.groupId;
   const isSearchMode = !hasPreselection;
+  const contactsOnly = params.contactsOnly === 'true';
   
   const [resolvedGroupId, setResolvedGroupId] = useState<string | undefined>(params.groupId);
   const [selectedFriendId, setSelectedFriendId] = useState<string | undefined>(params.friendId);
@@ -72,6 +74,11 @@ export default function AddExpenseScreen() {
   const { createExpense } = useExpenses(resolvedGroupId);
   const { findOrCreateDirectGroup, isLoading: isCreatingDirectGroup } = useDirectGroup();
   const { searchResults, isLoading: isLoadingSearch, hasContactPermission, search } = useContactGroupSearch();
+
+  // When from Friends tab, only show contacts (exclude groups)
+  const displayResults = contactsOnly
+    ? searchResults.filter((r): r is SearchResultContact => r.type === 'contact')
+    : searchResults;
 
   // Block if offline - view-only mode
   useEffect(() => {
@@ -86,7 +93,7 @@ export default function AddExpenseScreen() {
 
   // Track screen view and add expense started
   useEffect(() => {
-    const entryPoint = params.groupId ? 'group' : params.friendId ? 'friend' : 'home';
+    const entryPoint = params.groupId ? 'group' : params.friendId ? 'friend' : contactsOnly ? 'friends_tab' : 'home';
     Analytics.trackScreen('add_expense', { entry_point: entryPoint });
     Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_STARTED, {
       entry_point: entryPoint,
@@ -614,7 +621,7 @@ export default function AddExpenseScreen() {
               <Ionicons name="search" size={20} color={secondaryTextColor} />
               <TextInput
                 style={[styles.searchInput, { color: textColor }]}
-                placeholder="Search group or contact..."
+                placeholder={contactsOnly ? 'Search contact...' : 'Search group or contact...'}
                 placeholderTextColor={secondaryTextColor}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -653,16 +660,16 @@ export default function AddExpenseScreen() {
                     Contact permission required
                   </Text>
                 </View>
-              ) : searchResults.length === 0 ? (
+              ) : displayResults.length === 0 ? (
                 <View style={styles.searchEmptyState}>
                   <Ionicons name="search-outline" size={32} color={colors.gray[400]} />
                   <Text style={[styles.searchEmptyText, { color: secondaryTextColor }]}>
-                    {searchQuery ? (isOnline ? 'No results found' : 'No results found (offline: only existing connections shown)') : 'Type to search'}
+                    {searchQuery ? (isOnline ? 'No results found' : 'No results found (offline: only existing connections shown)') : contactsOnly ? 'Type to search contacts' : 'Type to search'}
                   </Text>
                 </View>
               ) : (
                 <View style={styles.searchResultsList}>
-                  {searchResults.map((item) => (
+                  {displayResults.map((item) => (
                     <View key={`${item.type}-${item.id}`}>
                       {renderSearchResult({ item })}
                     </View>

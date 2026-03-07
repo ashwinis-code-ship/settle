@@ -83,6 +83,11 @@ async function fetchFriends(userId: string): Promise<Friend[]> {
       user2_id: friendId,
     });
 
+    const totalBalance = Number(balance) || 0;
+
+    // Skip friends with settled (zero) balance - only show those with pending balances
+    if (totalBalance === 0) continue;
+
     // Get last activity (most recent expense or settlement involving both)
     const { data: lastExpense } = await supabase
       .from('expenses')
@@ -106,7 +111,7 @@ async function fetchFriends(userId: string): Promise<Friend[]> {
 
     friendsData.push({
       user: data.user,
-      total_balance: Number(balance) || 0,
+      total_balance: totalBalance,
       primary_currency: 'INR' as CurrencyCode, // TODO: Calculate most common currency
       shared_groups: regularGroupsCount,
       last_activity: lastExpense?.created_at || null,
