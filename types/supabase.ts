@@ -91,6 +91,27 @@ export interface Database {
         };
         Returns: number;
       };
+      get_friend_transactions: {
+        Args: {
+          p_user1_id: string;
+          p_user2_id: string;
+          p_limit?: number;
+          p_cursor_created_at?: string;
+          p_cursor_id?: string;
+        };
+        Returns: {
+          id: string;
+          type: string;
+          description: string;
+          amount: number;
+          currency: string;
+          created_at: string;
+          group_id: string | null;
+          group_name: string | null;
+          notes: string | null;
+          paid_by: string;
+        }[];
+      };
       check_otp_verified: {
         Args: {
           p_phone: string;

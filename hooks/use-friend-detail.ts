@@ -1,9 +1,9 @@
 /**
  * Friend Detail Hook
- * 
+ *
  * Fetches transactions between the current user and a specific friend.
- * Includes expenses and settlements from all shared groups.
- * Groups data by shared group for display.
+ * Uses settlement phases: only shows transactions since the most recent settlement.
+ * Older phases are loaded on demand via "View old transactions".
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -12,6 +12,8 @@ import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
 import { cache } from '@/lib/storage';
 import type { FriendTransaction, CurrencyCode, UserSummary } from '@/types';
+
+const BATCH_SIZE = 50;
 
 export interface FriendDetail {
   user: UserSummary;
@@ -30,13 +32,62 @@ export interface GroupBalance {
   transaction_count: number;
 }
 
+/** A phase of transactions (between two settlement points) */
+export type TransactionPhase = FriendTransaction[];
+
 interface UseFriendDetailResult {
   friend: FriendDetail | null;
   groupBalances: GroupBalance[];
-  transactions: FriendTransaction[];
+  /** Current phase - transactions since most recent settlement. Empty if fully settled. */
+  currentPhase: FriendTransaction[];
+  /** Older phases, each loaded on demand. olderPhases[0] = first "View old" block, etc. */
+  olderPhases: TransactionPhase[];
+  /** True when balance=0 and we have transaction history (show settled state) */
+  isFullySettled: boolean;
+  /** True if there are older phases (loaded or available to load) */
+  hasOlderPhases: boolean;
+  /** True if there are more older phases to fetch */
+  hasMoreOlder: boolean;
+  /** Load the next older phase (fetch on demand) */
+  loadOlderPhase: () => Promise<void>;
+  /** Loading state for loadOlderPhase */
+  isLoadingOlder: boolean;
   isLoading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+}
+
+function mapRpcToTransaction(
+  row: {
+    id: string;
+    type: string;
+    description: string;
+    amount: number;
+    currency: string;
+    created_at: string;
+    group_id: string | null;
+    group_name: string | null;
+    notes: string | null;
+    paid_by: string;
+  },
+  userId: string,
+  friendName: string
+): FriendTransaction {
+  const isSettlement = row.type === 'settlement';
+  const description =
+    isSettlement && row.description === 'They paid' ? `${friendName} paid` : row.description;
+
+  return {
+    id: row.id,
+    type: row.type as 'expense' | 'settlement',
+    description,
+    amount: Number(row.amount),
+    currency: row.currency as CurrencyCode,
+    date: row.created_at,
+    group_id: row.group_id,
+    group_name: row.group_name,
+    notes: row.notes ?? null,
+  };
 }
 
 export function useFriendDetail(friendId: string): UseFriendDetailResult {
@@ -45,9 +96,41 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
 
   const [friend, setFriend] = useState<FriendDetail | null>(null);
   const [groupBalances, setGroupBalances] = useState<GroupBalance[]>([]);
-  const [transactions, setTransactions] = useState<FriendTransaction[]>([]);
+  const [currentPhase, setCurrentPhase] = useState<FriendTransaction[]>([]);
+  const [olderPhases, setOlderPhases] = useState<TransactionPhase[]>([]);
+  const [settlementCursor, setSettlementCursor] = useState<{
+    created_at: string;
+    id: string;
+  } | null>(null);
+  const [settlementTxForNextPhase, setSettlementTxForNextPhase] = useState<FriendTransaction | null>(
+    null
+  );
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const fetchTransactionBatch = useCallback(
+    async (cursor: { created_at: string; id: string } | null) => {
+      if (!user || !friendId) return [];
+
+      const { data, error: rpcError } = await supabase.rpc('get_friend_transactions', {
+        p_user1_id: user.id,
+        p_user2_id: friendId,
+        p_limit: BATCH_SIZE,
+        p_cursor_created_at: cursor?.created_at ?? null,
+        p_cursor_id: cursor?.id ?? null,
+      });
+
+      if (rpcError) {
+        console.error('[useFriendDetail] get_friend_transactions error:', rpcError);
+        return [];
+      }
+
+      return data || [];
+    },
+    [user, friendId]
+  );
 
   const fetchFriendDetail = useCallback(async () => {
     if (!user || !friendId) {
@@ -57,10 +140,14 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
 
     setIsLoading(true);
     setError(null);
+    setCurrentPhase([]);
+    setOlderPhases([]);
+    setSettlementCursor(null);
+    setSettlementTxForNextPhase(null);
+    setHasMoreOlder(false);
 
     try {
       if (!isOnline) {
-        // Load from cache when offline
         const cached = await cache.getFriendDetail<{
           friend: FriendDetail;
           groupBalances: GroupBalance[];
@@ -69,7 +156,8 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         if (cached) {
           setFriend(cached.friend);
           setGroupBalances(cached.groupBalances);
-          setTransactions(cached.transactions);
+          // Offline: show all transactions as current phase (no phase logic)
+          setCurrentPhase(cached.transactions);
         }
         setIsLoading(false);
         return;
@@ -88,13 +176,17 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         return;
       }
 
-      // Get balance using RPC function
+      const friendName = friendUser.name || 'Friend';
+
+      // Get balance
       const { data: balance } = await supabase.rpc('calculate_balance_between_users', {
         user1_id: user.id,
         user2_id: friendId,
       });
 
-      // Get all groups where both users are members
+      const currentBalance = Number(balance) || 0;
+
+      // Fetch groups for group balances
       const { data: myGroups } = await supabase
         .from('group_members')
         .select('group_id')
@@ -106,214 +198,262 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         .eq('user_id', friendId);
 
       const myGroupIds = new Set(myGroups?.map((g) => g.group_id) || []);
-      const potentialSharedGroupIds = friendGroups
-        ?.filter((g) => myGroupIds.has(g.group_id))
-        .map((g) => g.group_id) || [];
+      const potentialSharedGroupIds =
+        friendGroups?.filter((g) => myGroupIds.has(g.group_id)).map((g) => g.group_id) || [];
 
-      // Fetch ALL active shared groups (including direct/1:1) for expenses and settlements
       const { data: allGroups } = await supabase
         .from('groups')
         .select('id, name, currency, type')
         .in('id', potentialSharedGroupIds)
-        .is('deleted_at', null); // Exclude soft-deleted groups
+        .is('deleted_at', null);
 
-      // All group IDs for expense/settlement queries (includes direct groups)
       const allSharedGroupIds = allGroups?.map((g) => g.id) || [];
-
-      // Only regular groups (not direct/1:1) for "Shared Groups" display section
       const regularGroups = allGroups?.filter((g) => g.type === 'group') || [];
-      const regularGroupIds = regularGroups.map((g) => g.id);
 
-      // Map for all groups (for transaction display)
       const groupMap = new Map<string, { name: string; currency: string; type: string }>();
       allGroups?.forEach((g) => {
         groupMap.set(g.id, { name: g.name, currency: g.currency, type: g.type || 'group' });
       });
 
-      // Fetch all expenses in ALL shared groups (including direct)
+      // Fetch expenses and settlements for group balance (unchanged)
       const { data: expenses } = await supabase
         .from('expenses')
-        .select(`
-          id,
-          description,
-          amount,
-          currency,
-          created_at,
-          group_id,
-          paid_by,
-          expense_splits (
-            user_id,
-            amount
-          )
-        `)
+        .select(
+          `
+          id, description, amount, currency, created_at, group_id, paid_by,
+          expense_splits (user_id, amount)
+        `
+        )
         .in('group_id', allSharedGroupIds)
         .order('created_at', { ascending: false });
 
-      // Fetch settlements between the two users
       const { data: settlements } = await supabase
         .from('settlements')
         .select('id, amount, currency, created_at, group_id, paid_by, paid_to, notes')
-        .or(`and(paid_by.eq.${user.id},paid_to.eq.${friendId}),and(paid_by.eq.${friendId},paid_to.eq.${user.id})`)
+        .or(
+          `and(paid_by.eq.${user.id},paid_to.eq.${friendId}),and(paid_by.eq.${friendId},paid_to.eq.${user.id})`
+        )
         .order('created_at', { ascending: false });
 
-      // Process expenses into transactions and calculate per-group balances
-      const expenseTransactions: FriendTransaction[] = [];
+      // Compute group balances
       const groupBalanceMap = new Map<string, { balance: number; count: number }>();
-
-      // Initialize group balances for ALL shared groups (including direct)
-      allSharedGroupIds.forEach((gid) => {
-        groupBalanceMap.set(gid, { balance: 0, count: 0 });
-      });
+      allSharedGroupIds.forEach((gid) => groupBalanceMap.set(gid, { balance: 0, count: 0 }));
 
       expenses?.forEach((expense) => {
         const splits = expense.expense_splits as { user_id: string; amount: number }[];
-        
-        // Check if both users are involved in this expense
         const mySplit = splits.find((s) => s.user_id === user.id);
         const friendSplit = splits.find((s) => s.user_id === friendId);
+        if (!mySplit && !friendSplit) return;
+        if (!mySplit && expense.paid_by !== user.id) return;
+        if (!friendSplit && expense.paid_by !== friendId) return;
 
-        if (!mySplit && !friendSplit) return; // Neither involved
-        if (!mySplit && expense.paid_by !== user.id) return; // I'm not involved
-        if (!friendSplit && expense.paid_by !== friendId) return; // Friend not involved
-
-        // Calculate what friend owes me from this expense (or vice versa)
         let impactAmount = 0;
+        if (expense.paid_by === user.id && friendSplit) impactAmount = friendSplit.amount;
+        else if (expense.paid_by === friendId && mySplit) impactAmount = -mySplit.amount;
+        if (impactAmount === 0) return;
 
-        if (expense.paid_by === user.id && friendSplit) {
-          // I paid, friend owes their split to me
-          impactAmount = friendSplit.amount;
-        } else if (expense.paid_by === friendId && mySplit) {
-          // Friend paid, I owe my split to them
-          impactAmount = -mySplit.amount;
+        const gd = groupBalanceMap.get(expense.group_id);
+        if (gd) {
+          gd.balance += impactAmount;
+          gd.count += 1;
         }
-
-        if (impactAmount === 0) return; // No impact between us
-
-        // Update group balance
-        const groupData = groupBalanceMap.get(expense.group_id);
-        if (groupData) {
-          groupData.balance += impactAmount;
-          groupData.count += 1;
-        }
-
-        const groupInfo = groupMap.get(expense.group_id);
-        expenseTransactions.push({
-          id: expense.id,
-          type: 'expense',
-          description: expense.description,
-          amount: impactAmount,
-          currency: expense.currency as CurrencyCode,
-          date: expense.created_at,
-          group_id: expense.group_id,
-          group_name: groupInfo?.name || null,
-        });
       });
 
-      // Process settlements
-      const settlementTransactions: FriendTransaction[] = (settlements || []).map((settlement) => {
-        const iPayedThem = settlement.paid_by === user.id;
-        const groupInfo = settlement.group_id ? groupMap.get(settlement.group_id) : null;
-        
-        // Update group balance if settlement is associated with a group
-        if (settlement.group_id) {
-          const groupData = groupBalanceMap.get(settlement.group_id);
-          if (groupData) {
-            // Settlement affects the balance:
-            // - If I paid them: reduces what they owe me (or pays off what I owe)
-            // - If they paid me: reduces what they owe me (they're paying their debt)
-            // Positive balance = they owe me, so settlement reduces it
-            groupData.balance += iPayedThem ? settlement.amount : -settlement.amount;
-            groupData.count += 1;
+      (settlements || []).forEach((s) => {
+        const iPayedThem = s.paid_by === user.id;
+        if (s.group_id) {
+          const gd = groupBalanceMap.get(s.group_id);
+          if (gd) {
+            gd.balance += iPayedThem ? s.amount : -s.amount;
+            gd.count += 1;
           }
         }
-
-        // For display: positive = you received, negative = you paid
-        return {
-          id: settlement.id,
-          type: 'settlement' as const,
-          description: iPayedThem ? 'You paid' : `${friendUser.name} paid`,
-          amount: iPayedThem ? -settlement.amount : settlement.amount, // Flip: I paid = negative, they paid = positive
-          currency: settlement.currency as CurrencyCode,
-          date: settlement.created_at,
-          group_id: settlement.group_id,
-          group_name: groupInfo?.name || null,
-          notes: settlement.notes || null,
-        };
       });
 
-      // Build group balances array - only include regular groups (not direct/1:1)
       const groupBalancesArray: GroupBalance[] = [];
       for (const [groupId, data] of groupBalanceMap.entries()) {
-        const groupInfo = groupMap.get(groupId);
-        // Only include regular groups in the "Shared Groups" display
-        if (groupInfo && data.count > 0 && groupInfo.type === 'group') {
+        const gi = groupMap.get(groupId);
+        if (gi && data.count > 0 && gi.type === 'group') {
           groupBalancesArray.push({
             group_id: groupId,
-            group_name: groupInfo.name,
+            group_name: gi.name,
             balance: data.balance,
-            currency: (groupInfo.currency || 'INR') as CurrencyCode,
+            currency: (gi.currency || 'INR') as CurrencyCode,
             transaction_count: data.count,
           });
         }
       }
-
-      // Sort group balances by absolute balance (highest first)
       groupBalancesArray.sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance));
-
-      // Combine and sort transactions by date (newest first)
-      const allTransactions = [...expenseTransactions, ...settlementTransactions].sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
 
       const friendData: FriendDetail = {
         user: friendUser as UserSummary,
-        total_balance: Number(balance) || 0,
-        shared_groups: regularGroupIds.length, // Only count regular groups
+        total_balance: currentBalance,
+        shared_groups: regularGroups.length,
         primary_currency: 'INR',
       };
 
       setFriend(friendData);
       setGroupBalances(groupBalancesArray);
-      setTransactions(allTransactions);
 
-      // Cache the result for offline access
+      // Fetch transactions via RPC and compute phases
+      let cursor: { created_at: string; id: string } | null = null;
+      let runningBalance = currentBalance;
+      const currentPhaseTxs: FriendTransaction[] = [];
+      let foundSettlement: { tx: FriendTransaction; created_at: string; id: string } | null = null;
+      let batchHasMore = true;
+
+      while (batchHasMore) {
+        const rows = await fetchTransactionBatch(cursor);
+        batchHasMore = rows.length === BATCH_SIZE;
+
+        for (const row of rows) {
+          const tx = mapRpcToTransaction(row, user.id, friendName);
+
+          runningBalance -= tx.amount;
+
+          if (Math.abs(runningBalance) < 0.01) {
+            // Any tx (settlement or expense) that brings balance to zero is a boundary.
+            // The boundary closed the books, so it goes to the older phase.
+            foundSettlement = {
+              tx,
+              created_at: row.created_at,
+              id: row.id,
+            };
+            setSettlementCursor({ created_at: row.created_at, id: row.id });
+            setSettlementTxForNextPhase(tx);
+            setCurrentPhase([...currentPhaseTxs]);
+            setHasMoreOlder(true);
+            break;
+          }
+
+          currentPhaseTxs.push(tx);
+        }
+
+        if (foundSettlement) break;
+
+        if (rows.length > 0) {
+          const last = rows[rows.length - 1];
+          cursor = { created_at: last.created_at, id: last.id };
+        } else {
+          break;
+        }
+      }
+
+      if (!foundSettlement) {
+        setCurrentPhase(currentPhaseTxs);
+        setHasMoreOlder(false); // No settlement = no "View old"
+      }
+
       await cache.setFriendDetail(friendId, {
         friend: friendData,
         groupBalances: groupBalancesArray,
-        transactions: allTransactions,
+        transactions: currentPhaseTxs, // Cache current phase for offline
       });
     } catch (err) {
-      // If network error and we have cache, use cache instead
       const cached = await cache.getFriendDetail<{
         friend: FriendDetail;
         groupBalances: GroupBalance[];
         transactions: FriendTransaction[];
       }>(friendId);
-      
+
       if (cached) {
-        console.log('[useFriendDetail] Network error, using cached data');
         setFriend(cached.friend);
         setGroupBalances(cached.groupBalances);
-        setTransactions(cached.transactions);
-        setError(null); // Clear error since we have cache
+        setCurrentPhase(cached.transactions);
+        setError(null);
       } else {
-        const message = err instanceof Error ? err.message : 'Failed to fetch friend details';
-        setError(message);
+        setError(err instanceof Error ? err.message : 'Failed to fetch friend details');
         console.error('[useFriendDetail] Error:', err);
       }
     } finally {
       setIsLoading(false);
     }
-  }, [user, friendId, isOnline]);
+  }, [user, friendId, isOnline, fetchTransactionBatch]);
+
+  const loadOlderPhase = useCallback(async () => {
+    if (!user || !friendId || isLoadingOlder) return;
+
+    const cursor = settlementCursor;
+    const firstTx = settlementTxForNextPhase;
+    if (!cursor && !firstTx) return; // Need at least one to load older
+
+    setIsLoadingOlder(true);
+
+    try {
+      const friendName = friend?.user.name || 'Friend';
+      const rows = await fetchTransactionBatch(cursor);
+
+      const phaseTxs: FriendTransaction[] = [];
+      let runningBalance = 0;
+
+      // Prepend the settlement tx that starts this phase (from end of previous phase)
+      if (firstTx) {
+        phaseTxs.push(firstTx);
+        runningBalance -= firstTx.amount;
+      }
+
+      let nextBoundary: { tx: FriendTransaction; created_at: string; id: string } | null = null;
+      let remainingRows: typeof rows = [];
+
+      for (const row of rows) {
+        const tx = mapRpcToTransaction(row, user.id, friendName);
+        runningBalance -= tx.amount;
+
+        if (Math.abs(runningBalance) < 0.01) {
+          nextBoundary = { tx, created_at: row.created_at, id: row.id };
+          phaseTxs.push(tx);
+          const idx = rows.indexOf(row);
+          remainingRows = rows.slice(idx + 1);
+          break;
+        }
+
+        phaseTxs.push(tx);
+      }
+
+      setOlderPhases((prev) => [...prev, phaseTxs]);
+
+      if (nextBoundary) {
+        setSettlementCursor({ created_at: nextBoundary.created_at, id: nextBoundary.id });
+        setSettlementTxForNextPhase(nextBoundary.tx);
+        setHasMoreOlder(remainingRows.length > 0 || rows.length === BATCH_SIZE);
+      } else {
+        setSettlementCursor(rows.length > 0 ? { created_at: rows[rows.length - 1].created_at, id: rows[rows.length - 1].id } : null);
+        setSettlementTxForNextPhase(null);
+        setHasMoreOlder(rows.length === BATCH_SIZE);
+      }
+    } catch (err) {
+      console.error('[useFriendDetail] loadOlderPhase error:', err);
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  }, [
+    user,
+    friendId,
+    friend,
+    settlementCursor,
+    settlementTxForNextPhase,
+    olderPhases.length,
+    fetchTransactionBatch,
+    isLoadingOlder,
+  ]);
 
   useEffect(() => {
     fetchFriendDetail();
   }, [fetchFriendDetail]);
 
+  const balance = friend?.total_balance ?? 0;
+  const isFullySettled = balance === 0 && (currentPhase.length > 0 || olderPhases.length > 0);
+
   return {
     friend,
     groupBalances,
-    transactions,
+    currentPhase,
+    olderPhases,
+    isFullySettled,
+    hasOlderPhases: hasMoreOlder || olderPhases.length > 0,
+    hasMoreOlder,
+    loadOlderPhase,
+    isLoadingOlder,
     isLoading,
     error,
     refresh: fetchFriendDetail,

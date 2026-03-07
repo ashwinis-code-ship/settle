@@ -59,7 +59,7 @@ EXPO_PUBLIC_POSTHOG_API_KEY=your_posthog_api_key
 EXPO_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com
 ```
 
-Add to `.env` and `.env.dev`:
+Add to `.env`:
 
 ```env
 # PostHog Analytics

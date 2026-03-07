@@ -41,7 +41,20 @@ export default function FriendDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { isOnline } = useSync();
-  const { friend, groupBalances, transactions, isLoading, error, refresh } = useFriendDetail(params.id);
+  const {
+    friend,
+    groupBalances,
+    currentPhase,
+    olderPhases,
+    isFullySettled,
+    hasOlderPhases,
+    hasMoreOlder,
+    loadOlderPhase,
+    isLoadingOlder,
+    isLoading,
+    error,
+    refresh,
+  } = useFriendDetail(params.id);
   const { updateSettlement } = useSettlements({ friendId: params.id });
   const [refreshing, setRefreshing] = useState(false);
   const [editingSettlement, setEditingSettlement] = useState<FriendTransaction | null>(null);
@@ -583,7 +596,7 @@ export default function FriendDetailScreen() {
         )}
 
         {/* Transaction History Section */}
-        {transactions.length > 0 && (
+        {(currentPhase.length > 0 || isFullySettled || hasOlderPhases) && (
           <MotiView
             from={{ opacity: 0, translateY: 10 }}
             animate={{ opacity: 1, translateY: 0 }}
@@ -594,17 +607,93 @@ export default function FriendDetailScreen() {
                 All Transactions
               </Text>
               <Text style={[styles.sectionSubtitle, { color: secondaryTextColor }]}>
-                {transactions.length} item{transactions.length !== 1 ? 's' : ''}
+                {isFullySettled && hasOlderPhases && olderPhases.length === 0
+                  ? 'View history'
+                  : `${currentPhase.length + olderPhases.flat().length} item${(currentPhase.length + olderPhases.flat().length) !== 1 ? 's' : ''}`}
               </Text>
             </View>
-            <View style={styles.transactionsList}>
-              {transactions.map((tx, index) => renderTransactionItem(tx, index))}
-            </View>
+
+            {/* Current phase transactions */}
+            {!isFullySettled && (
+              <View style={styles.transactionsList}>
+                {currentPhase.map((tx, index) => renderTransactionItem(tx, index))}
+              </View>
+            )}
+
+            {/* Fully settled state */}
+            {isFullySettled && (
+              <View style={[styles.settledState, { backgroundColor: cardBg }]}>
+                <View style={[styles.settledStateIcon, { backgroundColor: colors.success + '20' }]}>
+                  <Ionicons name="checkmark-circle" size={48} color={colors.success} />
+                </View>
+                <Text style={[styles.settledStateTitle, { color: textColor }]}>
+                  All settled up!
+                </Text>
+                <Text style={[styles.settledStateText, { color: secondaryTextColor }]}>
+                  You and {friendName.split(' ')[0]} are all square. No one owes anyone.
+                </Text>
+              </View>
+            )}
+
+            {/* View old transactions */}
+            {hasOlderPhases && (
+              <View style={styles.viewOlderContainer}>
+                {olderPhases.length === 0 ? (
+                  <Pressable
+                    onPress={loadOlderPhase}
+                    disabled={isLoadingOlder}
+                    style={({ pressed }) => [
+                      styles.viewOlderButton,
+                      { opacity: pressed ? 0.7 : 1 },
+                    ]}
+                  >
+                    {isLoadingOlder ? (
+                      <ActivityIndicator size="small" color={colors.primary[500]} />
+                    ) : (
+                      <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
+                        View old transactions
+                      </Text>
+                    )}
+                  </Pressable>
+                ) : (
+                  <>
+                    {olderPhases.map((phase, phaseIdx) => (
+                      <View
+                        key={`phase-${phaseIdx}`}
+                        style={[styles.transactionsList, styles.olderPhaseList]}
+                      >
+                        {phase.map((tx, index) =>
+                          renderTransactionItem(tx, currentPhase.length + phaseIdx * 100 + index)
+                        )}
+                      </View>
+                    ))}
+                    {hasMoreOlder && (
+                      <Pressable
+                        onPress={loadOlderPhase}
+                        disabled={isLoadingOlder}
+                        style={({ pressed }) => [
+                          styles.viewOlderButton,
+                          { opacity: pressed ? 0.7 : 1 },
+                        ]}
+                      >
+                        {isLoadingOlder ? (
+                          <ActivityIndicator size="small" color={colors.primary[500]} />
+                        ) : (
+                          <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
+                            View older
+                          </Text>
+                        )}
+                      </Pressable>
+                    )}
+                  </>
+                )}
+              </View>
+            )}
           </MotiView>
         )}
 
         {/* Empty State */}
-        {transactions.length === 0 && groupBalances.length === 0 && !isLoading && (
+        {currentPhase.length === 0 && !isFullySettled && !hasOlderPhases && groupBalances.length === 0 && !isLoading && (
           <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
             <EmptyState
               icon="wallet-outline"
@@ -811,6 +900,48 @@ const styles = StyleSheet.create({
   },
   transactionsList: {
     gap: 8,
+  },
+  settledState: {
+    alignItems: 'center',
+    padding: 32,
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  settledStateIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  settledStateTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  settledStateText: {
+    fontSize: 15,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  viewOlderContainer: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  olderPhaseList: {
+    alignSelf: 'stretch',
+  },
+  viewOlderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  viewOlderText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   settlementContainer: {
     flexDirection: 'row',

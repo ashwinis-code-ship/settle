@@ -46,11 +46,8 @@ A modern expense splitting app for iOS and Android. Split bills with friends, tr
 
 3. Set up environment variables:
    ```bash
-   # Copy the example and fill in your Supabase credentials
    cp .env.example .env
-   
-   # Or use the dev environment (if you have .env.dev)
-   npm run env:dev
+   # Edit .env with your Supabase credentials
    ```
 
 4. Start the development server:
@@ -65,27 +62,15 @@ A modern expense splitting app for iOS and Android. Split bills with friends, tr
 
 ## Environment Setup
 
-The app supports multiple environments:
-
 | File | Purpose |
 |------|---------|
-| `.env` | Active environment (gitignored) |
-| `.env.dev` | Development Supabase project (gitignored) |
-| `.env.prod` | Production Supabase project (gitignored) |
+| `.env` | Environment variables (gitignored) |
 | `.env.example` | Template for new developers (committed) |
-
-### Switching Environments
-
-```bash
-npm run env:dev     # Switch to development
-npm run env:prod    # Switch to production
-```
 
 ### Building for Release
 
 ```bash
-npm run build:dev   # Build with dev environment
-npm run build:prod  # Build with prod environment
+npm run build
 ```
 
 ## Project Structure
