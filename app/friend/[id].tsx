@@ -155,6 +155,16 @@ export default function FriendDetailScreen() {
     });
   };
 
+  const formatSettlementDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    return date.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    });
+  };
+
   const getBalanceColor = (balance: number) => {
     if (balance > 0) return colors.success;
     if (balance < 0) return colors.error;
@@ -291,7 +301,7 @@ export default function FriendDetailScreen() {
 
     // Settlement: thin line with neutral text, tappable to edit
     if (isSettlement) {
-      const dateStr = formatDate(item.date);
+      const dateStr = formatSettlementDate(item.date);
       const settlementText =
         item.amount > 0
           ? `${friendName} paid you ${formatBalance(item.amount, item.currency)} on ${dateStr}`

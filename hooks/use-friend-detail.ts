@@ -295,11 +295,11 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
       setFriend(friendData);
       setGroupBalances(groupBalancesArray);
 
-      // Fetch transactions via RPC and compute phases
+      // Walk newest → oldest. The first settlement we encounter is the phase boundary.
+      // Everything before it (newer) = current phase. It + everything older = older phases.
       let cursor: { created_at: string; id: string } | null = null;
-      let runningBalance = currentBalance;
       const currentPhaseTxs: FriendTransaction[] = [];
-      let foundSettlement: { tx: FriendTransaction; created_at: string; id: string } | null = null;
+      let foundBoundary = false;
       let batchHasMore = true;
 
       while (batchHasMore) {
@@ -307,29 +307,19 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         batchHasMore = rows.length === BATCH_SIZE;
 
         for (const row of rows) {
-          const tx = mapRpcToTransaction(row, user.id, friendName);
-
-          runningBalance -= tx.amount;
-
-          if (Math.abs(runningBalance) < 0.01) {
-            // Any tx (settlement or expense) that brings balance to zero is a boundary.
-            // The boundary closed the books, so it goes to the older phase.
-            foundSettlement = {
-              tx,
-              created_at: row.created_at,
-              id: row.id,
-            };
+          if (row.type === 'settlement') {
+            const tx = mapRpcToTransaction(row, user.id, friendName);
             setSettlementCursor({ created_at: row.created_at, id: row.id });
             setSettlementTxForNextPhase(tx);
             setCurrentPhase([...currentPhaseTxs]);
             setHasMoreOlder(true);
+            foundBoundary = true;
             break;
           }
-
-          currentPhaseTxs.push(tx);
+          currentPhaseTxs.push(mapRpcToTransaction(row, user.id, friendName));
         }
 
-        if (foundSettlement) break;
+        if (foundBoundary) break;
 
         if (rows.length > 0) {
           const last = rows[rows.length - 1];
@@ -339,9 +329,9 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         }
       }
 
-      if (!foundSettlement) {
+      if (!foundBoundary) {
         setCurrentPhase(currentPhaseTxs);
-        setHasMoreOlder(false); // No settlement = no "View old"
+        setHasMoreOlder(false);
       }
 
       await cache.setFriendDetail(friendId, {
@@ -384,30 +374,22 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
       const rows = await fetchTransactionBatch(cursor);
 
       const phaseTxs: FriendTransaction[] = [];
-      let runningBalance = 0;
 
-      // Prepend the settlement tx that starts this phase (from end of previous phase)
+      // Prepend the settlement that is the boundary/header of this older phase
       if (firstTx) {
         phaseTxs.push(firstTx);
-        runningBalance -= firstTx.amount;
       }
 
+      // Walk older transactions until we hit the next settlement (next boundary)
       let nextBoundary: { tx: FriendTransaction; created_at: string; id: string } | null = null;
-      let remainingRows: typeof rows = [];
 
       for (const row of rows) {
-        const tx = mapRpcToTransaction(row, user.id, friendName);
-        runningBalance -= tx.amount;
-
-        if (Math.abs(runningBalance) < 0.01) {
+        if (row.type === 'settlement') {
+          const tx = mapRpcToTransaction(row, user.id, friendName);
           nextBoundary = { tx, created_at: row.created_at, id: row.id };
-          phaseTxs.push(tx);
-          const idx = rows.indexOf(row);
-          remainingRows = rows.slice(idx + 1);
           break;
         }
-
-        phaseTxs.push(tx);
+        phaseTxs.push(mapRpcToTransaction(row, user.id, friendName));
       }
 
       setOlderPhases((prev) => [...prev, phaseTxs]);
@@ -415,7 +397,7 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
       if (nextBoundary) {
         setSettlementCursor({ created_at: nextBoundary.created_at, id: nextBoundary.id });
         setSettlementTxForNextPhase(nextBoundary.tx);
-        setHasMoreOlder(remainingRows.length > 0 || rows.length === BATCH_SIZE);
+        setHasMoreOlder(true);
       } else {
         setSettlementCursor(rows.length > 0 ? { created_at: rows[rows.length - 1].created_at, id: rows[rows.length - 1].id } : null);
         setSettlementTxForNextPhase(null);
