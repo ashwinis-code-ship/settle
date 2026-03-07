@@ -26,6 +26,7 @@ interface UseSettlementsResult {
   isLoading: boolean;
   error: string | null;
   createSettlement: (data: SettlementFormData & { paid_by?: string }) => Promise<string | null>;
+  updateSettlement: (settlementId: string, data: { amount: number; notes?: string | null }) => Promise<boolean>;
   deleteSettlement: (settlementId: string) => Promise<boolean>;
   refresh: () => Promise<void>;
 }
@@ -202,6 +203,37 @@ export function useSettlements(options: UseSettlementsOptions = {}): UseSettleme
     },
   });
 
+  // Update settlement mutation
+  const updateSettlementMutation = useMutation({
+    mutationFn: async ({
+      settlementId,
+      amount,
+      notes,
+    }: {
+      settlementId: string;
+      amount: number;
+      notes?: string | null;
+    }) => {
+      if (!isOnline) {
+        throw new Error('Updating settlements requires an internet connection');
+      }
+      if (amount <= 0 || isNaN(amount)) {
+        throw new Error('Invalid amount');
+      }
+
+      const { error: updateError } = await supabase
+        .from('settlements')
+        .update({ amount, notes: notes ?? null })
+        .eq('id', settlementId);
+
+      if (updateError) throw updateError;
+    },
+    onSuccess: invalidateQueries,
+    onError: (err) => {
+      setMutationError(err instanceof Error ? err.message : 'Failed to update settlement');
+    },
+  });
+
   // Delete settlement mutation
   const deleteSettlementMutation = useMutation({
     mutationFn: async (settlementId: string) => {
@@ -245,6 +277,23 @@ export function useSettlements(options: UseSettlementsOptions = {}): UseSettleme
     }
   };
 
+  const updateSettlement = async (
+    settlementId: string,
+    data: { amount: number; notes?: string | null }
+  ): Promise<boolean> => {
+    setMutationError(null);
+    try {
+      await updateSettlementMutation.mutateAsync({
+        settlementId,
+        amount: data.amount,
+        notes: data.notes,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const deleteSettlement = async (settlementId: string): Promise<boolean> => {
     setMutationError(null);
     try {
@@ -264,6 +313,7 @@ export function useSettlements(options: UseSettlementsOptions = {}): UseSettleme
     isLoading: isLoading && localPendingSettlements.length === 0,
     error: error ? (error instanceof Error ? error.message : 'Failed to fetch settlements') : mutationError,
     createSettlement,
+    updateSettlement,
     deleteSettlement,
     refresh,
   };

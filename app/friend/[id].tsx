@@ -6,19 +6,23 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
+import BottomSheet from '@gorhom/bottom-sheet';
 import { Image } from 'expo-image';
+import { EditSettlementSheet } from '@/components/edit-settlement-sheet';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
-    Alert,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
@@ -27,7 +31,8 @@ import { colors } from '@/constants/colors';
 import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFriendDetail, type GroupBalance } from '@/hooks/use-friend-detail';
-import { hapticLight, hapticWarning } from '@/lib/haptics';
+import { useSettlements } from '@/hooks/use-settlements';
+import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import type { FriendTransaction } from '@/types';
 import { CURRENCIES } from '@/types/database';
 
@@ -37,7 +42,13 @@ export default function FriendDetailScreen() {
   const isDark = colorScheme === 'dark';
   const { isOnline } = useSync();
   const { friend, groupBalances, transactions, isLoading, error, refresh } = useFriendDetail(params.id);
+  const { updateSettlement } = useSettlements({ friendId: params.id });
   const [refreshing, setRefreshing] = useState(false);
+  const [editingSettlement, setEditingSettlement] = useState<FriendTransaction | null>(null);
+  const [editAmount, setEditAmount] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+  const editSheetRef = useRef<BottomSheet>(null);
 
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
   const secondaryTextColor = isDark ? colors.text.dark.secondary : colors.text.light.secondary;
@@ -206,10 +217,57 @@ export default function FriendDetailScreen() {
   };
 
   const handleTransactionPress = (item: FriendTransaction) => {
-    // Only expenses can be viewed/edited, not settlements
     if (item.type === 'expense') {
       hapticLight();
       router.push(`/expense/${item.id}`);
+    }
+  };
+
+  const handleSettlementPress = (item: FriendTransaction) => {
+    if (item.type !== 'settlement') return;
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert(
+        'No Connection',
+        'Editing settlements requires an internet connection.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    hapticLight();
+    setEditingSettlement(item);
+    setEditAmount(Math.abs(item.amount).toFixed(2));
+    setEditNotes(item.notes || '');
+    editSheetRef.current?.expand();
+  };
+
+  const handleCloseEditSheet = useCallback(() => {
+    editSheetRef.current?.close();
+    setEditingSettlement(null);
+    setEditAmount('');
+    setEditNotes('');
+  }, []);
+
+  const handleUpdateSettlement = async () => {
+    if (!editingSettlement) return;
+    const amountNum = parseFloat(editAmount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      hapticWarning();
+      return;
+    }
+    setIsUpdating(true);
+    const success = await updateSettlement(editingSettlement.id, {
+      amount: amountNum,
+      notes: editNotes.trim() || null,
+    });
+    setIsUpdating(false);
+    if (success) {
+      hapticSuccess();
+      handleCloseEditSheet();
+      refresh();
+    } else {
+      hapticWarning();
+      Alert.alert('Error', 'Failed to update settlement. Please try again.');
     }
   };
 
@@ -218,12 +276,13 @@ export default function FriendDetailScreen() {
     const isSettlement = item.type === 'settlement';
     const friendName = friend?.user.name || params.name || 'Friend';
 
-    // Settlement: thin line with neutral text, visually distinct from expenses
+    // Settlement: thin line with neutral text, tappable to edit
     if (isSettlement) {
+      const dateStr = formatDate(item.date);
       const settlementText =
         item.amount > 0
-          ? `${friendName} paid you ${formatBalance(item.amount, item.currency)}`
-          : `you paid ${friendName} ${formatBalance(Math.abs(item.amount), item.currency)}`;
+          ? `${friendName} paid you ${formatBalance(item.amount, item.currency)} on ${dateStr}`
+          : `you paid ${friendName} ${formatBalance(Math.abs(item.amount), item.currency)} on ${dateStr}`;
 
       return (
         <MotiView
@@ -231,13 +290,20 @@ export default function FriendDetailScreen() {
           from={{ opacity: 0, translateX: -20 }}
           animate={{ opacity: 1, translateX: 0 }}
           transition={{ type: 'spring', damping: 18, stiffness: 120, delay: Math.min(index * 50, 300) }}
-          style={styles.settlementContainer}
         >
-          <View style={[styles.settlementLine, { backgroundColor: settlementLineColor }]} />
-          <Text style={[styles.settlementText, { color: settlementTextColor }]} numberOfLines={1}>
-            {settlementText}
-          </Text>
-          <View style={[styles.settlementLine, { backgroundColor: settlementLineColor }]} />
+          <Pressable
+            onPress={() => handleSettlementPress(item)}
+            style={({ pressed }) => [
+              styles.settlementContainer,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <View style={[styles.settlementLine, { backgroundColor: settlementLineColor }]} />
+            <Text style={[styles.settlementText, { color: settlementTextColor }]} numberOfLines={1}>
+              {settlementText}
+            </Text>
+            <View style={[styles.settlementLine, { backgroundColor: settlementLineColor }]} />
+          </Pressable>
         </MotiView>
       );
     }
@@ -408,7 +474,10 @@ export default function FriendDetailScreen() {
   const balance = friend?.total_balance || 0;
   const balanceColor = getBalanceColor(balance);
 
+  const currencySymbol = CURRENCIES[friend?.primary_currency || 'INR']?.symbol || '₹';
+
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
@@ -548,7 +617,20 @@ export default function FriendDetailScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+
+        <EditSettlementSheet
+          ref={editSheetRef}
+          amount={editAmount}
+          notes={editNotes}
+          onAmountChange={setEditAmount}
+          onNotesChange={setEditNotes}
+          onCancel={handleCloseEditSheet}
+          onUpdate={handleUpdateSettlement}
+          isUpdating={isUpdating}
+          currencySymbol={currencySymbol}
+        />
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 

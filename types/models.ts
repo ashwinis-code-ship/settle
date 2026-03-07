@@ -185,6 +185,8 @@ export interface FriendTransaction {
   date: string;
   group_id: string | null;
   group_name: string | null;
+  /** Notes (settlements only) */
+  notes?: string | null;
 }
 
 // ============================================

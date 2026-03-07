@@ -152,7 +152,7 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
       // Fetch settlements between the two users
       const { data: settlements } = await supabase
         .from('settlements')
-        .select('id, amount, currency, created_at, group_id, paid_by, paid_to')
+        .select('id, amount, currency, created_at, group_id, paid_by, paid_to, notes')
         .or(`and(paid_by.eq.${user.id},paid_to.eq.${friendId}),and(paid_by.eq.${friendId},paid_to.eq.${user.id})`)
         .order('created_at', { ascending: false });
 
@@ -237,6 +237,7 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
           date: settlement.created_at,
           group_id: settlement.group_id,
           group_name: groupInfo?.name || null,
+          notes: settlement.notes || null,
         };
       });
 
