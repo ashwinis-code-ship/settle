@@ -185,6 +185,8 @@ export interface FriendTransaction {
   date: string;
   group_id: string | null;
   group_name: string | null;
+  /** 'group' for a real multi-person group, 'direct' for a 1:1 group */
+  group_type: string | null;
   /** Notes (settlements only) */
   notes?: string | null;
   /** Category emoji icon (expenses only) */

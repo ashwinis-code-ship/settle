@@ -376,9 +376,10 @@ export default function FriendDetailScreen() {
             <Text style={[styles.transactionDate, { color: secondaryTextColor }]}>
               {formatDate(item.date)}
             </Text>
-            {item.group_name && (
+            {item.group_type === 'group' && item.group_name && (
               <>
                 <Text style={[styles.transactionDot, { color: secondaryTextColor }]}>•</Text>
+                <Ionicons name="people" size={11} color={secondaryTextColor} />
                 <Text style={[styles.transactionGroup, { color: secondaryTextColor }]} numberOfLines={1}>
                   {item.group_name}
                 </Text>

@@ -68,6 +68,7 @@ function mapRpcToTransaction(
     created_at: string;
     group_id: string | null;
     group_name: string | null;
+    group_type: string | null;
     notes: string | null;
     paid_by: string;
     category_icon?: string | null;
@@ -89,6 +90,7 @@ function mapRpcToTransaction(
     date: row.created_at,
     group_id: row.group_id,
     group_name: row.group_name,
+    group_type: row.group_type ?? null,
     notes: row.notes ?? null,
     category_icon: row.category_icon ?? null,
     category_color: row.category_color ?? null,
