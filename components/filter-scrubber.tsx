@@ -192,9 +192,9 @@ export function FilterScrubber({
     );
   }, [activeFilter]);
 
-  // Slide highlight to new active item
+  // Snap highlight to active item instantly (no spring — live tracking during drag)
   useEffect(() => {
-    highlightX.value = withSpring(activeIdx * ITEM_W, { damping: 30, stiffness: 300 });
+    highlightX.value = activeIdx * ITEM_W;
     lastIdx.current = activeIdx;
   }, [activeIdx]);
 
@@ -228,14 +228,17 @@ export function FilterScrubber({
     .onBegin((e) => {
       runOnJS(clearCollapse)();
       expanded.value = withSpring(1, { damping: 32, stiffness: 300 });
-      // Detect which item was tapped immediately on touch-down
       const leftEdge = (SCREEN_W - EXPANDED_W) / 2;
       const idx = Math.max(0, Math.min(3, Math.floor((e.absoluteX - leftEdge) / ITEM_W)));
+      // Move highlight instantly on the UI thread — no JS round-trip, no spring
+      highlightX.value = idx * ITEM_W;
       runOnJS(handleFilterChange)(idx);
     })
     .onUpdate((e) => {
       const leftEdge = (SCREEN_W - EXPANDED_W) / 2;
       const idx = Math.max(0, Math.min(3, Math.floor((e.absoluteX - leftEdge) / ITEM_W)));
+      // Direct assignment = highlight is physically glued to the finger
+      highlightX.value = idx * ITEM_W;
       runOnJS(handleFilterChange)(idx);
     })
     .onFinalize(() => {
