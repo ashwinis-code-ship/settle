@@ -1,7 +1,7 @@
 /**
  * Group Detail Screen
- * 
- * Shows group information, member balances, and expenses list.
+ *
+ * Shows group information, member contributions, and expenses list.
  */
 
 import { Ionicons } from '@expo/vector-icons';
@@ -16,10 +16,11 @@ import {
     RefreshControl,
     StyleSheet,
     Text,
-    View
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ContributionBar } from '@/components/ui/contribution-bar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PendingBadge } from '@/components/ui/offline-banner';
 import { Skeleton, SkeletonActivityList } from '@/components/ui/skeleton';
@@ -29,23 +30,7 @@ import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useExpenses, type ExpenseListItemWithStatus } from '@/hooks/use-expenses';
 import { useGroup } from '@/hooks/use-group';
-import { useSettlements, type SettlementWithStatus } from '@/hooks/use-settlements';
 import { hapticLight, hapticWarning } from '@/lib/haptics';
-
-// Union type for activity items (expense or settlement)
-type ActivityItem = 
-  | { type: 'expense'; data: ExpenseListItemWithStatus }
-  | { type: 'settlement'; data: SettlementWithStatus };
-
-// Utility functions
-const getInitials = (name: string) => {
-  return name
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-};
 
 const formatCurrency = (amount: number, currency: string = 'INR') => {
   const symbols: Record<string, string> = {
@@ -86,7 +71,6 @@ export default function GroupDetailScreen() {
 
   const { group, isLoading: isLoadingGroup, refresh: refreshGroup } = useGroup(id);
   const { expenses, isLoading: isLoadingExpenses, refresh: refreshExpenses } = useExpenses(id);
-  const { settlements, isLoading: isLoadingSettlements, refresh: refreshSettlements } = useSettlements({ groupId: id });
 
   // Theme colors
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
@@ -94,28 +78,15 @@ export default function GroupDetailScreen() {
   const backgroundColor = isDark ? colors.background.dark : colors.background.light;
   const cardBg = isDark ? colors.gray[800] : colors.white;
 
-  const isLoading = isLoadingGroup || isLoadingExpenses || isLoadingSettlements;
-
-  // Combine expenses and settlements into a single activity list
-  const activityList = useMemo((): ActivityItem[] => {
-    const expenseItems: ActivityItem[] = expenses.map((e) => ({ type: 'expense' as const, data: e }));
-    const settlementItems: ActivityItem[] = settlements.map((s) => ({ type: 'settlement' as const, data: s }));
-    
-    // Combine and sort by date (newest first)
-    return [...expenseItems, ...settlementItems].sort((a, b) => {
-      const dateA = a.type === 'expense' ? a.data.expense_date : a.data.created_at;
-      const dateB = b.type === 'expense' ? b.data.expense_date : b.data.created_at;
-      return new Date(dateB).getTime() - new Date(dateA).getTime();
-    });
-  }, [expenses, settlements]);
+  const isLoading = isLoadingGroup || isLoadingExpenses;
 
   const handleBack = () => {
     router.back();
   };
 
   const handleRefresh = useCallback(async () => {
-    await Promise.all([refreshGroup(), refreshExpenses(), refreshSettlements()]);
-  }, [refreshGroup, refreshExpenses, refreshSettlements]);
+    await Promise.all([refreshGroup(), refreshExpenses()]);
+  }, [refreshGroup, refreshExpenses]);
 
   const handleAddExpense = () => {
     if (!isOnline) {
@@ -136,7 +107,7 @@ export default function GroupDetailScreen() {
     router.push(`/group/${id}/settings`);
   };
 
-  // Sort balances - show current user first, then by net balance
+  // Sort balances — current user first, then by net balance descending
   const sortedBalances = useMemo(() => {
     if (!group?.balances) return [];
     return [...group.balances].sort((a, b) => {
@@ -177,7 +148,7 @@ export default function GroupDetailScreen() {
         </View>
       </MotiView>
 
-      {/* Contributions - Stacked Bar */}
+      {/* Contributions — Stacked Bar */}
       <MotiView
         from={{ opacity: 0, translateY: 20 }}
         animate={{ opacity: 1, translateY: 0 }}
@@ -190,91 +161,14 @@ export default function GroupDetailScreen() {
             {formatCurrency(sortedBalances.reduce((sum, b) => sum + b.total_paid, 0))}
           </Text>
         </View>
-        <View style={[styles.stackedBarCard, { backgroundColor: cardBg }]}>
-          {sortedBalances.length === 0 || sortedBalances.reduce((sum, b) => sum + b.total_paid, 0) === 0 ? (
-            <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
-              No expenses yet
-            </Text>
-          ) : (
-            (() => {
-              const totalPaid = sortedBalances.reduce((sum, b) => sum + b.total_paid, 0);
-              const contributionColors = [
-                colors.primary[500],
-                colors.success,
-                '#9333EA',
-                '#F97316',
-                '#06B6D4',
-                '#EC4899',
-                '#14B8A6',
-                colors.warning,
-              ];
-              
-              // Sort by contribution (highest first) and filter out zero contributors
-              const contributors = sortedBalances
-                .filter(b => b.total_paid > 0) // Hide zero contributors
-                .sort((a, b) => b.total_paid - a.total_paid)
-                .map((b, i) => ({
-                  ...b,
-                  percentage: (b.total_paid / totalPaid) * 100,
-                  color: contributionColors[i % contributionColors.length],
-                }));
-              
-              return (
-                <>
-                  {/* Stacked Bar */}
-                  <View style={styles.stackedBarContainer}>
-                    {contributors.map((contributor, index) => {
-                      const isFirst = index === 0;
-                      const isLast = index === contributors.length - 1;
-                      const showInitials = contributor.percentage >= 12; // Only show initials if segment is wide enough
-                      
-                      return (
-                        <View
-                          key={contributor.user.id}
-                          style={[
-                            styles.stackedBarSegment,
-                            {
-                              width: `${contributor.percentage}%`,
-                              backgroundColor: contributor.color,
-                              borderTopLeftRadius: isFirst ? 8 : 0,
-                              borderBottomLeftRadius: isFirst ? 8 : 0,
-                              borderTopRightRadius: isLast ? 8 : 0,
-                              borderBottomRightRadius: isLast ? 8 : 0,
-                            },
-                          ]}
-                        >
-                          {showInitials && (
-                            <Text style={styles.stackedBarInitials}>
-                              {contributor.user.id === user?.id ? 'You' : getInitials(contributor.user.name)}
-                            </Text>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                  
-                  {/* Legend - only show contributors */}
-                  <View style={styles.stackedBarLegend}>
-                    {contributors.map((contributor) => (
-                      <View key={contributor.user.id} style={styles.legendItem}>
-                        <View style={[styles.legendDot, { backgroundColor: contributor.color }]} />
-                        <Text style={[styles.legendText, { color: secondaryTextColor }]} numberOfLines={1}>
-                          {contributor.user.id === user?.id ? 'You' : contributor.user.name.split(' ')[0]}
-                        </Text>
-                        <Text style={[styles.legendAmount, { color: textColor }]}>
-                          {formatCurrency(contributor.total_paid)}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </>
-              );
-            })()
-          )}
-        </View>
+        <ContributionBar
+          balances={sortedBalances}
+          currentUserId={user?.id ?? ''}
+          isDark={isDark}
+        />
       </MotiView>
 
-      {/* Expenses Header */}
+      {/* Activity Header */}
       <MotiView
         from={{ opacity: 0, translateY: 20 }}
         animate={{ opacity: 1, translateY: 0 }}
@@ -301,54 +195,7 @@ export default function GroupDetailScreen() {
     router.push(`/expense/${expenseId}`);
   };
 
-  const renderSettlementItem = (settlement: Settlement, index: number) => {
-    const isYouPayer = settlement.paid_by === user?.id;
-    const payerName = isYouPayer ? 'You' : settlement.paid_by_user?.name || 'Someone';
-    const receiverName = settlement.paid_to === user?.id ? 'you' : settlement.paid_to_user?.name || 'someone';
-
-    return (
-      <MotiView
-        key={settlement.id}
-        from={{ opacity: 0, translateX: -20, scale: 0.95 }}
-        animate={{ opacity: 1, translateX: 0, scale: 1 }}
-        transition={{ type: 'spring', damping: 18, stiffness: 120, delay: Math.min(index * 50, 300) }}
-      >
-        <View style={[styles.expenseItem, { backgroundColor: cardBg }]}>
-          {/* Settlement Icon */}
-          <View style={[styles.expenseIcon, { backgroundColor: colors.success + '20' }]}>
-            <Ionicons name="swap-horizontal" size={20} color={colors.success} />
-          </View>
-
-          {/* Settlement Details */}
-          <View style={styles.expenseDetails}>
-            <Text style={[styles.expenseDescription, { color: textColor }]} numberOfLines={1}>
-              {payerName} paid {receiverName}
-            </Text>
-            <Text style={[styles.expenseMeta, { color: secondaryTextColor }]}>
-              Settlement • {formatDate(settlement.created_at)}
-            </Text>
-          </View>
-
-          {/* Amount */}
-          <View style={styles.expenseAmountContainer}>
-            <Text style={[styles.expenseAmount, { color: colors.success }]}>
-              {formatCurrency(settlement.amount, settlement.currency)}
-            </Text>
-            <Text style={[styles.expenseShare, { color: colors.success }]}>
-              {isYouPayer ? 'you paid' : 'you received'}
-            </Text>
-          </View>
-        </View>
-      </MotiView>
-    );
-  };
-
-  const renderActivityItem = ({ item, index }: { item: ActivityItem; index: number }) => {
-    if (item.type === 'settlement') {
-      return renderSettlementItem(item.data, index);
-    }
-
-    const expense = item.data;
+  const renderExpenseItem = ({ item: expense, index }: { item: ExpenseListItemWithStatus; index: number }) => {
     const isYou = expense.you_paid;
 
     return (
@@ -361,8 +208,8 @@ export default function GroupDetailScreen() {
           onPress={() => handleExpensePress(expense.id)}
           style={({ pressed }) => [
             styles.expenseItem,
-            { 
-              backgroundColor: cardBg, 
+            {
+              backgroundColor: cardBg,
               opacity: pressed ? 0.9 : 1,
               transform: [{ scale: pressed ? 0.98 : 1 }],
             },
@@ -390,21 +237,22 @@ export default function GroupDetailScreen() {
             </Text>
           </View>
 
-          {/* Amount */}
+          {/* Amount — mutually exclusive: lent (you paid) vs owe (someone else paid).
+              your_share = 0 for the payer, so we derive the lent amount from the split
+              count: total minus the payer's own equal share = what everyone else owes. */}
           <View style={styles.expenseAmountContainer}>
             <Text style={[styles.expenseAmount, { color: textColor }]}>
               {formatCurrency(expense.amount, expense.currency)}
             </Text>
-            {expense.your_share > 0 && (
-              <Text style={[styles.expenseShare, { color: colors.error }]}>
-                you owe {formatCurrency(expense.your_share, expense.currency)}
-              </Text>
-            )}
-            {isYou && expense.split_count > 1 && (
+            {isYou && expense.split_count > 1 ? (
               <Text style={[styles.expenseShare, { color: colors.success }]}>
                 you lent {formatCurrency(expense.amount - (expense.amount / expense.split_count), expense.currency)}
               </Text>
-            )}
+            ) : expense.your_share > 0 ? (
+              <Text style={[styles.expenseShare, { color: colors.error }]}>
+                you owe {formatCurrency(expense.your_share, expense.currency)}
+              </Text>
+            ) : null}
           </View>
         </Pressable>
       </MotiView>
@@ -433,7 +281,7 @@ export default function GroupDetailScreen() {
             <Skeleton width={120} height={20} borderRadius={6} />
             <View style={{ width: 40 }} />
           </View>
-          
+
           {/* Group info skeleton */}
           <View style={[styles.groupInfoCard, { backgroundColor: cardBg, marginHorizontal: 16, marginTop: 16 }]}>
             <Skeleton width={64} height={64} circle />
@@ -443,7 +291,7 @@ export default function GroupDetailScreen() {
               <Skeleton width="40%" height={14} borderRadius={4} />
             </View>
           </View>
-          
+
           {/* Activity skeleton */}
           <View style={{ padding: 16 }}>
             <Skeleton width={100} height={16} borderRadius={4} />
@@ -499,9 +347,9 @@ export default function GroupDetailScreen() {
 
       {/* Content */}
       <FlatList
-        data={activityList}
-        renderItem={renderActivityItem}
-        keyExtractor={item => item.type === 'expense' ? `expense-${item.data.id}` : `settlement-${item.data.id}`}
+        data={expenses}
+        renderItem={renderExpenseItem}
+        keyExtractor={item => item.id}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmptyActivity}
         contentContainerStyle={styles.listContent}
@@ -525,8 +373,6 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -593,47 +439,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 12,
   },
-  balancesCard: {
-    borderRadius: 16,
-    padding: 4,
-  },
-  balanceItem: {
+  contributionHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
-  },
-  balanceItemBorder: {
-    borderBottomWidth: 1,
-  },
-  balanceUser: {
-    flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    marginBottom: 12,
   },
-  balanceAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  balanceAvatarText: {
-    color: colors.white,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  balanceName: {
-    fontSize: 15,
-    fontWeight: '500',
-    marginLeft: 12,
-  },
-  balanceAmount: {
-    alignItems: 'flex-end',
-  },
-  balanceValue: {
-    fontSize: 13,
-    fontWeight: '500',
+  totalSpendingValue: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   expensesHeader: {
     flexDirection: 'row',
@@ -704,92 +518,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 16,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  emptyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 25,
-    marginTop: 24,
-    gap: 8,
-  },
-  emptyButtonText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: 'center',
-    padding: 16,
-  },
-  // Stacked Bar Contribution styles
-  contributionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  totalSpendingValue: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  stackedBarCard: {
-    borderRadius: 16,
-    padding: 16,
-  },
-  stackedBarContainer: {
-    flexDirection: 'row',
-    height: 40,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  stackedBarSegment: {
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stackedBarInitials: {
-    color: colors.white,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  stackedBarLegend: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 12,
-    gap: 8,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    gap: 6,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  legendText: {
-    fontSize: 12,
-    maxWidth: 60,
-  },
-  legendAmount: {
-    fontSize: 12,
-    fontWeight: '600',
   },
 });

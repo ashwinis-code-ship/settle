@@ -75,7 +75,6 @@ export default function GroupSettingsScreen() {
     const dangerColor = colors.error;
 
     const isAdmin = group?.members.find(m => m.user_id === user?.id)?.role === 'admin';
-    const isCreator = group?.created_by === user?.id;
 
     // Auto-close contact picker sheet when going offline
     useEffect(() => {
@@ -252,6 +251,7 @@ export default function GroupSettingsScreen() {
     };
 
     const handleRemoveMember = (memberId: string, memberName: string) => {
+        // Pre-check: fast exit before showing the confirmation dialog
         if (!isOnline) {
             hapticWarning();
             Alert.alert(
@@ -270,7 +270,7 @@ export default function GroupSettingsScreen() {
                     text: 'Remove',
                     style: 'destructive',
                     onPress: async () => {
-                        // Double-check offline status before executing (user might have gone offline while dialog was open)
+                        // Re-check: user may have gone offline while the dialog was open
                         if (!isOnline) {
                             hapticWarning();
                             Alert.alert(
@@ -293,6 +293,7 @@ export default function GroupSettingsScreen() {
     };
 
     const handleLeaveGroup = () => {
+        // Pre-check: fast exit before showing the confirmation dialog
         if (!isOnline) {
             hapticWarning();
             Alert.alert(
@@ -311,7 +312,7 @@ export default function GroupSettingsScreen() {
                     text: 'Leave',
                     style: 'destructive',
                     onPress: async () => {
-                        // Double-check offline status before executing (user might have gone offline while dialog was open)
+                        // Re-check: user may have gone offline while the dialog was open
                         if (!isOnline) {
                             hapticWarning();
                             Alert.alert(
@@ -337,6 +338,7 @@ export default function GroupSettingsScreen() {
     };
 
     const handleDeleteGroup = () => {
+        // Pre-check: fast exit before showing the confirmation dialog
         if (!isOnline) {
             hapticWarning();
             Alert.alert(
@@ -355,7 +357,7 @@ export default function GroupSettingsScreen() {
                     text: 'Delete',
                     style: 'destructive',
                     onPress: async () => {
-                        // Double-check offline status before executing (user might have gone offline while dialog was open)
+                        // Re-check: user may have gone offline while the dialog was open
                         if (!isOnline) {
                             hapticWarning();
                             Alert.alert(
@@ -409,16 +411,16 @@ export default function GroupSettingsScreen() {
 
                 <ScrollView contentContainerStyle={styles.content}>
                     {/* Group Info Section */}
-                    {isAdmin && (
-                        <MotiView
-                            from={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ type: 'timing', duration: 500, delay: 50 }}
-                        >
-                            <Text style={[styles.sectionTitle, { color: textColor }]}>Group Info</Text>
-                            <View style={[styles.sectionCard, { backgroundColor: cardBg }]}>
-                                <View style={styles.groupInfoRow}>
-                                    {/* Tappable Avatar */}
+                    <MotiView
+                        from={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ type: 'timing', duration: 500, delay: 50 }}
+                    >
+                        <Text style={[styles.sectionTitle, { color: textColor }]}>Group Info</Text>
+                        <View style={[styles.sectionCard, { backgroundColor: cardBg }]}>
+                            <View style={styles.groupInfoRow}>
+                                {/* Avatar — tappable for admins only */}
+                                {isAdmin ? (
                                     <Pressable
                                         onPress={handleGroupPhotoPress}
                                         disabled={isUploadingImage || !isOnline}
@@ -446,47 +448,72 @@ export default function GroupSettingsScreen() {
                                             <Ionicons name="camera" size={12} color={colors.primary[500]} />
                                         </View>
                                     </Pressable>
-
-                                    {/* Inline Name Edit */}
-                                    <View style={styles.groupNameRow}>
-                                        {editingName ? (
-                                            <TextInput
-                                                style={[styles.nameInput, { color: textColor, borderBottomColor: colors.primary[500] }]}
-                                                value={nameValue}
-                                                onChangeText={setNameValue}
-                                                autoFocus
-                                                autoCapitalize="words"
-                                                returnKeyType="done"
-                                                onSubmitEditing={handleSaveName}
-                                                maxLength={50}
+                                ) : (
+                                    <View style={styles.groupAvatarWrap}>
+                                        {group?.image_url ? (
+                                            <Image
+                                                source={{ uri: group.image_url }}
+                                                style={styles.groupAvatar}
+                                                contentFit="cover"
+                                                transition={200}
                                             />
                                         ) : (
-                                            <Text style={[styles.groupNameText, { color: textColor }]} numberOfLines={1}>
-                                                {group?.name}
-                                            </Text>
-                                        )}
-                                        {editingName ? (
-                                            <View style={{ flexDirection: 'row', gap: 8 }}>
-                                                <Pressable onPress={() => setEditingName(false)} style={styles.nameActionBtn}>
-                                                    <Ionicons name="close" size={22} color={secondaryTextColor} />
-                                                </Pressable>
-                                                <Pressable onPress={handleSaveName} disabled={isSavingName} style={styles.nameActionBtn}>
-                                                    {isSavingName
-                                                        ? <ActivityIndicator size="small" color={colors.primary[500]} />
-                                                        : <Ionicons name="checkmark" size={22} color={colors.primary[500]} />
-                                                    }
-                                                </Pressable>
+                                            <View style={[styles.groupAvatar, { backgroundColor: colors.primary[500], alignItems: 'center', justifyContent: 'center' }]}>
+                                                <Text style={styles.groupAvatarText}>
+                                                    {(group?.name || 'G').substring(0, 1).toUpperCase()}
+                                                </Text>
                                             </View>
-                                        ) : (
-                                            <Pressable onPress={handleEditNamePress} style={styles.nameActionBtn}>
-                                                <Ionicons name="pencil-outline" size={18} color={secondaryTextColor} />
-                                            </Pressable>
                                         )}
                                     </View>
+                                )}
+
+                                {/* Name — inline edit for admins, read-only for members */}
+                                <View style={styles.groupNameRow}>
+                                    {isAdmin ? (
+                                        <>
+                                            {editingName ? (
+                                                <TextInput
+                                                    style={[styles.nameInput, { color: textColor, borderBottomColor: colors.primary[500] }]}
+                                                    value={nameValue}
+                                                    onChangeText={setNameValue}
+                                                    autoFocus
+                                                    autoCapitalize="words"
+                                                    returnKeyType="done"
+                                                    onSubmitEditing={handleSaveName}
+                                                    maxLength={50}
+                                                />
+                                            ) : (
+                                                <Text style={[styles.groupNameText, { color: textColor }]} numberOfLines={1}>
+                                                    {group?.name}
+                                                </Text>
+                                            )}
+                                            {editingName ? (
+                                                <View style={styles.nameEditActions}>
+                                                    <Pressable onPress={() => setEditingName(false)} style={styles.nameActionBtn}>
+                                                        <Ionicons name="close" size={22} color={secondaryTextColor} />
+                                                    </Pressable>
+                                                    <Pressable onPress={handleSaveName} disabled={isSavingName} style={styles.nameActionBtn}>
+                                                        {isSavingName
+                                                            ? <ActivityIndicator size="small" color={colors.primary[500]} />
+                                                            : <Ionicons name="checkmark" size={22} color={colors.primary[500]} />
+                                                        }
+                                                    </Pressable>
+                                                </View>
+                                            ) : (
+                                                <Pressable onPress={handleEditNamePress} style={styles.nameActionBtn}>
+                                                    <Ionicons name="pencil-outline" size={18} color={secondaryTextColor} />
+                                                </Pressable>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <Text style={[styles.groupNameText, { color: textColor }]} numberOfLines={1}>
+                                            {group?.name}
+                                        </Text>
+                                    )}
                                 </View>
                             </View>
-                        </MotiView>
-                    )}
+                        </View>
+                    </MotiView>
 
                     {/* Members Section */}
                     <MotiView
@@ -494,12 +521,13 @@ export default function GroupSettingsScreen() {
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ type: 'timing', duration: 500, delay: 100 }}
                     >
-                        <Text style={[styles.sectionTitle, { color: textColor, marginTop: isAdmin ? 24 : 0 }]}>Members</Text>
+                        <Text style={[styles.sectionTitle, { color: textColor, marginTop: 24 }]}>Members</Text>
                         <View style={[styles.sectionCard, { backgroundColor: cardBg }]}>
                             {group?.members.map((member, index) => {
                                 const isMe = member.user_id === user?.id;
                                 const memberName = member.user.name || member.user.phone || 'Unknown';
                                 const isOwner = group.created_by === member.user_id;
+                                const isMemberAdmin = member.role === 'admin';
 
                                 return (
                                     <MotiView
@@ -518,7 +546,7 @@ export default function GroupSettingsScreen() {
                                             </View>
                                             <View style={styles.memberText}>
                                                 <Text style={[styles.memberName, { color: textColor }]}>
-                                                    {memberName} {isOwner && <Text style={{ fontSize: 12, color: colors.primary[500] }}>(Admin)</Text>}
+                                                    {memberName} {isMemberAdmin && <Text style={{ fontSize: 12, color: colors.primary[500] }}>(Admin)</Text>}
                                                 </Text>
                                                 <Text style={[styles.memberPhone, { color: secondaryTextColor }]}>
                                                     {member.user.phone}
@@ -570,7 +598,7 @@ export default function GroupSettingsScreen() {
                             <Text style={[styles.dangerText, { color: dangerColor }]}>Leave Group</Text>
                         </Pressable>
 
-                        {isCreator && (
+                        {isAdmin && (
                             <>
                                 <View style={{ height: 1, backgroundColor: isDark ? colors.gray[700] : colors.gray[200] }} />
                                 <Pressable
@@ -771,5 +799,9 @@ const styles = StyleSheet.create({
     },
     nameActionBtn: {
         padding: 4,
+    },
+    nameEditActions: {
+        flexDirection: 'row',
+        gap: 8,
     },
 });

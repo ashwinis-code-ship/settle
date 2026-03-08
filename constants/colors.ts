@@ -71,6 +71,18 @@ export const colors = {
     dark: '#1E293B',
   },
 
+  // Chart / data-viz palette (contribution bar, etc.)
+  chart: [
+    '#4CAF50', // primary green
+    '#22C55E', // success green
+    '#9333EA', // purple
+    '#F97316', // orange
+    '#06B6D4', // cyan
+    '#EC4899', // pink
+    '#14B8A6', // teal
+    '#F59E0B', // amber
+  ] as string[],
+
   // Text colors
   text: {
     light: {
