@@ -1,20 +1,21 @@
 /**
  * Contact & Group Search Hook
- * 
- * Searches through phone contacts and user's groups.
- * Used for the add-expense screen when no group is pre-selected.
+ *
+ * A thin search/filter layer on top of useEnrichedContacts.
+ * Used by the add-expense screen when no group is pre-selected.
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import * as Contacts from 'expo-contacts';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/auth-context';
-import type { ContactEntry } from '@/types';
+
+import { useEnrichedContacts } from './use-enriched-contacts';
+
+// ─── Types (kept here so existing callers don't need to change their imports) ──
 
 export interface SearchResultGroup {
   type: 'group';
   id: string;
   name: string;
+  image_url: string | null;
   memberCount: number;
 }
 
@@ -41,217 +42,57 @@ interface UseContactGroupSearchResult {
   loadInitialData: () => Promise<void>;
 }
 
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
 export function useContactGroupSearch(): UseContactGroupSearchResult {
-  const { user } = useAuth();
+  const { contacts, groups, isLoading, hasContactPermission, loadInitialData } =
+    useEnrichedContacts();
 
-  const [contacts, setContacts] = useState<ContactEntry[]>([]);
-  const [groups, setGroups] = useState<SearchResultGroup[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasContactPermission, setHasContactPermission] = useState<boolean | null>(null);
-  const [userPhoneMap, setUserPhoneMap] = useState<Map<string, { id: string; avatarUrl: string | null }>>(new Map());
-  const [directGroupUserIds, setDirectGroupUserIds] = useState<Set<string>>(new Set());
 
-  // Load contacts from phone
-  const loadContacts = useCallback(async () => {
-    try {
-      const { status } = await Contacts.requestPermissionsAsync();
-      if (status !== 'granted') {
-        setHasContactPermission(false);
-        return;
-      }
-      setHasContactPermission(true);
+  const search = useCallback(
+    (query: string) => {
+      const trimmed = query.trim().toLowerCase();
 
-      const { data } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
-      });
-
-      const flattenedContacts: ContactEntry[] = [];
-      data.forEach((contact) => {
-        if (contact.phoneNumbers && contact.phoneNumbers.length > 0) {
-          contact.phoneNumbers.forEach((phoneNumber, index) => {
-            if (phoneNumber.number) {
-              const cleanNumber = phoneNumber.number.replace(/\s/g, '');
-              flattenedContacts.push({
-                id: `${contact.id}_${index}`,
-                name: contact.name || 'Unknown',
-                phone: cleanNumber,
-                phoneLabel: phoneNumber.label || undefined,
-              });
-            }
-          });
-        }
-      });
-
-      flattenedContacts.sort((a, b) => a.name.localeCompare(b.name));
-      setContacts(flattenedContacts);
-
-      // Check which contacts exist in the app
-      const phoneNumbers = flattenedContacts.map(c => c.phone);
-      const normalizedPhones = phoneNumbers.map(p => {
-        // Normalize: remove spaces, ensure +91 prefix for Indian numbers
-        const clean = p.replace(/[\s-]/g, '');
-        if (clean.startsWith('+')) return clean;
-        if (clean.startsWith('91') && clean.length > 10) return `+${clean}`;
-        return `+91${clean.replace(/^0/, '')}`;
-      });
-
-      if (normalizedPhones.length > 0) {
-        const { data: existingUsers } = await supabase
-          .from('users')
-          .select('id, phone, avatar_url')
-          .in('phone', normalizedPhones);
-
-        if (existingUsers) {
-          const phoneMap = new Map<string, { id: string; avatarUrl: string | null }>();
-          existingUsers.forEach(u => {
-            phoneMap.set(u.phone, { id: u.id, avatarUrl: u.avatar_url });
-          });
-          setUserPhoneMap(phoneMap);
-        }
-      }
-    } catch (error) {
-      console.error('[useContactGroupSearch] Error loading contacts:', error);
-    }
-  }, []);
-
-  // Load user's groups
-  const loadGroups = useCallback(async () => {
-    if (!user) return;
-
-    try {
-      // Get groups user is member of
-      const { data: memberData } = await supabase
-        .from('group_members')
-        .select('group_id')
-        .eq('user_id', user.id);
-
-      if (!memberData || memberData.length === 0) return;
-
-      const groupIds = memberData.map((m) => m.group_id);
-
-      // Fetch all group details (including direct groups for hasDirectGroup check)
-      const { data: allGroupsData } = await supabase
-        .from('groups')
-        .select('id, name, type')
-        .in('id', groupIds)
-        .is('deleted_at', null);
-
-      if (!allGroupsData) return;
-
-      // Separate regular groups (for display) from direct groups (for tracking)
-      const regularGroups = allGroupsData.filter(g => g.type === 'group');
-      const directGroups = allGroupsData.filter(g => g.type === 'direct');
-
-      // Get member counts for regular groups
-      const { data: allMembers } = await supabase
-        .from('group_members')
-        .select('group_id')
-        .in('group_id', groupIds);
-
-      const memberCounts: Record<string, number> = {};
-      allMembers?.forEach((m) => {
-        memberCounts[m.group_id] = (memberCounts[m.group_id] || 0) + 1;
-      });
-
-      const groupResults: SearchResultGroup[] = regularGroups.map((g) => ({
-        type: 'group',
-        id: g.id,
-        name: g.name,
-        memberCount: memberCounts[g.id] || 1,
-      }));
-
-      setGroups(groupResults);
-
-      // Find which users have direct groups with current user
-      if (directGroups.length > 0) {
-        const directGroupIds = directGroups.map(g => g.id);
-        const { data: directGroupMembers } = await supabase
-          .from('group_members')
-          .select('user_id')
-          .in('group_id', directGroupIds)
-          .neq('user_id', user.id);
-
-        if (directGroupMembers) {
-          const userIdsWithDirectGroups = new Set(directGroupMembers.map(m => m.user_id));
-          setDirectGroupUserIds(userIdsWithDirectGroups);
-        }
-      }
-    } catch (error) {
-      console.error('[useContactGroupSearch] Error loading groups:', error);
-    }
-  }, [user]);
-
-  // Load all initial data
-  const loadInitialData = useCallback(async () => {
-    setIsLoading(true);
-    await Promise.all([loadContacts(), loadGroups()]);
-    setIsLoading(false);
-  }, [loadContacts, loadGroups]);
-
-  // Search function
-  const search = useCallback((query: string) => {
-    const trimmedQuery = query.trim().toLowerCase();
-
-    const mapContactToResult = (c: ContactEntry): SearchResultContact => {
-      const normalizedPhone = normalizePhone(c.phone);
-      const existingUser = userPhoneMap.get(normalizedPhone);
-      return {
+      const mapToResult = (c: (typeof contacts)[number]): SearchResultContact => ({
         type: 'contact',
         id: c.id,
         name: c.name,
         phone: c.phone,
-        userId: existingUser?.id,
-        avatarUrl: existingUser?.avatarUrl,
-        hasDirectGroup: existingUser?.id ? directGroupUserIds.has(existingUser.id) : false,
-      };
-    };
+        userId: c.userId,
+        avatarUrl: c.avatarUrl,
+        hasDirectGroup: c.hasDirectGroup,
+      });
 
-    if (!trimmedQuery) {
-      // Show some default results (first few groups + contacts)
-      const defaultResults: SearchResult[] = [
-        ...groups.slice(0, 3),
-        ...contacts.slice(0, 5).map(mapContactToResult),
-      ];
-      setSearchResults(defaultResults);
-      return;
-    }
+      if (!trimmed) {
+        setSearchResults([
+          ...groups.slice(0, 3),
+          ...contacts.slice(0, 5).map(mapToResult),
+        ]);
+        return;
+      }
 
-    // Filter groups
-    const matchingGroups = groups.filter(g =>
-      g.name.toLowerCase().includes(trimmedQuery)
-    );
+      const matchingGroups = groups.filter(g =>
+        g.name.toLowerCase().includes(trimmed)
+      );
 
-    // Filter contacts
-    const matchingContacts = contacts
-      .filter(c =>
-        c.name.toLowerCase().includes(trimmedQuery) ||
-        c.phone.includes(trimmedQuery)
-      )
-      .slice(0, 10) // Limit contacts
-      .map(mapContactToResult);
+      const matchingContacts = contacts
+        .filter(
+          c =>
+            c.name.toLowerCase().includes(trimmed) ||
+            c.phone.includes(trimmed)
+        )
+        .slice(0, 10)
+        .map(mapToResult);
 
-    setSearchResults([...matchingGroups, ...matchingContacts]);
-  }, [groups, contacts, userPhoneMap, directGroupUserIds]);
+      setSearchResults([...matchingGroups, ...matchingContacts]);
+    },
+    [groups, contacts]
+  );
 
-  // Load data on mount
   useEffect(() => {
     loadInitialData();
   }, [loadInitialData]);
 
-  return {
-    searchResults,
-    isLoading,
-    hasContactPermission,
-    search,
-    loadInitialData,
-  };
-}
-
-// Helper to normalize phone numbers
-function normalizePhone(phone: string): string {
-  const clean = phone.replace(/[\s-]/g, '');
-  if (clean.startsWith('+')) return clean;
-  if (clean.startsWith('91') && clean.length > 10) return `+${clean}`;
-  return `+91${clean.replace(/^0/, '')}`;
+  return { searchResults, isLoading, hasContactPermission, search, loadInitialData };
 }
