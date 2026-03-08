@@ -34,6 +34,7 @@ import { useFriends } from '@/hooks/use-friends';
 import { hapticLight, hapticWarning } from '@/lib/haptics';
 import type { Friend } from '@/types';
 import { CURRENCIES } from '@/types/database';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function FriendsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -384,16 +385,16 @@ export default function FriendsScreen() {
     );
   }
 
-  // Scrubber sits 12px above the tab bar (tab bar ≈ 49px + bottom safe area)
-  const scrubberBottom = insets.bottom + 49 + 12;
+  const scrubberBottom = insets.bottom + 12;
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
       <FlatList
         data={displayedFriends}
         renderItem={renderFriendCard}
         keyExtractor={(item) => item.user.id}
-        contentContainerStyle={[styles.listContent, { paddingBottom: scrubberBottom + 70 }]}
+        contentContainerStyle={[styles.listContent, { paddingBottom: scrubberBottom + 80 }]}
         ListHeaderComponent={
           <>
             {renderHeader()}
@@ -430,6 +431,7 @@ export default function FriendsScreen() {
         />
       </View>
     </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 

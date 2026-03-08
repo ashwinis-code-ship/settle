@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useRef } from 'react';
 import { Dimensions, StyleSheet, Text, View } from 'react-native';
 import Animated, {
+  Easing,
   interpolate,
   runOnJS,
   useAnimatedStyle,
@@ -33,10 +34,10 @@ import { hapticLight } from '@/lib/haptics';
 export type FilterType = 'all' | 'outstanding' | 'i_owe' | 'they_owe';
 
 const FILTERS = [
-  { key: 'all'         as FilterType, label: 'Everyone',    icon: 'people-outline'    as const, color: colors.gray[500]    },
-  { key: 'outstanding' as FilterType, label: 'Outstanding', icon: 'swap-horizontal'   as const, color: colors.primary[500] },
-  { key: 'i_owe'       as FilterType, label: 'I owe',       icon: 'arrow-up-circle'   as const, color: colors.error        },
-  { key: 'they_owe'    as FilterType, label: 'They owe',    icon: 'arrow-down-circle' as const, color: colors.success      },
+  { key: 'all'         as FilterType, label: 'Everyone',    icon: 'people-outline'    as const, color: colors.gray[500]   },
+  { key: 'outstanding' as FilterType, label: 'Outstanding', icon: 'swap-horizontal'   as const, color: '#3B82F6'           },
+  { key: 'i_owe'       as FilterType, label: 'Paying',      icon: 'arrow-up-circle'   as const, color: colors.error       },
+  { key: 'they_owe'    as FilterType, label: 'Collecting',  icon: 'arrow-down-circle' as const, color: colors.success     },
 ] as const;
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -60,25 +61,19 @@ function FilterDot({
   expanded: Animated.SharedValue<number>;
   pulse: Animated.SharedValue<number>;
 }) {
-  const size = isActive ? 12 : 8;
+  const dotSize  = isActive ? 13 : 8;
+  const glowSize = dotSize + 10;
 
-  // Pulsing glow ring behind the dot
+  // Slow ambient glow ring — only opacity breathes, no scale change
   const glowStyle = useAnimatedStyle(() => ({
     opacity: isActive
-      ? interpolate(pulse.value, [1, 1.28], [0.55, 0]) *
+      ? interpolate(pulse.value, [0, 1], [0.18, 0.52]) *
         interpolate(expanded.value, [0, 0.3], [1, 0])
       : 0,
-    transform: [
-      { scale: isActive ? interpolate(pulse.value, [1, 1.28], [1, 2.4]) : 1 },
-    ],
   }));
 
-  // Core dot — slight scale on beat
   const coreStyle = useAnimatedStyle(() => ({
     opacity: interpolate(expanded.value, [0, 0.35], [1, 0]),
-    transform: [
-      { scale: isActive ? interpolate(pulse.value, [1, 1.28], [1, 1.12]) : 1 },
-    ],
   }));
 
   return (
@@ -86,14 +81,14 @@ function FilterDot({
       <Animated.View
         style={[
           styles.dotGlow,
-          { width: size + 8, height: size + 8, borderRadius: (size + 8) / 2, backgroundColor: color + '55' },
+          { width: glowSize, height: glowSize, borderRadius: glowSize / 2, backgroundColor: color + '44' },
           glowStyle,
         ]}
       />
       <Animated.View
         style={[
           styles.dotCore,
-          { width: size, height: size, borderRadius: size / 2, backgroundColor: isActive ? color : color + '88' },
+          { width: dotSize, height: dotSize, borderRadius: dotSize / 2, backgroundColor: isActive ? color : 'rgba(150,150,160,0.45)' },
           coreStyle,
         ]}
       />
@@ -181,16 +176,16 @@ export function FilterScrubber({
 
   // Show / hide via shared value so the spring runs on the UI thread
   useEffect(() => {
-    visibleSV.value = withSpring(visible ? 1 : 0, { damping: 20, stiffness: 180 });
+    visibleSV.value = withSpring(visible ? 1 : 0, { damping: 28, stiffness: 180 });
   }, [visible]);
 
-  // Restart heartbeat whenever the active filter changes
+  // Slow ambient glow breath — 4 s per full cycle, pure opacity (no scale)
   useEffect(() => {
-    pulse.value = 1;
+    pulse.value = 0;
     pulse.value = withRepeat(
       withSequence(
-        withTiming(1.28, { duration: 380 }),
-        withTiming(1.0, { duration: 380 }),
+        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
       ),
       -1,
       false,
@@ -199,7 +194,7 @@ export function FilterScrubber({
 
   // Slide highlight to new active item
   useEffect(() => {
-    highlightX.value = withSpring(activeIdx * ITEM_W, { damping: 18, stiffness: 300 });
+    highlightX.value = withSpring(activeIdx * ITEM_W, { damping: 30, stiffness: 300 });
     lastIdx.current = activeIdx;
   }, [activeIdx]);
 
@@ -213,7 +208,7 @@ export function FilterScrubber({
   const scheduleCollapse = useCallback(() => {
     clearCollapse();
     collapseTimer.current = setTimeout(() => {
-      expanded.value = withSpring(0, { damping: 22, stiffness: 250 });
+      expanded.value = withSpring(0, { damping: 32, stiffness: 250 });
     }, 1500);
   }, [clearCollapse]);
 
@@ -232,7 +227,7 @@ export function FilterScrubber({
     .minDistance(0)
     .onBegin((e) => {
       runOnJS(clearCollapse)();
-      expanded.value = withSpring(1, { damping: 18, stiffness: 300 });
+      expanded.value = withSpring(1, { damping: 32, stiffness: 300 });
       // Detect which item was tapped immediately on touch-down
       const leftEdge = (SCREEN_W - EXPANDED_W) / 2;
       const idx = Math.max(0, Math.min(3, Math.floor((e.absoluteX - leftEdge) / ITEM_W)));
