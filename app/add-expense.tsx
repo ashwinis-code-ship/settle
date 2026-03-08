@@ -16,22 +16,22 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Avatar } from '@/components/ui/avatar';
 import { PeopleSearchSheet } from '@/components/people-search-sheet';
+import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { colors } from '@/constants/colors';
@@ -40,15 +40,15 @@ import { useSync } from '@/contexts/sync-context';
 import { useCategories } from '@/hooks/use-categories';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { SearchResultGroup } from '@/hooks/use-contact-group-search';
+import { useDirectGroup } from '@/hooks/use-direct-group';
 import type { EnrichedContact } from '@/hooks/use-enriched-contacts';
 import { normalizePhone } from '@/hooks/use-enriched-contacts';
-import { useDirectGroup } from '@/hooks/use-direct-group';
 import { useExpenses } from '@/hooks/use-expenses';
 import { useGroup } from '@/hooks/use-group';
-import { hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
-import { supabase } from '@/lib/supabase';
 import { Analytics } from '@/lib/analytics';
 import { EXPENSE_EVENTS } from '@/lib/analytics-events';
+import { hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { supabase } from '@/lib/supabase';
 import type { CurrencyCode, DbCategory, ExpenseFormData, GroupMember, SplitType } from '@/types';
 import { CURRENCIES } from '@/types/database';
 
@@ -172,16 +172,16 @@ export default function AddExpenseScreen() {
           .from('users')
           .select('id')
           .eq('phone', normalizedPhone)
-          .single();
+          .single() as { data: { id: string } | null };
 
         if (existingUser) {
           setSelectedFriendId(existingUser.id);
         } else {
           const { data: shadowUser, error: shadowError } = await supabase
             .from('users')
-            .insert({ phone: normalizedPhone, name: contact.name, is_registered: false })
+            .insert({ phone: normalizedPhone, name: contact.name, is_registered: false } as any)
             .select('id')
-            .single();
+            .single() as { data: { id: string } | null; error: any };
 
           if (shadowError) {
             console.error('Failed to create shadow user:', shadowError);
@@ -189,10 +189,10 @@ export default function AddExpenseScreen() {
               .from('users')
               .select('id')
               .eq('phone', normalizedPhone)
-              .single();
+              .single() as { data: { id: string } | null };
             setSelectedFriendId(retryUser?.id ?? undefined);
           } else {
-            setSelectedFriendId(shadowUser.id);
+            setSelectedFriendId(shadowUser?.id);
           }
         }
       } finally {
@@ -883,9 +883,9 @@ export default function AddExpenseScreen() {
           showGroups={!contactsOnly}
           onGroupSelect={handleSelectGroup}
           onContactSelect={handleSelectContact}
-          onClose={() => {
+          onStartClose={() => {
             if (!hasSelectedTargetRef.current) {
-              router.back();
+              setTimeout(() => router.back(), 100);
             }
           }}
         />

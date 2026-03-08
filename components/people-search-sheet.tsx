@@ -58,6 +58,8 @@ export interface PeopleSearchSheetProps {
   /** When provided, a "Done" button appears in the header */
   doneText?: string;
   onClose?: () => void;
+  /** Fired when the close animation begins (before it completes) */
+  onStartClose?: () => void;
   onDone?: () => void;
 }
 
@@ -73,6 +75,7 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
       title = 'Add Members',
       doneText,
       onClose,
+      onStartClose,
       onDone,
     },
     ref
@@ -255,6 +258,9 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
         backgroundStyle={{ backgroundColor: sheetBg }}
         handleIndicatorStyle={{ backgroundColor: colors.gray[400] }}
         onClose={handleSheetClose}
+        onAnimate={(fromIndex, toIndex) => {
+          if (toIndex === -1) onStartClose?.();
+        }}
       >
         {/* Header */}
         <View
