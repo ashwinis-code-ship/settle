@@ -80,15 +80,15 @@ export default function GroupDetailScreen() {
 
   const isLoading = isLoadingGroup || isLoadingExpenses;
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     router.back();
-  };
+  }, []);
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([refreshGroup(), refreshExpenses()]);
   }, [refreshGroup, refreshExpenses]);
 
-  const handleAddExpense = () => {
+  const handleAddExpense = useCallback(() => {
     if (!isOnline) {
       hapticWarning();
       Alert.alert(
@@ -100,12 +100,17 @@ export default function GroupDetailScreen() {
     }
     hapticLight();
     router.push(`/add-expense?groupId=${id}`);
-  };
+  }, [isOnline, id]);
 
-  const handleSettings = () => {
+  const handleSettings = useCallback(() => {
     hapticLight();
     router.push(`/group/${id}/settings`);
-  };
+  }, [id]);
+
+  const handleExpensePress = useCallback((expenseId: string) => {
+    hapticLight();
+    router.push(`/expense/${expenseId}`);
+  }, []);
 
   // Sort balances — current user first, then by net balance descending
   const sortedBalances = useMemo(() => {
@@ -190,12 +195,7 @@ export default function GroupDetailScreen() {
     </>
   );
 
-  const handleExpensePress = (expenseId: string) => {
-    hapticLight();
-    router.push(`/expense/${expenseId}`);
-  };
-
-  const renderExpenseItem = ({ item: expense, index }: { item: ExpenseListItemWithStatus; index: number }) => {
+  const renderExpenseItem = useCallback(({ item: expense, index }: { item: ExpenseListItemWithStatus; index: number }) => {
     const isYou = expense.you_paid;
 
     return (
@@ -257,9 +257,9 @@ export default function GroupDetailScreen() {
         </Pressable>
       </MotiView>
     );
-  };
+  }, [cardBg, textColor, secondaryTextColor, handleExpensePress]);
 
-  const renderEmptyActivity = () => (
+  const renderEmptyActivity = useCallback(() => (
     <View style={styles.emptyExpenses}>
       <EmptyState
         icon="receipt-outline"
@@ -269,7 +269,7 @@ export default function GroupDetailScreen() {
         onAction={handleAddExpense}
       />
     </View>
-  );
+  ), [handleAddExpense]);
 
   if (isLoading && !group) {
     return (
@@ -346,12 +346,18 @@ export default function GroupDetailScreen() {
       </MotiView>
 
       {/* Content */}
+      {/* Passing renderHeader() (pre-rendered JSX element) instead of renderHeader (function
+          reference) is critical: FlatList checks isValidElement and uses the element in-place,
+          so MotiView stays mounted across re-renders and animations don't retrigger. Passing
+          the function itself causes FlatList to treat each new reference as a new component
+          type, unmounting and remounting the header (and replaying all animations) on every
+          re-render triggered by background refetches or state changes. */}
       <FlatList
         data={expenses}
         renderItem={renderExpenseItem}
         keyExtractor={item => item.id}
-        ListHeaderComponent={renderHeader}
-        ListEmptyComponent={renderEmptyActivity}
+        ListHeaderComponent={renderHeader()}
+        ListEmptyComponent={renderEmptyActivity()}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
