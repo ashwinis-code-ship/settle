@@ -85,9 +85,6 @@ async function fetchFriends(userId: string): Promise<Friend[]> {
 
     const totalBalance = Number(balance) || 0;
 
-    // Skip friends with settled (zero) balance - only show those with pending balances
-    if (totalBalance === 0) continue;
-
     // Get last activity (most recent expense or settlement involving both)
     const { data: lastExpense } = await supabase
       .from('expenses')

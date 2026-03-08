@@ -10,18 +10,21 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { MotiView } from 'moti';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
     Alert,
     FlatList,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
     Pressable,
     RefreshControl,
     StyleSheet,
     Text,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { FilterScrubber, type FilterType } from '@/components/filter-scrubber';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
@@ -37,7 +40,31 @@ export default function FriendsScreen() {
   const isDark = colorScheme === 'dark';
   const { friends, isLoading, error, refresh } = useFriends();
   const { isOnline } = useSync();
+  const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<FilterType>('outstanding');
+  const [scrubberVisible, setScrubberVisible] = useState(true);
+  const lastScrollY = useRef(0);
+
+  // Filter friends based on active filter
+  const displayedFriends = useMemo(() => {
+    switch (activeFilter) {
+      case 'all':         return friends;
+      case 'outstanding': return friends.filter((f) => f.total_balance !== 0);
+      case 'i_owe':       return friends.filter((f) => f.total_balance < 0);
+      case 'they_owe':    return friends.filter((f) => f.total_balance > 0);
+      default:            return friends;
+    }
+  }, [friends, activeFilter]);
+
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y;
+    const dy = y - lastScrollY.current;
+    lastScrollY.current = y;
+    if (y <= 0) { setScrubberVisible(true); return; }
+    if (dy > 10) setScrubberVisible(false);
+    else if (dy < -10) setScrubberVisible(true);
+  }, []);
 
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
   const secondaryTextColor = isDark ? colors.text.dark.secondary : colors.text.light.secondary;
@@ -254,8 +281,10 @@ export default function FriendsScreen() {
       <View>
         <Text style={[styles.headerTitle, { color: textColor }]}>Friends</Text>
         <Text style={[styles.headerSubtitle, { color: secondaryTextColor }]}>
-          {friends.length > 0
-            ? `${friends.length} friend${friends.length !== 1 ? 's' : ''}`
+          {displayedFriends.length > 0
+            ? `${displayedFriends.length} of ${friends.length} friend${friends.length !== 1 ? 's' : ''}`
+            : friends.length > 0
+            ? 'No friends match this filter'
             : 'Split and see who owes what'}
         </Text>
       </View>
@@ -355,13 +384,16 @@ export default function FriendsScreen() {
     );
   }
 
+  // Scrubber sits 12px above the tab bar (tab bar ≈ 49px + bottom safe area)
+  const scrubberBottom = insets.bottom + 49 + 12;
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
       <FlatList
-        data={friends}
+        data={displayedFriends}
         renderItem={renderFriendCard}
         keyExtractor={(item) => item.user.id}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: scrubberBottom + 70 }]}
         ListHeaderComponent={
           <>
             {renderHeader()}
@@ -384,7 +416,19 @@ export default function FriendsScreen() {
         }
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       />
+
+      {/* Floating filter scrubber */}
+      <View style={[styles.scrubberContainer, { bottom: scrubberBottom }]} pointerEvents="box-none">
+        <FilterScrubber
+          activeFilter={activeFilter}
+          onFilterChange={setActiveFilter}
+          visible={scrubberVisible}
+          isDark={isDark}
+        />
+      </View>
     </SafeAreaView>
   );
 }
@@ -396,7 +440,12 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 24,
     paddingTop: 16,
-    paddingBottom: 100,
+  },
+  scrubberContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
