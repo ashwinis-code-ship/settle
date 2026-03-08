@@ -23,6 +23,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GroupSettleSheet } from '@/components/group-settle-sheet';
+import { BalanceSpectrumBar } from '@/components/ui/balance-spectrum-bar';
 import { ContributionBar } from '@/components/ui/contribution-bar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PendingBadge } from '@/components/ui/offline-banner';
@@ -182,6 +183,23 @@ export default function GroupDetailScreen() {
           isDark={isDark}
         />
       </MotiView>
+
+      {/* Balance Spectrum */}
+      {sortedBalances.length > 1 && (
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 230 }}
+          style={styles.section}
+        >
+          <Text style={[styles.sectionTitle, { color: textColor }]}>Balance</Text>
+          <BalanceSpectrumBar
+            balances={sortedBalances}
+            currentUserId={user?.id ?? ''}
+            isDark={isDark}
+          />
+        </MotiView>
+      )}
 
       {/* Activity Header */}
       <MotiView
