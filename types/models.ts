@@ -187,6 +187,10 @@ export interface FriendTransaction {
   group_name: string | null;
   /** Notes (settlements only) */
   notes?: string | null;
+  /** Category emoji icon (expenses only) */
+  category_icon?: string | null;
+  /** Category hex color (expenses only) */
+  category_color?: string | null;
 }
 
 // ============================================

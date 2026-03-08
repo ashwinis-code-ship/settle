@@ -200,9 +200,18 @@ export default function FriendDetailScreen() {
           ]}
         >
           {/* Group Icon */}
-          <View style={[styles.groupIcon, { backgroundColor: colors.primary[100] }]}>
-            <Ionicons name="people" size={20} color={colors.primary[500]} />
-          </View>
+          {groupBalance.image_url ? (
+            <Image
+              source={{ uri: groupBalance.image_url }}
+              style={styles.groupIcon}
+              contentFit="cover"
+              transition={200}
+            />
+          ) : (
+            <View style={[styles.groupIcon, { backgroundColor: colors.primary[100], alignItems: 'center', justifyContent: 'center' }]}>
+              <Ionicons name="people" size={20} color={colors.primary[500]} />
+            </View>
+          )}
 
           {/* Group Info */}
           <View style={styles.groupInfo}>
@@ -342,15 +351,21 @@ export default function FriendDetailScreen() {
           style={[
             styles.transactionIcon,
             {
-              backgroundColor: isPositive ? colors.success + '20' : colors.error + '20',
+              backgroundColor: item.category_color
+                ? item.category_color + '20'
+                : isPositive ? colors.success + '20' : colors.error + '20',
             },
           ]}
         >
-          <Ionicons
-            name="receipt-outline"
-            size={18}
-            color={isPositive ? colors.success : colors.error}
-          />
+          {item.category_icon ? (
+            <Text style={styles.transactionIconEmoji}>{item.category_icon}</Text>
+          ) : (
+            <Ionicons
+              name="receipt-outline"
+              size={18}
+              color={isPositive ? colors.success : colors.error}
+            />
+          )}
         </View>
 
         {/* Details */}
@@ -984,6 +999,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  transactionIconEmoji: {
+    fontSize: 18,
   },
   transactionDetails: {
     flex: 1,

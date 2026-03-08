@@ -6,16 +6,19 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
+import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
 import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     View,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -27,7 +30,12 @@ import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroup } from '@/hooks/use-group';
-import { hapticWarning } from '@/lib/haptics';
+import { hapticSuccess, hapticWarning } from '@/lib/haptics';
+import {
+    pickImageFromCamera,
+    pickImageFromLibrary,
+    uploadGroupImage,
+} from '@/lib/image-upload';
 import { formatPhoneNumber } from '@/lib/utils';
 import { ContactEntry } from '@/types';
 
@@ -41,6 +49,7 @@ export default function GroupSettingsScreen() {
     const {
         group,
         isLoading,
+        updateGroup,
         addMember,
         removeMember,
         leaveGroup,
@@ -51,6 +60,12 @@ export default function GroupSettingsScreen() {
     const bottomSheetRef = useRef<BottomSheet>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedContacts, setSelectedContacts] = useState<ContactEntry[]>([]);
+
+    // Group info editing
+    const [editingName, setEditingName] = useState(false);
+    const [nameValue, setNameValue] = useState('');
+    const [isSavingName, setIsSavingName] = useState(false);
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
 
     // Theme colors
     const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
@@ -72,6 +87,88 @@ export default function GroupSettingsScreen() {
 
     const handleBack = () => {
         router.back();
+    };
+
+    const handleEditNamePress = () => {
+        setNameValue(group?.name || '');
+        setEditingName(true);
+    };
+
+    const handleSaveName = async () => {
+        const trimmed = nameValue.trim();
+        if (!trimmed || trimmed === group?.name) {
+            setEditingName(false);
+            return;
+        }
+        if (trimmed.length < 2) {
+            Alert.alert('Invalid Name', 'Group name must be at least 2 characters.');
+            return;
+        }
+        setIsSavingName(true);
+        const success = await updateGroup({ name: trimmed });
+        setIsSavingName(false);
+        if (success) {
+            hapticSuccess();
+            setEditingName(false);
+        } else {
+            Alert.alert('Error', 'Failed to update group name.');
+        }
+    };
+
+    const handleGroupPhotoPress = () => {
+        const hasImage = !!group?.image_url;
+
+        const pickAndUpload = async (uri: string) => {
+            setIsUploadingImage(true);
+            try {
+                const result = await uploadGroupImage(uri, id!);
+                if (result.success && result.url) {
+                    const success = await updateGroup({ image_url: result.url });
+                    if (success) hapticSuccess();
+                    else Alert.alert('Error', 'Failed to save photo.');
+                } else {
+                    Alert.alert('Error', 'Failed to upload photo.');
+                }
+            } finally {
+                setIsUploadingImage(false);
+            }
+        };
+
+        const handleTakePhoto = async () => {
+            const uri = await pickImageFromCamera();
+            if (uri) pickAndUpload(uri);
+        };
+
+        const handleChooseFromLibrary = async () => {
+            const uri = await pickImageFromLibrary();
+            if (uri) pickAndUpload(uri);
+        };
+
+        const handleRemovePhoto = async () => {
+            setIsUploadingImage(true);
+            const success = await updateGroup({ image_url: null });
+            setIsUploadingImage(false);
+            if (success) hapticSuccess();
+            else Alert.alert('Error', 'Failed to remove photo.');
+        };
+
+        if (Platform.OS === 'ios') {
+            const options = ['Cancel', 'Take Photo', 'Choose from Library'];
+            if (hasImage) options.push('Remove Photo');
+            Alert.alert('Group Photo', 'Choose an option', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Take Photo', onPress: handleTakePhoto },
+                { text: 'Choose from Library', onPress: handleChooseFromLibrary },
+                ...(hasImage ? [{ text: 'Remove Photo', style: 'destructive' as const, onPress: handleRemovePhoto }] : []),
+            ]);
+        } else {
+            const opts: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [
+                { text: 'Take Photo', onPress: handleTakePhoto },
+                { text: 'Choose from Library', onPress: handleChooseFromLibrary },
+            ];
+            if (hasImage) opts.push({ text: 'Remove Photo', style: 'destructive', onPress: handleRemovePhoto });
+            Alert.alert('Group Photo', 'Choose an option', [{ text: 'Cancel', style: 'cancel' }, ...opts]);
+        }
     };
 
     const handleAddMemberPress = () => {
@@ -311,13 +408,93 @@ export default function GroupSettingsScreen() {
                 </MotiView>
 
                 <ScrollView contentContainerStyle={styles.content}>
+                    {/* Group Info Section */}
+                    {isAdmin && (
+                        <MotiView
+                            from={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ type: 'timing', duration: 500, delay: 50 }}
+                        >
+                            <Text style={[styles.sectionTitle, { color: textColor }]}>Group Info</Text>
+                            <View style={[styles.sectionCard, { backgroundColor: cardBg }]}>
+                                <View style={styles.groupInfoRow}>
+                                    {/* Tappable Avatar */}
+                                    <Pressable
+                                        onPress={handleGroupPhotoPress}
+                                        disabled={isUploadingImage || !isOnline}
+                                        style={({ pressed }) => [styles.groupAvatarWrap, { opacity: pressed ? 0.7 : 1 }]}
+                                    >
+                                        {isUploadingImage ? (
+                                            <View style={[styles.groupAvatar, { backgroundColor: colors.primary[100], alignItems: 'center', justifyContent: 'center' }]}>
+                                                <ActivityIndicator size="small" color={colors.primary[500]} />
+                                            </View>
+                                        ) : group?.image_url ? (
+                                            <Image
+                                                source={{ uri: group.image_url }}
+                                                style={styles.groupAvatar}
+                                                contentFit="cover"
+                                                transition={200}
+                                            />
+                                        ) : (
+                                            <View style={[styles.groupAvatar, { backgroundColor: colors.primary[500], alignItems: 'center', justifyContent: 'center' }]}>
+                                                <Text style={styles.groupAvatarText}>
+                                                    {(group?.name || 'G').substring(0, 1).toUpperCase()}
+                                                </Text>
+                                            </View>
+                                        )}
+                                        <View style={[styles.groupAvatarEditBadge, { backgroundColor: cardBg }]}>
+                                            <Ionicons name="camera" size={12} color={colors.primary[500]} />
+                                        </View>
+                                    </Pressable>
+
+                                    {/* Inline Name Edit */}
+                                    <View style={styles.groupNameRow}>
+                                        {editingName ? (
+                                            <TextInput
+                                                style={[styles.nameInput, { color: textColor, borderBottomColor: colors.primary[500] }]}
+                                                value={nameValue}
+                                                onChangeText={setNameValue}
+                                                autoFocus
+                                                autoCapitalize="words"
+                                                returnKeyType="done"
+                                                onSubmitEditing={handleSaveName}
+                                                maxLength={50}
+                                            />
+                                        ) : (
+                                            <Text style={[styles.groupNameText, { color: textColor }]} numberOfLines={1}>
+                                                {group?.name}
+                                            </Text>
+                                        )}
+                                        {editingName ? (
+                                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                                <Pressable onPress={() => setEditingName(false)} style={styles.nameActionBtn}>
+                                                    <Ionicons name="close" size={22} color={secondaryTextColor} />
+                                                </Pressable>
+                                                <Pressable onPress={handleSaveName} disabled={isSavingName} style={styles.nameActionBtn}>
+                                                    {isSavingName
+                                                        ? <ActivityIndicator size="small" color={colors.primary[500]} />
+                                                        : <Ionicons name="checkmark" size={22} color={colors.primary[500]} />
+                                                    }
+                                                </Pressable>
+                                            </View>
+                                        ) : (
+                                            <Pressable onPress={handleEditNamePress} style={styles.nameActionBtn}>
+                                                <Ionicons name="pencil-outline" size={18} color={secondaryTextColor} />
+                                            </Pressable>
+                                        )}
+                                    </View>
+                                </View>
+                            </View>
+                        </MotiView>
+                    )}
+
                     {/* Members Section */}
                     <MotiView
                         from={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ type: 'timing', duration: 500, delay: 100 }}
                     >
-                        <Text style={[styles.sectionTitle, { color: textColor }]}>Members</Text>
+                        <Text style={[styles.sectionTitle, { color: textColor, marginTop: isAdmin ? 24 : 0 }]}>Members</Text>
                         <View style={[styles.sectionCard, { backgroundColor: cardBg }]}>
                             {group?.members.map((member, index) => {
                                 const isMe = member.user_id === user?.id;
@@ -541,5 +718,58 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.3)',
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    groupInfoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 20,
+        gap: 18,
+    },
+    groupAvatarWrap: {
+        position: 'relative',
+        flexShrink: 0,
+    },
+    groupAvatar: {
+        width: 72,
+        height: 72,
+        borderRadius: 20,
+    },
+    groupAvatarText: {
+        color: 'white',
+        fontSize: 28,
+        fontWeight: '700',
+    },
+    groupAvatarEditBadge: {
+        position: 'absolute',
+        bottom: -4,
+        right: -4,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1.5,
+        borderColor: colors.primary[500],
+    },
+    groupNameRow: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    groupNameText: {
+        flex: 1,
+        fontSize: 22,
+        fontWeight: '700',
+    },
+    nameInput: {
+        flex: 1,
+        fontSize: 22,
+        fontWeight: '700',
+        paddingVertical: 2,
+        borderBottomWidth: 1.5,
+    },
+    nameActionBtn: {
+        padding: 4,
     },
 });

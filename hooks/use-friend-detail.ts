@@ -30,6 +30,7 @@ export interface GroupBalance {
   balance: number;
   currency: CurrencyCode;
   transaction_count: number;
+  image_url: string | null;
 }
 
 /** A phase of transactions (between two settlement points) */
@@ -69,6 +70,8 @@ function mapRpcToTransaction(
     group_name: string | null;
     notes: string | null;
     paid_by: string;
+    category_icon?: string | null;
+    category_color?: string | null;
   },
   userId: string,
   friendName: string
@@ -87,6 +90,8 @@ function mapRpcToTransaction(
     group_id: row.group_id,
     group_name: row.group_name,
     notes: row.notes ?? null,
+    category_icon: row.category_icon ?? null,
+    category_color: row.category_color ?? null,
   };
 }
 
@@ -203,16 +208,16 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
 
       const { data: allGroups } = await supabase
         .from('groups')
-        .select('id, name, currency, type')
+        .select('id, name, currency, type, image_url')
         .in('id', potentialSharedGroupIds)
         .is('deleted_at', null);
 
       const allSharedGroupIds = allGroups?.map((g) => g.id) || [];
       const regularGroups = allGroups?.filter((g) => g.type === 'group') || [];
 
-      const groupMap = new Map<string, { name: string; currency: string; type: string }>();
+      const groupMap = new Map<string, { name: string; currency: string; type: string; image_url: string | null }>();
       allGroups?.forEach((g) => {
-        groupMap.set(g.id, { name: g.name, currency: g.currency, type: g.type || 'group' });
+        groupMap.set(g.id, { name: g.name, currency: g.currency, type: g.type || 'group', image_url: g.image_url ?? null });
       });
 
       // Fetch expenses and settlements for group balance (unchanged)
@@ -280,6 +285,7 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
             balance: data.balance,
             currency: (gi.currency || 'INR') as CurrencyCode,
             transaction_count: data.count,
+            image_url: gi.image_url,
           });
         }
       }

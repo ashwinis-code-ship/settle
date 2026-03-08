@@ -5,6 +5,7 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
 import { useCallback, useMemo } from 'react';
@@ -154,9 +155,18 @@ export default function GroupDetailScreen() {
         transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 100 }}
         style={[styles.groupInfoCard, { backgroundColor: cardBg }]}
       >
-        <View style={[styles.groupIcon, { backgroundColor: colors.primary[500] }]}>
-          <Ionicons name="people" size={32} color={colors.white} />
-        </View>
+        {group?.image_url ? (
+          <Image
+            source={{ uri: group.image_url }}
+            style={styles.groupIcon}
+            contentFit="cover"
+            transition={200}
+          />
+        ) : (
+          <View style={[styles.groupIcon, { backgroundColor: colors.primary[500], alignItems: 'center', justifyContent: 'center' }]}>
+            <Ionicons name="people" size={32} color={colors.white} />
+          </View>
+        )}
         <View style={styles.groupDetails}>
           <Text style={[styles.groupName, { color: textColor }]} numberOfLines={1}>
             {group?.name || 'Loading...'}
