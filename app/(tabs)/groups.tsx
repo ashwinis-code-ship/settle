@@ -7,8 +7,8 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
+import { Avatar } from '@/components/ui/avatar';
 import { MotiView } from 'moti';
 import { useCallback, useState } from 'react';
 import {
@@ -100,25 +100,6 @@ export default function GroupsScreen() {
     const balance = item.your_balance;
     const balanceColor = getBalanceColor(balance);
     
-    // Generate initials for avatar
-    const initials = item.name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-
-    // Generate a consistent color based on group name
-    const avatarColors = [
-      colors.primary[500],
-      colors.success,
-      colors.warning,
-      '#9333EA', // purple
-      '#EC4899', // pink
-      '#06B6D4', // cyan
-    ];
-    const avatarColor = avatarColors[item.name.length % avatarColors.length];
-
     return (
       <MotiView
         from={{ opacity: 0, translateY: 20, scale: 0.95 }}
@@ -142,18 +123,7 @@ export default function GroupsScreen() {
           ]}
         >
           {/* Group Avatar */}
-          <View style={[styles.groupAvatar, { backgroundColor: avatarColor }]}>
-            {item.image_url ? (
-              <Image
-                source={{ uri: item.image_url }}
-                style={styles.groupAvatarImage}
-                contentFit="cover"
-                transition={200}
-              />
-            ) : (
-              <Text style={styles.groupAvatarText}>{initials}</Text>
-            )}
-          </View>
+          <Avatar group={item} size={50} />
 
           {/* Group Info */}
           <View style={styles.groupInfo}>
@@ -349,24 +319,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
-  },
-  groupAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  groupAvatarImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 14,
-  },
-  groupAvatarText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.white,
   },
   groupInfo: {
     flex: 1,

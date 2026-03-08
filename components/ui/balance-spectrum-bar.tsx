@@ -14,10 +14,11 @@
  * animated floating popover showing name(s) + colour-coded amount(s).
  */
 
-import { Image } from 'expo-image';
 import { AnimatePresence, MotiView } from 'moti';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { Avatar } from '@/components/ui/avatar';
 import type { LayoutChangeEvent } from 'react-native';
 
 import { colors } from '@/constants/colors';
@@ -57,17 +58,6 @@ const TOOLTIP_PADDING = 20;
 const TOOLTIP_W = 178;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-const getInitials = (name: string) =>
-  name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-
-const getAvatarColor = (name: string) => {
-  const palette = [
-    colors.primary[500], colors.success, colors.warning,
-    '#9333EA', '#EC4899', '#06B6D4', '#F97316', '#14B8A6',
-  ];
-  return palette[name.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % palette.length];
-};
 
 /** Visual width of N tightly-stacked avatars. */
 function clusterVisualWidth(count: number): number {
@@ -213,26 +203,16 @@ export function BalanceSpectrumBar({ balances, currentUserId, isDark }: BalanceS
                 }]}
               >
                 {displayMembers.map((member, mi) => (
-                  <View
+                  <Avatar
                     key={member.user.id}
-                    style={[styles.avatar, {
-                      backgroundColor: getAvatarColor(member.user.name),
+                    user={member.user}
+                    size={AVATAR_SIZE}
+                    borderColor={cardBg}
+                    style={{
                       marginLeft: mi === 0 ? 0 : -OVERLAP,
                       zIndex: displayMembers.length - mi,
-                      borderColor: cardBg,
-                    }]}
-                  >
-                    {member.user.avatar_url ? (
-                      <Image
-                        source={{ uri: member.user.avatar_url }}
-                        style={styles.avatarImage}
-                        contentFit="cover"
-                        transition={150}
-                      />
-                    ) : (
-                      <Text style={styles.avatarText}>{getInitials(member.user.name)}</Text>
-                    )}
-                  </View>
+                    }}
+                  />
                 ))}
                 {extra > 0 && (
                   <View style={[styles.extraBadge, {
@@ -343,25 +323,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  avatar: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    overflow: 'hidden',
-  },
-  avatarImage: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-  },
-  avatarText: {
-    color: colors.white,
-    fontSize: 10,
-    fontWeight: '700',
   },
   extraBadge: {
     width: AVATAR_SIZE,

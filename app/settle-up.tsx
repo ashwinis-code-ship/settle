@@ -7,6 +7,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Avatar } from '@/components/ui/avatar';
 import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -340,29 +341,6 @@ export default function SettleUpScreen() {
     }
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
-  const getAvatarColor = (name: string) => {
-    const avatarColors = [
-      colors.primary[500],
-      colors.success,
-      colors.warning,
-      '#9333EA',
-      '#EC4899',
-      '#06B6D4',
-      '#F97316',
-      '#14B8A6',
-    ];
-    const charSum = name.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-    return avatarColors[charSum % avatarColors.length];
-  };
 
   const formatBalance = (balance: number) => {
     const absBalance = Math.abs(balance).toFixed(2);
@@ -423,9 +401,7 @@ export default function SettleUpScreen() {
               ]}
               onPress={() => handleSelectTarget(result)}
             >
-              <View style={[styles.avatar, { backgroundColor: getAvatarColor(result.user.name) }]}>
-                <Text style={styles.avatarText}>{getInitials(result.user.name)}</Text>
-              </View>
+              <Avatar user={result.user} size={44} />
               <View style={styles.resultInfo}>
                 <Text style={[styles.resultName, { color: textColor }]}>{result.user.name}</Text>
                 <Text style={[styles.resultBalance, { 
@@ -483,9 +459,7 @@ export default function SettleUpScreen() {
         <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
           {/* Friend Info Card */}
           <View style={[styles.friendCard, { backgroundColor: cardBg }]}>
-            <View style={[styles.avatar, { backgroundColor: getAvatarColor(selectedTarget.user.name) }]}>
-              <Text style={styles.avatarText}>{getInitials(selectedTarget.user.name)}</Text>
-            </View>
+            <Avatar user={selectedTarget.user} size={44} />
             <View style={styles.friendInfo}>
               <Text style={[styles.friendName, { color: textColor }]}>
                 {selectedTarget.user.name}
@@ -667,18 +641,6 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
     marginBottom: 10,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: colors.white,
-    fontSize: 15,
-    fontWeight: '700',
   },
   resultInfo: {
     flex: 1,

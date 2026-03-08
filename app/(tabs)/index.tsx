@@ -12,6 +12,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Avatar } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonActivityList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
@@ -81,13 +82,6 @@ export default function HomeScreen() {
 
   // Get user info from database, fallback to auth metadata
   const userName = user?.name || authUser?.user_metadata?.name || 'User';
-  const userInitials = userName
-    .split(' ')
-    .map((n: string) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-
   const handleAddExpense = () => {
     if (!isOnline) {
       hapticWarning();
@@ -139,15 +133,6 @@ export default function HomeScreen() {
     if (diffDays < 7) return `${diffDays} days ago`;
     
     return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-  };
-
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
   };
 
   const isLoading = isLoadingFriends || isLoadingActivity;
@@ -205,9 +190,7 @@ export default function HomeScreen() {
               { opacity: pressed ? 0.7 : 1 },
             ]}
           >
-            <View style={[styles.avatarSmall, { backgroundColor: colors.primary[500] }]}>
-              <Text style={styles.avatarSmallText}>{userInitials}</Text>
-            </View>
+            <Avatar user={{ name: userName, avatar_url: user?.avatar_url ?? null }} size={44} />
           </Pressable>
         </MotiView>
 
@@ -492,18 +475,6 @@ const styles = StyleSheet.create({
   },
   avatarButton: {
     marginLeft: 16,
-  },
-  avatarSmall: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarSmallText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.white,
   },
   balanceCard: {
     borderRadius: 20,

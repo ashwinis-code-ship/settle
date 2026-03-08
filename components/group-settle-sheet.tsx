@@ -11,8 +11,8 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
+import { Avatar } from '@/components/ui/avatar';
 import { forwardRef, useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,28 +36,6 @@ interface GroupSettleSheetProps {
   onClose: () => void;
 }
 
-const getInitials = (name: string) =>
-  name
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-
-const getAvatarColor = (name: string) => {
-  const palette = [
-    colors.primary[500],
-    colors.success,
-    colors.warning,
-    '#9333EA',
-    '#EC4899',
-    '#06B6D4',
-    '#F97316',
-    '#14B8A6',
-  ];
-  const sum = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  return palette[sum % palette.length];
-};
 
 export const GroupSettleSheet = forwardRef<BottomSheet, GroupSettleSheetProps>(
   ({ group, currentUserId, isDark, onClose }, ref) => {
@@ -182,18 +160,7 @@ export const GroupSettleSheet = forwardRef<BottomSheet, GroupSettleSheetProps>(
             onPress={() => handleViewTransactions(item.user)}
             style={({ pressed }) => [styles.memberLeft, { opacity: pressed ? 0.7 : 1 }]}
           >
-            <View style={[styles.avatar, { backgroundColor: getAvatarColor(item.user.name) }]}>
-              {item.user.avatar_url ? (
-                <Image
-                  source={{ uri: item.user.avatar_url }}
-                  style={styles.avatarImage}
-                  contentFit="cover"
-                  transition={200}
-                />
-              ) : (
-                <Text style={styles.avatarText}>{getInitials(item.user.name)}</Text>
-              )}
-            </View>
+            <Avatar user={item.user} size={44} />
             <View style={styles.memberInfo}>
               <Text style={[styles.memberName, { color: textColor }]}>{item.user.name}</Text>
               <Text style={[styles.memberBalance, { color: balanceColor }]}>{label}</Text>
@@ -371,24 +338,6 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 6,
     paddingHorizontal: 4,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  avatarImage: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-  },
-  avatarText: {
-    color: colors.white,
-    fontSize: 15,
-    fontWeight: '700',
   },
   memberInfo: {
     flex: 1,

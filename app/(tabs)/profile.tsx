@@ -5,13 +5,11 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { MotiView } from 'moti';
 import { useEffect, useRef, useState } from 'react';
 import {
     ActionSheetIOS,
-    ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
     Platform,
@@ -24,6 +22,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Avatar } from '@/components/ui/avatar';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useSettings, type ThemeMode } from '@/contexts/settings-context';
@@ -482,12 +481,6 @@ export default function ProfileScreen() {
   // Get user info
   const userName = user?.name || authUser?.user_metadata?.name || 'User';
   const userPhone = user?.phone || authUser?.user_metadata?.phone || '';
-  const userInitials = userName
-    .split(' ')
-    .map((n: string) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
 
   // Format phone for display
   const formatPhone = (phone: string) => {
@@ -534,29 +527,14 @@ export default function ProfileScreen() {
             transition={{ type: 'spring', damping: 15, delay: 100 }}
             style={styles.avatarSection}
           >
-            <Pressable 
-              onPress={handleChangePhoto} 
-              disabled={isUploadingPhoto || !isOnline}
-              style={{ opacity: (!isOnline || isUploadingPhoto) ? 0.5 : 1 }}
-            >
-              <View style={[styles.avatar, { backgroundColor: colors.primary[500] }]}>
-                {isUploadingPhoto ? (
-                  <ActivityIndicator size="large" color={colors.white} />
-                ) : user?.avatar_url ? (
-                  <Image
-                    source={{ uri: user.avatar_url }}
-                    style={styles.avatarImage}
-                    contentFit="cover"
-                    transition={200}
-                  />
-                ) : (
-                  <Text style={styles.avatarText}>{userInitials}</Text>
-                )}
-              </View>
-              <View style={[styles.editAvatarButton, isUploadingPhoto && { opacity: 0.5 }]}>
-                <Ionicons name="camera" size={14} color={colors.white} />
-              </View>
-            </Pressable>
+            <Avatar
+              user={{ name: userName, avatar_url: user?.avatar_url ?? null }}
+              size={100}
+              mode="edit"
+              onEditPress={handleChangePhoto}
+              isUploading={isUploadingPhoto}
+              disabled={!isOnline}
+            />
           </MotiView>
 
           {/* Profile Card */}
@@ -874,36 +852,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
     position: 'relative',
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: colors.white,
-  },
-  avatarImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-  },
-  editAvatarButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary[600],
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: colors.white,
   },
   card: {
     borderRadius: 20,

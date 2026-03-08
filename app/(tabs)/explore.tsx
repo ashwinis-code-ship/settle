@@ -7,8 +7,8 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
+import { Avatar } from '@/components/ui/avatar';
 import { MotiView } from 'moti';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
@@ -145,30 +145,6 @@ export default function FriendsScreen() {
     return 'settled up';
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
-  // Generate a consistent avatar color based on name
-  const getAvatarColor = (name: string) => {
-    const avatarColors = [
-      colors.primary[500],
-      colors.success,
-      colors.warning,
-      '#9333EA', // purple
-      '#EC4899', // pink
-      '#06B6D4', // cyan
-      '#F97316', // orange
-      '#14B8A6', // teal
-    ];
-    const charSum = name.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-    return avatarColors[charSum % avatarColors.length];
-  };
 
   const renderFriendCard = ({ item, index }: { item: Friend; index: number }) => {
     const balance = item.total_balance;
@@ -197,18 +173,7 @@ export default function FriendsScreen() {
           ]}
         >
           {/* Friend Avatar */}
-          <View style={[styles.friendAvatar, { backgroundColor: getAvatarColor(item.user.name) }]}>
-            {item.user.avatar_url ? (
-              <Image
-                source={{ uri: item.user.avatar_url }}
-                style={styles.friendAvatarImage}
-                contentFit="cover"
-                transition={200}
-              />
-            ) : (
-              <Text style={styles.friendAvatarText}>{getInitials(item.user.name)}</Text>
-            )}
-          </View>
+          <Avatar user={item.user} size={48} />
 
           {/* Friend Info */}
           <View style={styles.friendInfo}>
@@ -519,24 +484,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
-  },
-  friendAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  friendAvatarImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-  },
-  friendAvatarText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '700',
   },
   friendInfo: {
     flex: 1,

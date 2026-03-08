@@ -6,8 +6,8 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
-import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Avatar } from '@/components/ui/avatar';
 import { MotiView } from 'moti';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -420,51 +420,15 @@ export default function GroupSettingsScreen() {
                         <View style={[styles.sectionCard, { backgroundColor: cardBg }]}>
                             <View style={styles.groupInfoRow}>
                                 {/* Avatar — tappable for admins only */}
-                                {isAdmin ? (
-                                    <Pressable
-                                        onPress={handleGroupPhotoPress}
-                                        disabled={isUploadingImage || !isOnline}
-                                        style={({ pressed }) => [styles.groupAvatarWrap, { opacity: pressed ? 0.7 : 1 }]}
-                                    >
-                                        {isUploadingImage ? (
-                                            <View style={[styles.groupAvatar, { backgroundColor: colors.primary[100], alignItems: 'center', justifyContent: 'center' }]}>
-                                                <ActivityIndicator size="small" color={colors.primary[500]} />
-                                            </View>
-                                        ) : group?.image_url ? (
-                                            <Image
-                                                source={{ uri: group.image_url }}
-                                                style={styles.groupAvatar}
-                                                contentFit="cover"
-                                                transition={200}
-                                            />
-                                        ) : (
-                                            <View style={[styles.groupAvatar, { backgroundColor: colors.primary[500], alignItems: 'center', justifyContent: 'center' }]}>
-                                                <Text style={styles.groupAvatarText}>
-                                                    {(group?.name || 'G').substring(0, 1).toUpperCase()}
-                                                </Text>
-                                            </View>
-                                        )}
-                                        <View style={[styles.groupAvatarEditBadge, { backgroundColor: cardBg }]}>
-                                            <Ionicons name="camera" size={12} color={colors.primary[500]} />
-                                        </View>
-                                    </Pressable>
-                                ) : (
-                                    <View style={styles.groupAvatarWrap}>
-                                        {group?.image_url ? (
-                                            <Image
-                                                source={{ uri: group.image_url }}
-                                                style={styles.groupAvatar}
-                                                contentFit="cover"
-                                                transition={200}
-                                            />
-                                        ) : (
-                                            <View style={[styles.groupAvatar, { backgroundColor: colors.primary[500], alignItems: 'center', justifyContent: 'center' }]}>
-                                                <Text style={styles.groupAvatarText}>
-                                                    {(group?.name || 'G').substring(0, 1).toUpperCase()}
-                                                </Text>
-                                            </View>
-                                        )}
-                                    </View>
+                                {group && (
+                                    <Avatar
+                                        group={group}
+                                        size={72}
+                                        mode={isAdmin ? 'edit' : 'default'}
+                                        onEditPress={isAdmin ? handleGroupPhotoPress : undefined}
+                                        isUploading={isUploadingImage}
+                                        disabled={!isOnline}
+                                    />
                                 )}
 
                                 {/* Name — inline edit for admins, read-only for members */}
@@ -752,32 +716,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 20,
         gap: 18,
-    },
-    groupAvatarWrap: {
-        position: 'relative',
-        flexShrink: 0,
-    },
-    groupAvatar: {
-        width: 72,
-        height: 72,
-        borderRadius: 20,
-    },
-    groupAvatarText: {
-        color: 'white',
-        fontSize: 28,
-        fontWeight: '700',
-    },
-    groupAvatarEditBadge: {
-        position: 'absolute',
-        bottom: -4,
-        right: -4,
-        width: 22,
-        height: 22,
-        borderRadius: 11,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1.5,
-        borderColor: colors.primary[500],
     },
     groupNameRow: {
         flex: 1,

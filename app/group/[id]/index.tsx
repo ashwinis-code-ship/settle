@@ -6,8 +6,8 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
-import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Avatar } from '@/components/ui/avatar';
 import { MotiView } from 'moti';
 import { useCallback, useMemo, useRef } from 'react';
 import {
@@ -142,18 +142,7 @@ export default function GroupDetailScreen() {
         transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 100 }}
         style={[styles.groupInfoCard, { backgroundColor: cardBg }]}
       >
-        {group?.image_url ? (
-          <Image
-            source={{ uri: group.image_url }}
-            style={styles.groupIcon}
-            contentFit="cover"
-            transition={200}
-          />
-        ) : (
-          <View style={[styles.groupIcon, { backgroundColor: colors.primary[500], alignItems: 'center', justifyContent: 'center' }]}>
-            <Ionicons name="people" size={32} color={colors.white} />
-          </View>
-        )}
+        {group && <Avatar group={group} size={60} />}
         <View style={styles.groupDetails}>
           <Text style={[styles.groupName, { color: textColor }]} numberOfLines={1}>
             {group?.name || 'Loading...'}
@@ -478,13 +467,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     marginBottom: 20,
-  },
-  groupIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   groupDetails: {
     flex: 1,

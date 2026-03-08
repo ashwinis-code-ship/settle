@@ -7,8 +7,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { router } from 'expo-router';
-import { Image } from 'expo-image';
 import { MotiView } from 'moti';
+import { Avatar } from '@/components/ui/avatar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -289,24 +289,12 @@ export default function CreateGroupScreen() {
               transition={shouldAnimate ? { type: 'spring', damping: 15, delay: 100 } : undefined}
               style={styles.iconSection}
             >
-              <Pressable 
-                style={[styles.groupIconButton, { backgroundColor: colors.primary[500] }]}
-                onPress={handleGroupImagePress}
-              >
-                {groupImageUri ? (
-                  <Image
-                    source={{ uri: groupImageUri }}
-                    style={styles.groupImage}
-                    contentFit="cover"
-                    transition={200}
-                  />
-                ) : (
-                  <Ionicons name="people" size={40} color={colors.white} />
-                )}
-                <View style={styles.cameraOverlay}>
-                  <Ionicons name="camera" size={14} color={colors.white} />
-                </View>
-              </Pressable>
+              <Avatar
+                groupImageUri={groupImageUri}
+                size={100}
+                mode="edit"
+                onEditPress={handleGroupImagePress}
+              />
               <Text style={[styles.iconHint, { color: secondaryTextColor }]}>
                 {groupImageUri ? 'Tap to change photo' : 'Tap to add group photo'}
               </Text>
@@ -482,33 +470,6 @@ const styles = StyleSheet.create({
   iconSection: {
     alignItems: 'center',
     marginBottom: 32,
-  },
-  groupIconButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  groupImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 30,
-  },
-  cameraOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.gray[800],
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: colors.white,
   },
   iconHint: {
     fontSize: 13,

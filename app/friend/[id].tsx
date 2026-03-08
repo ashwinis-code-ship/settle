@@ -8,7 +8,7 @@
 import { EditSettlementSheet } from '@/components/edit-settlement-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
-import { Image } from 'expo-image';
+import { Avatar } from '@/components/ui/avatar';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
 import { useCallback, useRef, useState } from 'react';
@@ -124,14 +124,6 @@ export default function FriendDetailScreen() {
     router.push(`/group/${groupId}`);
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
 
   const formatBalance = (balance: number, currency: string = 'INR') => {
     const currencyInfo = CURRENCIES[currency as keyof typeof CURRENCIES] || CURRENCIES.INR;
@@ -200,18 +192,10 @@ export default function FriendDetailScreen() {
           ]}
         >
           {/* Group Icon */}
-          {groupBalance.image_url ? (
-            <Image
-              source={{ uri: groupBalance.image_url }}
-              style={styles.groupIcon}
-              contentFit="cover"
-              transition={200}
-            />
-          ) : (
-            <View style={[styles.groupIcon, { backgroundColor: colors.primary[100], alignItems: 'center', justifyContent: 'center' }]}>
-              <Ionicons name="people" size={20} color={colors.primary[500]} />
-            </View>
-          )}
+          <Avatar
+            group={{ name: groupBalance.group_name, image_url: groupBalance.image_url }}
+            size={40}
+          />
 
           {/* Group Info */}
           <View style={styles.groupInfo}>
@@ -548,18 +532,7 @@ export default function FriendDetailScreen() {
           transition={{ type: 'spring', damping: 18, stiffness: 120 }}
           style={[styles.friendCard, { backgroundColor: cardBg }]}
         >
-          <View style={[styles.avatar, { backgroundColor: colors.primary[500] }]}>
-            {friend?.user.avatar_url ? (
-              <Image
-                source={{ uri: friend.user.avatar_url }}
-                style={styles.avatarImage}
-                contentFit="cover"
-                transition={200}
-              />
-            ) : (
-              <Text style={styles.avatarText}>{getInitials(friendName)}</Text>
-            )}
-          </View>
+          {friend && <Avatar user={friend.user} size={72} style={{ marginBottom: 12 }} />}
           <Text style={[styles.friendName, { color: textColor }]}>{friendName}</Text>
           
           {/* Balance Display */}
@@ -785,25 +758,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
-  avatarImage: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-  },
-  avatarText: {
-    color: colors.white,
-    fontSize: 26,
-    fontWeight: '700',
-  },
   friendName: {
     fontSize: 22,
     fontWeight: '700',
@@ -873,13 +827,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 4,
     elevation: 1,
-  },
-  groupIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   groupInfo: {
     flex: 1,
