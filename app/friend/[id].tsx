@@ -47,7 +47,6 @@ export default function FriendDetailScreen() {
     currentPhase,
     olderPhases,
     isFullySettled,
-    hasOlderPhases,
     hasMoreOlder,
     loadOlderPhase,
     isLoadingOlder,
@@ -621,7 +620,7 @@ export default function FriendDetailScreen() {
         )}
 
         {/* Transaction History Section */}
-        {(currentPhase.length > 0 || isFullySettled || hasOlderPhases) && (
+        {(currentPhase.length > 0 || isFullySettled || hasMoreOlder || olderPhases.length > 0) && (
           <MotiView
             from={{ opacity: 0, translateY: 10 }}
             animate={{ opacity: 1, translateY: 0 }}
@@ -632,7 +631,7 @@ export default function FriendDetailScreen() {
                 All Transactions
               </Text>
               <Text style={[styles.sectionSubtitle, { color: secondaryTextColor }]}>
-                {isFullySettled && hasOlderPhases && olderPhases.length === 0
+                {isFullySettled && hasMoreOlder && olderPhases.length === 0
                   ? 'View history'
                   : `${currentPhase.length + olderPhases.flat().length} item${(currentPhase.length + olderPhases.flat().length) !== 1 ? 's' : ''}`}
               </Text>
@@ -660,65 +659,47 @@ export default function FriendDetailScreen() {
               </View>
             )}
 
-            {/* View old transactions */}
-            {hasOlderPhases && (
-              <View style={styles.viewOlderContainer}>
-                {olderPhases.length === 0 ? (
-                  <Pressable
-                    onPress={loadOlderPhase}
-                    disabled={isLoadingOlder}
-                    style={({ pressed }) => [
-                      styles.viewOlderButton,
-                      { opacity: pressed ? 0.7 : 1 },
-                    ]}
+            {/* Older phases + single paginated "View older" button */}
+            {olderPhases.length > 0 && (
+              <View style={styles.olderPhaseList}>
+                {olderPhases.map((phase, phaseIdx) => (
+                  <View
+                    key={`phase-${phaseIdx}`}
+                    style={styles.transactionsList}
                   >
-                    {isLoadingOlder ? (
-                      <ActivityIndicator size="small" color={colors.primary[500]} />
-                    ) : (
-                      <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
-                        View old transactions
-                      </Text>
+                    {phase.map((tx, index) =>
+                      renderTransactionItem(tx, currentPhase.length + phaseIdx * 100 + index)
                     )}
-                  </Pressable>
-                ) : (
-                  <>
-                    {olderPhases.map((phase, phaseIdx) => (
-                      <View
-                        key={`phase-${phaseIdx}`}
-                        style={[styles.transactionsList, styles.olderPhaseList]}
-                      >
-                        {phase.map((tx, index) =>
-                          renderTransactionItem(tx, currentPhase.length + phaseIdx * 100 + index)
-                        )}
-                      </View>
-                    ))}
-                    {hasMoreOlder && (
-                      <Pressable
-                        onPress={loadOlderPhase}
-                        disabled={isLoadingOlder}
-                        style={({ pressed }) => [
-                          styles.viewOlderButton,
-                          { opacity: pressed ? 0.7 : 1 },
-                        ]}
-                      >
-                        {isLoadingOlder ? (
-                          <ActivityIndicator size="small" color={colors.primary[500]} />
-                        ) : (
-                          <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
-                            View older
-                          </Text>
-                        )}
-                      </Pressable>
-                    )}
-                  </>
-                )}
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {hasMoreOlder && (
+              <View style={styles.viewOlderContainer}>
+                <Pressable
+                  onPress={loadOlderPhase}
+                  disabled={isLoadingOlder}
+                  style={({ pressed }) => [
+                    styles.viewOlderButton,
+                    { opacity: pressed ? 0.7 : 1 },
+                  ]}
+                >
+                  {isLoadingOlder ? (
+                    <ActivityIndicator size="small" color={colors.primary[500]} />
+                  ) : (
+                    <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
+                      View older transactions
+                    </Text>
+                  )}
+                </Pressable>
               </View>
             )}
           </MotiView>
         )}
 
         {/* Empty State */}
-        {currentPhase.length === 0 && !isFullySettled && !hasOlderPhases && groupBalances.length === 0 && !isLoading && (
+        {currentPhase.length === 0 && !isFullySettled && !hasMoreOlder && olderPhases.length === 0 && groupBalances.length === 0 && !isLoading && (
           <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
             <EmptyState
               icon="wallet-outline"

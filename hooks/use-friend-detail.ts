@@ -103,13 +103,12 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
   const [groupBalances, setGroupBalances] = useState<GroupBalance[]>([]);
   const [currentPhase, setCurrentPhase] = useState<FriendTransaction[]>([]);
   const [olderPhases, setOlderPhases] = useState<TransactionPhase[]>([]);
-  const [settlementCursor, setSettlementCursor] = useState<{
+  // Cursor pointing to the last transaction of the current phase (the one that zeroed the balance).
+  // Next fetch for older phases starts after this cursor.
+  const [phaseCursor, setPhaseCursor] = useState<{
     created_at: string;
     id: string;
   } | null>(null);
-  const [settlementTxForNextPhase, setSettlementTxForNextPhase] = useState<FriendTransaction | null>(
-    null
-  );
   const [hasMoreOlder, setHasMoreOlder] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -147,8 +146,7 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
     setError(null);
     setCurrentPhase([]);
     setOlderPhases([]);
-    setSettlementCursor(null);
-    setSettlementTxForNextPhase(null);
+    setPhaseCursor(null);
     setHasMoreOlder(false);
 
     try {
@@ -301,42 +299,50 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
       setFriend(friendData);
       setGroupBalances(groupBalancesArray);
 
-      // Walk newest → oldest. The first settlement we encounter is the phase boundary.
-      // Everything before it (newer) = current phase. It + everything older = older phases.
-      let cursor: { created_at: string; id: string } | null = null;
+      // Phase detection: walk newest → oldest, subtracting each transaction's balance impact
+      // from the running balance. When it hits 0, that transaction is the last of this phase.
+      // Each subsequent phase repeats the same logic starting from 0.
+      //
+      // balance_impact per row:
+      //   expense:    +row.amount (positive = friend owes you more, negative = you owe more)
+      //   settlement: -row.amount (RPC stores settlements with flipped sign vs balance direction)
+      let batchCursor: { created_at: string; id: string } | null = null;
       const currentPhaseTxs: FriendTransaction[] = [];
+      let running = currentBalance;
       let foundBoundary = false;
       let batchHasMore = true;
 
-      while (batchHasMore) {
-        const rows = await fetchTransactionBatch(cursor);
+      while (batchHasMore && !foundBoundary) {
+        const rows = await fetchTransactionBatch(batchCursor);
         batchHasMore = rows.length === BATCH_SIZE;
 
-        for (const row of rows) {
-          if (row.type === 'settlement') {
-            const tx = mapRpcToTransaction(row, user.id, friendName);
-            setSettlementCursor({ created_at: row.created_at, id: row.id });
-            setSettlementTxForNextPhase(tx);
-            setCurrentPhase([...currentPhaseTxs]);
-            setHasMoreOlder(true);
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          const impact = row.type === 'settlement' ? -Number(row.amount) : Number(row.amount);
+          running -= impact;
+          currentPhaseTxs.push(mapRpcToTransaction(row, user.id, friendName));
+
+          if (Math.abs(running) < 0.01) {
+            // This transaction zeroed the balance — it's the last entry of this phase.
+            // hasMoreOlder is true only if there are rows after this one (either more in this
+            // batch, or more batches exist). If this is the last row of the last batch, we've
+            // exhausted all transactions and there is no next phase.
+            const hasRowsAfter = batchHasMore || i < rows.length - 1;
+            setPhaseCursor({ created_at: row.created_at, id: row.id });
+            setHasMoreOlder(hasRowsAfter);
             foundBoundary = true;
             break;
           }
-          currentPhaseTxs.push(mapRpcToTransaction(row, user.id, friendName));
         }
 
-        if (foundBoundary) break;
-
-        if (rows.length > 0) {
+        if (!foundBoundary && rows.length > 0) {
           const last = rows[rows.length - 1];
-          cursor = { created_at: last.created_at, id: last.id };
-        } else {
-          break;
+          batchCursor = { created_at: last.created_at, id: last.id };
         }
       }
 
+      setCurrentPhase(currentPhaseTxs);
       if (!foundBoundary) {
-        setCurrentPhase(currentPhaseTxs);
         setHasMoreOlder(false);
       }
 
@@ -367,47 +373,53 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
   }, [user, friendId, isOnline, fetchTransactionBatch]);
 
   const loadOlderPhase = useCallback(async () => {
-    if (!user || !friendId || isLoadingOlder) return;
-
-    const cursor = settlementCursor;
-    const firstTx = settlementTxForNextPhase;
-    if (!cursor && !firstTx) return; // Need at least one to load older
+    if (!user || !friendId || isLoadingOlder || !phaseCursor) return;
 
     setIsLoadingOlder(true);
 
     try {
       const friendName = friend?.user.name || 'Friend';
-      const rows = await fetchTransactionBatch(cursor);
-
       const phaseTxs: FriendTransaction[] = [];
 
-      // Prepend the settlement that is the boundary/header of this older phase
-      if (firstTx) {
-        phaseTxs.push(firstTx);
-      }
+      // Each older phase starts at 0 (the previous phase ended at 0).
+      // Walk newer → older subtracting balance_impact until we hit 0 again.
+      let running = 0;
+      let foundBoundary = false;
+      let fetchCursor: { created_at: string; id: string } = phaseCursor;
+      let batchHasMore = true;
 
-      // Walk older transactions until we hit the next settlement (next boundary)
-      let nextBoundary: { tx: FriendTransaction; created_at: string; id: string } | null = null;
+      while (batchHasMore && !foundBoundary) {
+        const rows = await fetchTransactionBatch(fetchCursor);
+        batchHasMore = rows.length === BATCH_SIZE;
 
-      for (const row of rows) {
-        if (row.type === 'settlement') {
-          const tx = mapRpcToTransaction(row, user.id, friendName);
-          nextBoundary = { tx, created_at: row.created_at, id: row.id };
-          break;
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          const impact = row.type === 'settlement' ? -Number(row.amount) : Number(row.amount);
+          running -= impact;
+          phaseTxs.push(mapRpcToTransaction(row, user.id, friendName));
+
+          if (Math.abs(running) < 0.01) {
+            // This transaction zeroed the balance — last entry of this older phase.
+            // Only show the "View older" button if rows actually exist after this boundary.
+            const hasRowsAfter = batchHasMore || i < rows.length - 1;
+            setPhaseCursor({ created_at: row.created_at, id: row.id });
+            setHasMoreOlder(hasRowsAfter);
+            foundBoundary = true;
+            break;
+          }
         }
-        phaseTxs.push(mapRpcToTransaction(row, user.id, friendName));
+
+        if (!foundBoundary && rows.length > 0) {
+          fetchCursor = { created_at: rows[rows.length - 1].created_at, id: rows[rows.length - 1].id };
+        }
       }
 
       setOlderPhases((prev) => [...prev, phaseTxs]);
 
-      if (nextBoundary) {
-        setSettlementCursor({ created_at: nextBoundary.created_at, id: nextBoundary.id });
-        setSettlementTxForNextPhase(nextBoundary.tx);
-        setHasMoreOlder(true);
-      } else {
-        setSettlementCursor(rows.length > 0 ? { created_at: rows[rows.length - 1].created_at, id: rows[rows.length - 1].id } : null);
-        setSettlementTxForNextPhase(null);
-        setHasMoreOlder(rows.length === BATCH_SIZE);
+      if (!foundBoundary) {
+        // Exhausted all transactions — no more phases
+        setPhaseCursor(null);
+        setHasMoreOlder(false);
       }
     } catch (err) {
       console.error('[useFriendDetail] loadOlderPhase error:', err);
@@ -418,9 +430,7 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
     user,
     friendId,
     friend,
-    settlementCursor,
-    settlementTxForNextPhase,
-    olderPhases.length,
+    phaseCursor,
     fetchTransactionBatch,
     isLoadingOlder,
   ]);
