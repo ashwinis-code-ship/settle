@@ -25,7 +25,7 @@ import {
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ContactPickerSheet } from '@/components/contact-picker-sheet';
+import { PeopleSearchSheet } from '@/components/people-search-sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { colors } from '@/constants/colors';
@@ -36,7 +36,7 @@ import { hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { pickImageFromCamera, pickImageFromLibrary } from '@/lib/image-upload';
 import { Analytics } from '@/lib/analytics';
 import { GROUP_EVENTS } from '@/lib/analytics-events';
-import { ContactEntry } from '@/types';
+import type { EnrichedContact } from '@/hooks/use-enriched-contacts';
 
 // Utility functions
 
@@ -73,7 +73,7 @@ export default function CreateGroupScreen() {
 
   // Form state
   const [groupName, setGroupName] = useState('');
-  const [selectedContacts, setSelectedContacts] = useState<ContactEntry[]>([]);
+  const [selectedContacts, setSelectedContacts] = useState<EnrichedContact[]>([]);
   const [groupImageUri, setGroupImageUri] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -98,7 +98,7 @@ export default function CreateGroupScreen() {
     bottomSheetRef.current?.expand();
   };
 
-  const handleToggleContact = useCallback((contact: ContactEntry) => {
+  const handleToggleContact = useCallback((contact: EnrichedContact) => {
     hapticSelection();
     setSelectedContacts(prev => {
       const isSelected = prev.some(c => c.id === contact.id);
@@ -395,7 +395,7 @@ export default function CreateGroupScreen() {
           </MotiView>
         </KeyboardAvoidingView>
 
-        <ContactPickerSheet
+        <PeopleSearchSheet
           ref={bottomSheetRef}
           onContactSelect={handleToggleContact}
           selectedIds={selectedIds}

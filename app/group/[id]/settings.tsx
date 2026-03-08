@@ -24,7 +24,7 @@ import {
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ContactPickerSheet } from '@/components/contact-picker-sheet';
+import { PeopleSearchSheet } from '@/components/people-search-sheet';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
@@ -37,7 +37,7 @@ import {
     uploadGroupImage,
 } from '@/lib/image-upload';
 import { formatPhoneNumber } from '@/lib/utils';
-import { ContactEntry } from '@/types';
+import type { EnrichedContact } from '@/hooks/use-enriched-contacts';
 
 export default function GroupSettingsScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -59,7 +59,7 @@ export default function GroupSettingsScreen() {
     // Bottom sheet ref
     const bottomSheetRef = useRef<BottomSheet>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [selectedContacts, setSelectedContacts] = useState<ContactEntry[]>([]);
+    const [selectedContacts, setSelectedContacts] = useState<EnrichedContact[]>([]);
 
     // Group info editing
     const [editingName, setEditingName] = useState(false);
@@ -183,7 +183,7 @@ export default function GroupSettingsScreen() {
         bottomSheetRef.current?.expand();
     };
 
-    const handleSelectContact = (contact: ContactEntry) => {
+    const handleSelectContact = (contact: EnrichedContact) => {
         setSelectedContacts(prev => {
             const isSelected = prev.some(c => c.id === contact.id);
             if (isSelected) {
@@ -579,14 +579,14 @@ export default function GroupSettingsScreen() {
                     </View>
                 </ScrollView>
 
-                <ContactPickerSheet
+                <PeopleSearchSheet
                     ref={bottomSheetRef}
                     onContactSelect={handleSelectContact}
                     selectedIds={new Set(selectedContacts.map(c => c.id))}
                     title="Add Members"
                     doneText={selectedContacts.length > 0 ? `Add (${selectedContacts.length})` : 'Done'}
                     onDone={handleAddMembers}
-                    onClose={() => setSelectedContacts([])} // Clear on dismiss
+                    onClose={() => setSelectedContacts([])}
                 />
 
                 {/* Global Loading Overlay */}
