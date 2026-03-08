@@ -77,7 +77,7 @@ export const FRIEND_EVENTS = {
 export const NAV_EVENTS = {
   TAB_HOME_VIEWED: 'tab_home_viewed',
   TAB_GROUPS_VIEWED: 'tab_groups_viewed',
-  TAB_EXPLORE_VIEWED: 'tab_explore_viewed',
+  TAB_FRIENDS_VIEWED: 'tab_friends_viewed',
   TAB_PROFILE_VIEWED: 'tab_profile_viewed',
   
   SCREEN_VIEWED: 'screen_viewed',

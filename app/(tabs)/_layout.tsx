@@ -39,7 +39,7 @@ export default function TabLayout() {
           const eventMap: Record<string, string> = {
             index: NAV_EVENTS.TAB_HOME_VIEWED,
             groups: NAV_EVENTS.TAB_GROUPS_VIEWED,
-            explore: NAV_EVENTS.TAB_EXPLORE_VIEWED,
+            friends: NAV_EVENTS.TAB_FRIENDS_VIEWED,
             profile: NAV_EVENTS.TAB_PROFILE_VIEWED,
           };
           
@@ -62,7 +62,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="friends"
         options={{
           title: 'Friends',
           tabBarIcon: ({ color, focused }) => (

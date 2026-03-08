@@ -879,7 +879,7 @@ export default function AddExpenseScreen() {
       {isSearchMode && (
         <PeopleSearchSheet
           ref={bottomSheetRef}
-          title={contactsOnly ? 'Add Contact' : 'Add Expense'}
+          title={contactsOnly ? 'Select Contact' : 'Add Expense'}
           showGroups={!contactsOnly}
           onGroupSelect={handleSelectGroup}
           onContactSelect={handleSelectContact}
