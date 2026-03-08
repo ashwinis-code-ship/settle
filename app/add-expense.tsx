@@ -11,9 +11,10 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
+import BottomSheet from '@gorhom/bottom-sheet';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -26,9 +27,11 @@ import {
     TextInput,
     View,
 } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/ui/avatar';
+import { PeopleSearchSheet } from '@/components/people-search-sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { colors } from '@/constants/colors';
@@ -36,7 +39,9 @@ import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
 import { useCategories } from '@/hooks/use-categories';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useContactGroupSearch, type SearchResult, type SearchResultContact, type SearchResultGroup } from '@/hooks/use-contact-group-search';
+import type { SearchResultGroup } from '@/hooks/use-contact-group-search';
+import type { EnrichedContact } from '@/hooks/use-enriched-contacts';
+import { normalizePhone } from '@/hooks/use-enriched-contacts';
 import { useDirectGroup } from '@/hooks/use-direct-group';
 import { useExpenses } from '@/hooks/use-expenses';
 import { useGroup } from '@/hooks/use-group';
@@ -74,13 +79,6 @@ export default function AddExpenseScreen() {
   const { categories } = useCategories();
   const { createExpense } = useExpenses(resolvedGroupId);
   const { findOrCreateDirectGroup, isLoading: isCreatingDirectGroup } = useDirectGroup();
-  const { searchResults, isLoading: isLoadingSearch, hasContactPermission, search } = useContactGroupSearch();
-
-  // When from Friends tab, only show contacts (exclude groups)
-  const displayResults = contactsOnly
-    ? searchResults.filter((r): r is SearchResultContact => r.type === 'contact')
-    : searchResults;
-
   // Block if offline - view-only mode
   useEffect(() => {
     if (!isOnline) {
@@ -104,10 +102,22 @@ export default function AddExpenseScreen() {
   }, []);
 
   // Search UI state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSearchResults, setShowSearchResults] = useState(false);
   const [hasSelectedTarget, setHasSelectedTarget] = useState(hasPreselection);
   const [isCreatingShadowUser, setIsCreatingShadowUser] = useState(false);
+
+  // Bottom sheet for people search
+  const bottomSheetRef = useRef<BottomSheet>(null);
+  // Track selection in a ref so the sheet close handler doesn't close stale over it
+  const hasSelectedTargetRef = useRef(hasPreselection);
+  useEffect(() => { hasSelectedTargetRef.current = hasSelectedTarget; }, [hasSelectedTarget]);
+
+  // Auto-open the sheet when landing in search mode
+  useEffect(() => {
+    if (isSearchMode) {
+      const timer = setTimeout(() => bottomSheetRef.current?.expand(), 150);
+      return () => clearTimeout(timer);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Form state
   const [description, setDescription] = useState('');
@@ -133,110 +143,76 @@ export default function AddExpenseScreen() {
   const cardBg = isDark ? colors.gray[800] : colors.white;
   const borderColor = isDark ? colors.gray[700] : colors.gray[200];
 
-  // Trigger search on query change
-  useEffect(() => {
-    if (isSearchMode && !hasSelectedTarget) {
-      search(searchQuery);
-    }
-  }, [searchQuery, isSearchMode, hasSelectedTarget, search]);
-
-  // Handle search result selection
-  const handleSelectSearchResult = useCallback(async (result: SearchResult) => {
-    setShowSearchResults(false);
+  // Group selected from sheet
+  const handleSelectGroup = useCallback((group: SearchResultGroup) => {
     setHasSelectedTarget(true);
+    Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_GROUP_SELECTED, { group_id: group.id });
+    setResolvedGroupId(group.id);
+    setSelectedFriendId(undefined);
+    setSelectedFriendName(undefined);
+  }, []);
 
-    if (result.type === 'group') {
-      // Selected a group
-      Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_GROUP_SELECTED, {
-        group_id: result.id,
-      });
-      setResolvedGroupId(result.id);
-      setSelectedFriendId(undefined);
-      setSelectedFriendName(undefined);
+  // Contact selected from sheet — create shadow user when needed
+  const handleSelectContact = useCallback(async (contact: EnrichedContact) => {
+    setHasSelectedTarget(true);
+    Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_CONTACT_SELECTED, {
+      is_existing_user: !!contact.userId,
+    });
+    setSelectedFriendName(contact.name);
+    setSelectedFriendPhone(contact.phone);
+
+    if (contact.userId) {
+      setSelectedFriendId(contact.userId);
     } else {
-      // Selected a contact - need to find or create user
-      const contact = result as SearchResultContact;
-      Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_CONTACT_SELECTED, {
-        is_existing_user: !!contact.userId,
-      });
-      setSelectedFriendName(contact.name);
-      setSelectedFriendPhone(contact.phone);
-      
-      if (contact.userId) {
-        // User already exists in app
-        setSelectedFriendId(contact.userId);
-      } else {
-        // Create shadow user immediately so the form can work with their ID
-        setIsCreatingShadowUser(true);
-        
-        try {
-          // Normalize phone
-          let normalizedPhone = contact.phone.replace(/[\s-]/g, '');
-          if (!normalizedPhone.startsWith('+')) {
-            if (normalizedPhone.startsWith('91') && normalizedPhone.length > 10) {
-              normalizedPhone = `+${normalizedPhone}`;
-            } else {
-              normalizedPhone = `+91${normalizedPhone.replace(/^0/, '')}`;
-            }
-          }
+      setIsCreatingShadowUser(true);
+      try {
+        const normalizedPhone = normalizePhone(contact.phone);
 
-          // Check if user exists (might have been created by another flow)
-          const { data: existingUser } = await supabase
+        const { data: existingUser } = await supabase
+          .from('users')
+          .select('id')
+          .eq('phone', normalizedPhone)
+          .single();
+
+        if (existingUser) {
+          setSelectedFriendId(existingUser.id);
+        } else {
+          const { data: shadowUser, error: shadowError } = await supabase
             .from('users')
+            .insert({ phone: normalizedPhone, name: contact.name, is_registered: false })
             .select('id')
-            .eq('phone', normalizedPhone)
             .single();
 
-          if (existingUser) {
-            setSelectedFriendId(existingUser.id);
-          } else {
-            // Create shadow user
-            const { data: shadowUser, error: shadowError } = await supabase
+          if (shadowError) {
+            console.error('Failed to create shadow user:', shadowError);
+            const { data: retryUser } = await supabase
               .from('users')
-              .insert({
-                phone: normalizedPhone,
-                name: contact.name,
-                is_registered: false,
-              })
               .select('id')
+              .eq('phone', normalizedPhone)
               .single();
-
-            if (shadowError) {
-              console.error('Failed to create shadow user:', shadowError);
-              // Try to fetch again in case of race condition
-              const { data: retryUser } = await supabase
-                .from('users')
-                .select('id')
-                .eq('phone', normalizedPhone)
-                .single();
-              
-              if (retryUser) {
-                setSelectedFriendId(retryUser.id);
-              } else {
-                // Fall back to storing phone, will handle on submit
-                setSelectedFriendId(undefined);
-              }
-            } else {
-              setSelectedFriendId(shadowUser.id);
-            }
+            setSelectedFriendId(retryUser?.id ?? undefined);
+          } else {
+            setSelectedFriendId(shadowUser.id);
           }
-        } finally {
-          setIsCreatingShadowUser(false);
         }
+      } finally {
+        setIsCreatingShadowUser(false);
       }
     }
   }, []);
 
-  // Clear selection and go back to search
+  // Clear selection — re-opens the sheet in search mode
   const handleClearSelection = useCallback(() => {
     setHasSelectedTarget(false);
     setResolvedGroupId(undefined);
     setSelectedFriendId(undefined);
     setSelectedFriendName(undefined);
     setSelectedFriendPhone(undefined);
-    setSearchQuery('');
     setSplitBetween([]);
-  }, []);
+    if (isSearchMode) {
+      setTimeout(() => bottomSheetRef.current?.expand(), 100);
+    }
+  }, [isSearchMode]);
 
   // Handle direct expense: find or create 1:1 group
   useEffect(() => {
@@ -343,15 +319,7 @@ export default function AddExpenseScreen() {
     // If we have a contact without userId, we need to create shadow user first
     let actualFriendId = selectedFriendId;
     if (!resolvedGroupId && selectedFriendPhone && !actualFriendId && user) {
-      // Normalize phone
-      let normalizedPhone = selectedFriendPhone.replace(/[\s-]/g, '');
-      if (!normalizedPhone.startsWith('+')) {
-        if (normalizedPhone.startsWith('91') && normalizedPhone.length > 10) {
-          normalizedPhone = `+${normalizedPhone}`;
-        } else {
-          normalizedPhone = `+91${normalizedPhone.replace(/^0/, '')}`;
-        }
-      }
+      const normalizedPhone = normalizePhone(selectedFriendPhone);
 
       // Check if user exists
       const { data: existingUser } = await supabase
@@ -527,56 +495,8 @@ export default function AddExpenseScreen() {
     );
   }
 
-  // Render search result item
-  const renderSearchResult = ({ item }: { item: SearchResult }) => {
-    if (item.type === 'group') {
-      const groupResult = item as SearchResultGroup;
-      return (
-        <Pressable
-          onPress={() => handleSelectSearchResult(item)}
-          style={({ pressed }) => [
-            styles.searchResultItem,
-            { backgroundColor: cardBg, opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <Avatar group={groupResult} size={40} />
-          <View style={styles.searchResultInfo}>
-            <Text style={[styles.searchResultName, { color: textColor }]} numberOfLines={1}>
-              {groupResult.name}
-            </Text>
-            <Text style={[styles.searchResultMeta, { color: secondaryTextColor }]}>
-              Group · {groupResult.memberCount} members
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
-        </Pressable>
-      );
-    } else {
-      const contactResult = item as SearchResultContact;
-      return (
-        <Pressable
-          onPress={() => handleSelectSearchResult(item)}
-          style={({ pressed }) => [
-            styles.searchResultItem,
-            { backgroundColor: cardBg, opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <Avatar user={{ name: contactResult.name, avatar_url: contactResult.avatarUrl ?? null }} size={40} />
-          <View style={styles.searchResultInfo}>
-            <Text style={[styles.searchResultName, { color: textColor }]} numberOfLines={1}>
-              {contactResult.name}
-            </Text>
-            <Text style={[styles.searchResultMeta, { color: secondaryTextColor }]}>
-              {contactResult.phone}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
-        </Pressable>
-      );
-    }
-  };
-
   return (
+    <GestureHandlerRootView style={styles.flex}>
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
       {/* Header */}
       <MotiView
@@ -596,77 +516,6 @@ export default function AddExpenseScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Search Mode: Fixed search bar at top */}
-        {isSearchMode && !hasSelectedTarget && (
-          <MotiView
-            from={{ opacity: 0, translateY: -10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 300 }}
-            style={[styles.searchBarFixed, { backgroundColor }]}
-          >
-            <View style={[styles.searchInputContainer, { backgroundColor: cardBg, borderColor }]}>
-              <Ionicons name="search" size={20} color={secondaryTextColor} />
-              <TextInput
-                style={[styles.searchInput, { color: textColor }]}
-                placeholder={contactsOnly ? 'Search contact...' : 'Search group or contact...'}
-                placeholderTextColor={secondaryTextColor}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                onFocus={() => setShowSearchResults(true)}
-                autoFocus
-              />
-              {searchQuery.length > 0 && (
-                <Pressable onPress={() => setSearchQuery('')}>
-                  <Ionicons name="close-circle" size={20} color={secondaryTextColor} />
-                </Pressable>
-              )}
-            </View>
-            {errors.target && (
-              <Text style={styles.errorMessage}>{errors.target}</Text>
-            )}
-          </MotiView>
-        )}
-
-        {/* Search Results - Scrollable area below fixed search bar */}
-        {isSearchMode && !hasSelectedTarget && showSearchResults && (
-          <ScrollView
-            style={styles.flex}
-            contentContainerStyle={styles.searchResultsScrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={[styles.searchResultsContainer, { backgroundColor: cardBg }]}>
-              {isLoadingSearch ? (
-                <View style={styles.searchLoadingContainer}>
-                  <ActivityIndicator size="small" color={colors.primary[500]} />
-                </View>
-              ) : hasContactPermission === false ? (
-                <View style={styles.searchEmptyState}>
-                  <Ionicons name="lock-closed-outline" size={32} color={colors.gray[400]} />
-                  <Text style={[styles.searchEmptyText, { color: secondaryTextColor }]}>
-                    Contact permission required
-                  </Text>
-                </View>
-              ) : displayResults.length === 0 ? (
-                <View style={styles.searchEmptyState}>
-                  <Ionicons name="search-outline" size={32} color={colors.gray[400]} />
-                  <Text style={[styles.searchEmptyText, { color: secondaryTextColor }]}>
-                    {searchQuery ? (isOnline ? 'No results found' : 'No results found (offline: only existing connections shown)') : contactsOnly ? 'Type to search contacts' : 'Type to search'}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.searchResultsList}>
-                  {displayResults.map((item) => (
-                    <View key={`${item.type}-${item.id}`}>
-                      {renderSearchResult({ item })}
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          </ScrollView>
-        )}
-
         {/* Main Form ScrollView - only shown when target is selected */}
         {(hasPreselection || hasSelectedTarget) && (
         <ScrollView
@@ -1025,7 +874,24 @@ export default function AddExpenseScreen() {
         </ScrollView>
         )}
       </KeyboardAvoidingView>
+
+      {/* People search sheet — opens automatically in search mode */}
+      {isSearchMode && (
+        <PeopleSearchSheet
+          ref={bottomSheetRef}
+          title={contactsOnly ? 'Add Contact' : 'Add Expense'}
+          showGroups={!contactsOnly}
+          onGroupSelect={handleSelectGroup}
+          onContactSelect={handleSelectContact}
+          onClose={() => {
+            if (!hasSelectedTargetRef.current) {
+              router.back();
+            }
+          }}
+        />
+      )}
     </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -1080,67 +946,6 @@ const styles = StyleSheet.create({
   },
   scrollContentFlex: {
     flexGrow: 1,
-  },
-  // Search styles
-  searchBarFixed: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  searchResultsScrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 40,
-  },
-  searchSection: {
-    flex: 1,
-  },
-  searchInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-  },
-  searchResultsContainer: {
-    marginTop: 12,
-    borderRadius: 12,
-  },
-  searchResultsList: {
-    // No max height - let it grow naturally
-  },
-  searchLoadingContainer: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  searchEmptyState: {
-    padding: 24,
-    alignItems: 'center',
-    gap: 8,
-  },
-  searchEmptyText: {
-    fontSize: 14,
-  },
-  searchResultItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    gap: 12,
-  },
-  searchResultInfo: {
-    flex: 1,
-  },
-  searchResultName: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  searchResultMeta: {
-    fontSize: 13,
-    marginTop: 2,
   },
   clearButton: {
     padding: 4,
