@@ -361,7 +361,7 @@ export default function CreateGroupScreen() {
                         { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] },
                       ]}
                     >
-                      <Avatar user={{ name: contact.name, avatar_url: null }} size={40} />
+                      <Avatar user={{ name: contact.name, avatar_url: contact.avatarUrl ?? null }} size={40} />
                       <View style={styles.memberInfo}>
                         <Text style={[styles.memberName, { color: textColor }]}>{contact.name}</Text>
                         <Text style={[styles.memberPhone, { color: secondaryTextColor }]}>
