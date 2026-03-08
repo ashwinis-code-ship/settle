@@ -5,10 +5,10 @@
  * Groups by shared group first, then shows individual transaction history.
  */
 
+import { EditSettlementSheet } from '@/components/edit-settlement-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { Image } from 'expo-image';
-import { EditSettlementSheet } from '@/components/edit-settlement-sheet';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
 import { useCallback, useRef, useState } from 'react';
@@ -49,6 +49,7 @@ export default function FriendDetailScreen() {
     isFullySettled,
     hasMoreOlder,
     loadOlderPhase,
+    promoteCurrentPhase,
     isLoadingOlder,
     isLoading,
     error,
@@ -657,6 +658,19 @@ export default function FriendDetailScreen() {
                 <Text style={[styles.settledStateText, { color: secondaryTextColor }]}>
                   You and {friendName.split(' ')[0]} are all square. No one owes anyone.
                 </Text>
+                {olderPhases.length === 0 && (
+                  <Pressable
+                    onPress={promoteCurrentPhase}
+                    style={({ pressed }) => [
+                      styles.viewOlderButton,
+                      { opacity: pressed ? 0.7 : 1, marginTop: 12 },
+                    ]}
+                  >
+                    <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
+                      View history
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             )}
 
@@ -676,7 +690,7 @@ export default function FriendDetailScreen() {
               </View>
             )}
 
-            {hasMoreOlder && (
+            {hasMoreOlder && (!isFullySettled || olderPhases.length > 0) && (
               <View style={styles.viewOlderContainer}>
                 <Pressable
                   onPress={loadOlderPhase}
@@ -690,7 +704,7 @@ export default function FriendDetailScreen() {
                     <ActivityIndicator size="small" color={colors.primary[500]} />
                   ) : (
                     <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
-                      View older transactions
+                      View older expenses
                     </Text>
                   )}
                 </Pressable>

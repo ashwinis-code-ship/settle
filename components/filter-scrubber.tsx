@@ -209,7 +209,7 @@ export function FilterScrubber({
     clearCollapse();
     collapseTimer.current = setTimeout(() => {
       expanded.value = withSpring(0, { damping: 32, stiffness: 250 });
-    }, 1500);
+    }, 500);
   }, [clearCollapse]);
 
   const handleFilterChange = useCallback(

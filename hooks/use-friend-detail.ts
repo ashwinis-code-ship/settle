@@ -51,6 +51,11 @@ interface UseFriendDetailResult {
   hasMoreOlder: boolean;
   /** Load the next older phase (fetch on demand) */
   loadOlderPhase: () => Promise<void>;
+  /**
+   * When isFullySettled, currentPhase holds history that is hidden by the UI.
+   * Call this to move it into olderPhases[0] so it becomes visible.
+   */
+  promoteCurrentPhase: () => void;
   /** Loading state for loadOlderPhase */
   isLoadingOlder: boolean;
   isLoading: boolean;
@@ -437,6 +442,12 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
     isLoadingOlder,
   ]);
 
+  const promoteCurrentPhase = useCallback(() => {
+    if (currentPhase.length === 0) return;
+    setOlderPhases([currentPhase]);
+    setCurrentPhase([]);
+  }, [currentPhase]);
+
   useEffect(() => {
     fetchFriendDetail();
   }, [fetchFriendDetail]);
@@ -453,6 +464,7 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
     hasOlderPhases: hasMoreOlder || olderPhases.length > 0,
     hasMoreOlder,
     loadOlderPhase,
+    promoteCurrentPhase,
     isLoadingOlder,
     isLoading,
     error,
