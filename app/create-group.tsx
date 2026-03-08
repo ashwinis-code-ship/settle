@@ -39,14 +39,6 @@ import { GROUP_EVENTS } from '@/lib/analytics-events';
 import { ContactEntry } from '@/types';
 
 // Utility functions
-const getInitials = (name: string) => {
-  return name
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-};
 
 const formatPhoneLabel = (label?: string) => {
   if (!label) return '';
@@ -369,9 +361,7 @@ export default function CreateGroupScreen() {
                         { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] },
                       ]}
                     >
-                      <View style={[styles.memberAvatar, { backgroundColor: colors.success }]}>
-                        <Text style={styles.memberAvatarText}>{getInitials(contact.name)}</Text>
-                      </View>
+                      <Avatar user={{ name: contact.name, avatar_url: null }} size={40} />
                       <View style={styles.memberInfo}>
                         <Text style={[styles.memberName, { color: textColor }]}>{contact.name}</Text>
                         <Text style={[styles.memberPhone, { color: secondaryTextColor }]}>
@@ -517,18 +507,6 @@ const styles = StyleSheet.create({
   },
   memberItemBorder: {
     borderBottomWidth: 1,
-  },
-  memberAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  memberAvatarText: {
-    color: colors.white,
-    fontSize: 14,
-    fontWeight: '600',
   },
   memberInfo: {
     flex: 1,

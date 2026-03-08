@@ -505,9 +505,7 @@ export default function GroupSettingsScreen() {
                                         ]}
                                     >
                                         <View style={styles.memberInfo}>
-                                            <View style={[styles.avatar, { backgroundColor: isMe ? colors.primary[500] : colors.gray[400] }]}>
-                                                <Text style={styles.avatarText}>{memberName.substring(0, 1).toUpperCase()}</Text>
-                                            </View>
+                                            <Avatar user={member.user} size={40} style={{ marginRight: 12 }} />
                                             <View style={styles.memberText}>
                                                 <Text style={[styles.memberName, { color: textColor }]}>
                                                     {memberName} {isMemberAdmin && <Text style={{ fontSize: 12, color: colors.primary[500] }}>(Admin)</Text>}
@@ -656,19 +654,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         flex: 1,
-    },
-    avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 12,
-    },
-    avatarText: {
-        color: 'white',
-        fontWeight: '600',
-        fontSize: 16,
     },
     memberText: {
         flex: 1,

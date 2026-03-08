@@ -4,19 +4,12 @@ import * as Contacts from 'expo-contacts';
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
 
+import { Avatar } from '@/components/ui/avatar';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ContactEntry } from '@/types';
 
 // Utility functions
-const getInitials = (name: string) => {
-    return name
-        .split(' ')
-        .map(n => n[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2);
-};
 
 const formatPhoneLabel = (label?: string) => {
     if (!label) return '';
@@ -56,14 +49,7 @@ const ContactItem = ({
                 },
             ]}
         >
-            <View
-                style={[
-                    styles.contactAvatar,
-                    { backgroundColor: isSelected ? primaryColor : colors.gray[400] },
-                ]}
-            >
-                <Text style={styles.contactAvatarText}>{getInitials(item.name)}</Text>
-            </View>
+            <Avatar user={{ name: item.name, avatar_url: null }} size={44} />
 
             <View style={styles.contactInfo}>
                 <Text style={[styles.contactName, { color: textColor }]} numberOfLines={1}>
@@ -400,18 +386,6 @@ const styles = StyleSheet.create({
         marginBottom: 8,
         borderWidth: 1,
     } as ViewStyle,
-    contactAvatar: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        alignItems: 'center',
-        justifyContent: 'center',
-    } as ViewStyle,
-    contactAvatarText: {
-        color: colors.white,
-        fontSize: 14,
-        fontWeight: '600',
-    } as TextStyle,
     contactInfo: {
         flex: 1,
         marginLeft: 12,

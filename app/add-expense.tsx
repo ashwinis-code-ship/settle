@@ -28,6 +28,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { colors } from '@/constants/colors';
@@ -495,14 +496,6 @@ export default function AddExpenseScreen() {
     });
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
 
   // Show loading while setting up group (either loading existing or creating direct)
   // In search mode, don't show loading until user has selected something
@@ -546,9 +539,7 @@ export default function AddExpenseScreen() {
             { backgroundColor: cardBg, opacity: pressed ? 0.7 : 1 },
           ]}
         >
-          <View style={[styles.searchResultIcon, { backgroundColor: colors.primary[100] }]}>
-            <Ionicons name="people" size={20} color={colors.primary[500]} />
-          </View>
+          <Avatar group={groupResult} size={40} />
           <View style={styles.searchResultInfo}>
             <Text style={[styles.searchResultName, { color: textColor }]} numberOfLines={1}>
               {groupResult.name}
@@ -570,11 +561,7 @@ export default function AddExpenseScreen() {
             { backgroundColor: cardBg, opacity: pressed ? 0.7 : 1 },
           ]}
         >
-          <View style={[styles.searchResultAvatar, { backgroundColor: contactResult.userId ? colors.primary[500] : colors.gray[400] }]}>
-            <Text style={styles.searchResultAvatarText}>
-              {getInitials(contactResult.name)}
-            </Text>
-          </View>
+          <Avatar user={{ name: contactResult.name, avatar_url: contactResult.avatarUrl ?? null }} size={40} />
           <View style={styles.searchResultInfo}>
             <Text style={[styles.searchResultName, { color: textColor }]} numberOfLines={1}>
               {contactResult.name}
@@ -891,11 +878,9 @@ export default function AddExpenseScreen() {
             >
               {paidBy ? (
                 <View style={styles.selectedMember}>
-                  <View style={[styles.memberAvatar, { backgroundColor: colors.primary[500] }]}>
-                    <Text style={styles.memberAvatarText}>
-                      {getInitials(getMember(paidBy)?.user.name || 'You')}
-                    </Text>
-                  </View>
+                  {getMember(paidBy) && (
+                    <Avatar user={getMember(paidBy)!.user} size={32} style={{ marginRight: 10 }} />
+                  )}
                   <Text style={[styles.selectorText, { color: textColor }]}>
                     {paidBy === user?.id ? 'You' : getMember(paidBy)?.user.name || 'Unknown'}
                   </Text>
@@ -926,11 +911,7 @@ export default function AddExpenseScreen() {
                       setShowPaidByPicker(false);
                     }}
                   >
-                    <View style={[styles.memberAvatar, { backgroundColor: colors.gray[400] }]}>
-                      <Text style={styles.memberAvatarText}>
-                        {getInitials(member.user.name)}
-                      </Text>
-                    </View>
+                    <Avatar user={member.user} size={32} style={{ marginRight: 10 }} />
                     <Text style={[styles.memberName, { color: textColor }]}>
                       {member.user_id === user?.id ? 'You' : member.user.name}
                     </Text>
@@ -969,18 +950,7 @@ export default function AddExpenseScreen() {
                     onPress={() => toggleMemberInSplit(member.user_id)}
                   >
                     <View style={styles.splitMemberInfo}>
-                      <View
-                        style={[
-                          styles.memberAvatar,
-                          {
-                            backgroundColor: isSelected ? colors.primary[500] : colors.gray[400],
-                          },
-                        ]}
-                      >
-                        <Text style={styles.memberAvatarText}>
-                          {getInitials(member.user.name)}
-                        </Text>
-                      </View>
+                      <Avatar user={member.user} size={32} style={{ marginRight: 10 }} />
                       <Text style={[styles.memberName, { color: textColor }]}>
                         {member.user_id === user?.id ? 'You' : member.user.name}
                       </Text>
@@ -1161,25 +1131,6 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 12,
   },
-  searchResultIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchResultAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchResultAvatarText: {
-    color: colors.white,
-    fontSize: 14,
-    fontWeight: '600',
-  },
   searchResultInfo: {
     flex: 1,
   },
@@ -1332,19 +1283,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-  },
-  memberAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  memberAvatarText: {
-    color: colors.white,
-    fontSize: 12,
-    fontWeight: '600',
   },
   memberName: {
     flex: 1,

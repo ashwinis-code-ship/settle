@@ -22,6 +22,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { colors } from '@/constants/colors';
@@ -235,15 +236,6 @@ export default function ExpenseDetailScreen() {
   const formatCurrency = (value: number, currency: CurrencyCode) => {
     const currencyInfo = CURRENCIES[currency];
     return `${currencyInfo.symbol}${value.toFixed(2)}`;
-  };
-
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
   };
 
   if (isLoading) {
@@ -470,11 +462,9 @@ export default function ExpenseDetailScreen() {
                 >
                   {paidBy ? (
                     <View style={styles.selectedMember}>
-                      <View style={[styles.avatarSmall, { backgroundColor: colors.primary[500] }]}>
-                        <Text style={styles.avatarTextSmall}>
-                          {getInitials(group.members.find(m => m.user_id === paidBy)?.user.name || '')}
-                        </Text>
-                      </View>
+                      {group.members.find(m => m.user_id === paidBy) && (
+                        <Avatar user={group.members.find(m => m.user_id === paidBy)!.user} size={32} />
+                      )}
                       <Text style={[styles.paidByName, { color: textColor, marginLeft: 10 }]}>
                         {paidBy === user?.id ? 'You' : group.members.find(m => m.user_id === paidBy)?.user.name}
                       </Text>
@@ -501,9 +491,7 @@ export default function ExpenseDetailScreen() {
                           setShowPaidByPicker(false);
                         }}
                       >
-                        <View style={[styles.avatarSmall, { backgroundColor: colors.primary[500] }]}>
-                          <Text style={styles.avatarTextSmall}>{getInitials(member.user.name)}</Text>
-                        </View>
+                        <Avatar user={member.user} size={32} />
                         <Text style={[styles.memberPickerName, { color: textColor }]}>
                           {member.user_id === user?.id ? 'You' : member.user.name}
                         </Text>
@@ -517,11 +505,7 @@ export default function ExpenseDetailScreen() {
               </>
             ) : (
               <View style={styles.paidByRow}>
-                <View style={[styles.avatar, { backgroundColor: colors.primary[500] }]}>
-                  <Text style={styles.avatarText}>
-                    {getInitials(expense.paid_by_user.name)}
-                  </Text>
-                </View>
+                <Avatar user={expense.paid_by_user} size={40} />
                 <Text style={[styles.paidByName, { color: textColor }]}>
                   {expense.paid_by_user.id === user?.id ? 'You' : expense.paid_by_user.name}
                 </Text>
@@ -561,16 +545,7 @@ export default function ExpenseDetailScreen() {
                     onPress={() => toggleMemberInSplit(member.user_id)}
                   >
                     <View style={styles.splitUser}>
-                      <View
-                        style={[
-                          styles.avatarSmall,
-                          { backgroundColor: isSelected ? colors.primary[500] : colors.gray[400] },
-                        ]}
-                      >
-                        <Text style={styles.avatarTextSmall}>
-                          {getInitials(member.user.name)}
-                        </Text>
-                      </View>
+                      <Avatar user={member.user} size={32} />
                       <Text style={[styles.splitName, { color: textColor }]}>
                         {member.user_id === user?.id ? 'You' : member.user.name}
                       </Text>
@@ -613,11 +588,7 @@ export default function ExpenseDetailScreen() {
                   ]}
                 >
                   <View style={styles.splitUser}>
-                    <View style={[styles.avatarSmall, { backgroundColor: colors.gray[400] }]}>
-                      <Text style={styles.avatarTextSmall}>
-                        {getInitials(split.user.name)}
-                      </Text>
-                    </View>
+                    <Avatar user={split.user} size={32} />
                     <Text style={[styles.splitName, { color: textColor }]}>
                       {split.user_id === user?.id ? 'You' : split.user.name}
                     </Text>
@@ -656,8 +627,8 @@ export default function ExpenseDetailScreen() {
             </MotiView>
           )}
 
-          {/* Group Info */}
-          {group && (
+          {/* Group Info — hidden for 1:1 direct groups */}
+          {group && group.type !== 'direct' && (
             <MotiView
               from={{ opacity: 0, translateY: 10 }}
               animate={{ opacity: 1, translateY: 0 }}
@@ -666,9 +637,7 @@ export default function ExpenseDetailScreen() {
             >
               <Text style={[styles.cardLabel, { color: secondaryTextColor }]}>Group</Text>
               <View style={styles.groupRow}>
-                <View style={[styles.groupIcon, { backgroundColor: colors.primary[100] }]}>
-                  <Ionicons name="people" size={18} color={colors.primary[500]} />
-                </View>
+                <Avatar group={group} size={36} />
                 <Text style={[styles.groupName, { color: textColor }]}>{group.name}</Text>
               </View>
             </MotiView>
@@ -823,18 +792,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: colors.white,
-    fontSize: 14,
-    fontWeight: '600',
-  },
   paidByName: {
     fontSize: 16,
     fontWeight: '500',
@@ -851,18 +808,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  avatarSmall: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarTextSmall: {
-    color: colors.white,
-    fontSize: 11,
-    fontWeight: '600',
-  },
   splitName: {
     fontSize: 15,
     marginLeft: 10,
@@ -874,13 +819,6 @@ const styles = StyleSheet.create({
   groupRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  groupIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   groupName: {
     fontSize: 16,
