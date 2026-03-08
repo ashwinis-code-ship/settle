@@ -9,6 +9,7 @@
     "ios": "expo run:ios",
     "lint": "expo lint",
     "build": "npx expo export",
+    "prebuild": "npx expo prebuild --clean",
     "link": "supabase link --project-ref lxlxeotdanecurofzxzk",
     "db:push": "supabase db push",
     "functions:deploy": "supabase functions deploy --no-verify-jwt",

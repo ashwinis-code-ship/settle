@@ -5,10 +5,11 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
+import BottomSheet from '@gorhom/bottom-sheet';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import {
     Alert,
     FlatList,
@@ -18,8 +19,10 @@ import {
     Text,
     View,
 } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { GroupSettleSheet } from '@/components/group-settle-sheet';
 import { ContributionBar } from '@/components/ui/contribution-bar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PendingBadge } from '@/components/ui/offline-banner';
@@ -112,6 +115,13 @@ export default function GroupDetailScreen() {
     router.push(`/expense/${expenseId}`);
   }, []);
 
+  const settleSheetRef = useRef<BottomSheet>(null);
+
+  const handleSettleUp = useCallback(() => {
+    hapticLight();
+    settleSheetRef.current?.expand();
+  }, []);
+
   // Sort balances — current user first, then by net balance descending
   const sortedBalances = useMemo(() => {
     if (!group?.balances) return [];
@@ -181,16 +191,33 @@ export default function GroupDetailScreen() {
         style={styles.expensesHeader}
       >
         <Text style={[styles.sectionTitle, { color: textColor }]}>Activity</Text>
-        <Pressable
-          onPress={handleAddExpense}
-          style={({ pressed }) => [
-            styles.addExpenseButton,
-            { backgroundColor: colors.primary[500], opacity: pressed ? 0.8 : 1 },
-          ]}
-        >
-          <Ionicons name="add" size={18} color={colors.white} />
-          <Text style={styles.addExpenseText}>Add</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          {(group?.members.length ?? 0) > 1 && (
+            <Pressable
+              onPress={handleSettleUp}
+              style={({ pressed }) => [
+                styles.settleButton,
+                {
+                  borderColor: colors.primary[500],
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Ionicons name="swap-horizontal" size={15} color={colors.primary[500]} />
+              <Text style={[styles.settleButtonText, { color: colors.primary[500] }]}>Settle</Text>
+            </Pressable>
+          )}
+          <Pressable
+            onPress={handleAddExpense}
+            style={({ pressed }) => [
+              styles.addExpenseButton,
+              { backgroundColor: colors.primary[500], opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <Ionicons name="add" size={18} color={colors.white} />
+            <Text style={styles.addExpenseText}>Add</Text>
+          </Pressable>
+        </View>
       </MotiView>
     </>
   );
@@ -326,6 +353,7 @@ export default function GroupDetailScreen() {
   }
 
   return (
+    <GestureHandlerRootView style={styles.flex}>
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
       {/* Header */}
       <MotiView
@@ -370,10 +398,25 @@ export default function GroupDetailScreen() {
         }
       />
     </SafeAreaView>
+
+    {/* Settle Up bottom sheet — rendered outside SafeAreaView so it covers the full screen */}
+    {group && user && (
+      <GroupSettleSheet
+        ref={settleSheetRef}
+        group={group}
+        currentUserId={user.id}
+        isDark={isDark}
+        onClose={() => settleSheetRef.current?.close()}
+      />
+    )}
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   container: {
     flex: 1,
   },
@@ -460,6 +503,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 12,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  settleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    gap: 4,
+  },
+  settleButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   addExpenseButton: {
     flexDirection: 'row',
