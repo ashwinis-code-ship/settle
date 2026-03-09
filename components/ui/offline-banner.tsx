@@ -12,10 +12,7 @@ import { MotiView } from 'moti';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export function OfflineBanner() {
-  const { isOnline, pendingCount, syncStatus, lastSyncTime } = useSync();
-
-  // Don't show if online
-  if (isOnline) return null;
+  const { pendingCount, syncStatus, lastSyncTime } = useSync();
 
   // Format last sync text
   const lastSyncText = lastSyncTime

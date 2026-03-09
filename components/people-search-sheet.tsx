@@ -26,6 +26,7 @@ import {
 } from 'react-native';
 
 import { Avatar } from '@/components/ui/avatar';
+import { Checkbox } from '@/components/ui/checkbox';
 import { SkeletonContactList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -216,15 +217,7 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
               </Text>
             </View>
             {isMultiSelect && (
-              <View
-                style={[
-                  styles.checkbox,
-                  isSelected && styles.checkboxSelected,
-                  { borderColor: isSelected ? colors.primary[500] : colors.gray[400] },
-                ]}
-              >
-                {isSelected && <Ionicons name="checkmark" size={16} color={colors.white} />}
-              </View>
+              <Checkbox checked={isSelected} />
             )}
           </Pressable>
         );
@@ -470,18 +463,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   } as TextStyle,
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  } as ViewStyle,
-  checkboxSelected: {
-    backgroundColor: colors.primary[500],
-    borderColor: colors.primary[500],
-  } as ViewStyle,
   stateContainer: {
     alignItems: 'center',
     justifyContent: 'center',

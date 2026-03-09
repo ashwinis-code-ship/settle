@@ -32,6 +32,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PeopleSearchSheet } from '@/components/people-search-sheet';
 import { Avatar } from '@/components/ui/avatar';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { colors } from '@/constants/colors';
@@ -819,21 +820,7 @@ export default function AddExpenseScreen() {
                           {CURRENCIES[currency].symbol}{splitAmount.toFixed(2)}
                         </Text>
                       )}
-                      <MotiView
-                        animate={{
-                          backgroundColor: isSelected ? colors.primary[500] : 'transparent',
-                          borderColor: isSelected ? colors.primary[500] : borderColor,
-                        }}
-                        transition={{ type: 'timing', duration: 110 }}
-                        style={[styles.checkbox, { borderColor }]}
-                      >
-                        <MotiView
-                          animate={{ scale: isSelected ? 1 : 0, opacity: isSelected ? 1 : 0 }}
-                          transition={{ type: 'spring', damping: 28, stiffness: 500 }}
-                        >
-                          <Ionicons name="checkmark" size={14} color={colors.white} />
-                        </MotiView>
-                      </MotiView>
+                      <Checkbox checked={isSelected} borderColor={borderColor} />
                     </View>
                   </Pressable>
                 );
@@ -1127,14 +1114,6 @@ const styles = StyleSheet.create({
   splitAmount: {
     fontSize: 14,
     fontWeight: '500',
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   submitContainer: {
     marginTop: 24,

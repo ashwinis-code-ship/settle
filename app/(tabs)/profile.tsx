@@ -20,7 +20,7 @@ import {
     TextInput,
     View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/ui/avatar';
 import { colors } from '@/constants/colors';
@@ -36,6 +36,7 @@ import { CURRENCIES, type CurrencyCode } from '@/types/database';
 export default function ProfileScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
+  const insets = useSafeAreaInsets();
   const { user: authUser, signOut } = useAuth();
   const { isOnline } = useSync();
   const { user, updateUser, isLoading: isUserLoading, refresh } = useUser();
@@ -506,7 +507,7 @@ export default function ProfileScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 89 }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -839,7 +840,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 40,
   },
   header: {
     marginBottom: 24,

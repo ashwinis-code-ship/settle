@@ -287,7 +287,7 @@ export default function GroupsScreen() {
     </MotiView>
   );
 
-  const scrubberBottom = insets.bottom + 12;
+  const scrubberBottom = insets.bottom + 61;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

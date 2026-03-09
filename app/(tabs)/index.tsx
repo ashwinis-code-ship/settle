@@ -11,7 +11,7 @@ import { FlashList } from '@shopify/flash-list';
 import { MotiView } from 'moti';
 import { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -123,7 +123,7 @@ function HomeHeader() {
           styles.balanceCard,
           {
             backgroundColor: balanceSummary.netBalance >= 0
-              ? colors.primary[500]
+              ? colors.success
               : colors.error,
           },
         ]}
@@ -243,6 +243,7 @@ function HomeHeader() {
 export default function HomeScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
+  const insets = useSafeAreaInsets();
   const { user } = useUser();
   const { isOnline } = useSync();
   const { friends, isLoading: isLoadingFriends, refresh: refreshFriends } = useFriends();
@@ -351,7 +352,7 @@ export default function HomeScreen() {
               <Ionicons
                 name={isSettlement ? 'swap-horizontal' : 'receipt-outline'}
                 size={18}
-                color={isSettlement ? colors.primary[500] : colors.gray[600]}
+                color={isSettlement ? colors.success : colors.gray[600]}
               />
             )}
           </View>
@@ -384,7 +385,7 @@ export default function HomeScreen() {
           {/* Amount */}
           <View style={styles.activityAmountContainer}>
             {isSettlement ? (
-              <Text style={[styles.activityAmount, { color: colors.primary[500] }]}>
+              <Text style={[styles.activityAmount, { color: colors.success }]}>
                 {formatCurrency(item.amount, item.currency)}
               </Text>
             ) : (
@@ -436,7 +437,7 @@ export default function HomeScreen() {
             </View>
           )
         }
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: insets.bottom + 73 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -464,7 +465,6 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 24,
   },
   header: {
     flexDirection: 'row',
