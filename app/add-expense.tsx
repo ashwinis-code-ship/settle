@@ -823,14 +823,13 @@ export default function AddExpenseScreen() {
                         animate={{
                           backgroundColor: isSelected ? colors.primary[500] : 'transparent',
                           borderColor: isSelected ? colors.primary[500] : borderColor,
-                          scale: isSelected ? 1 : 1,
                         }}
-                        transition={{ type: 'spring', damping: 18, stiffness: 280 }}
+                        transition={{ type: 'timing', duration: 110 }}
                         style={[styles.checkbox, { borderColor }]}
                       >
                         <MotiView
                           animate={{ scale: isSelected ? 1 : 0, opacity: isSelected ? 1 : 0 }}
-                          transition={{ type: 'spring', damping: 15, stiffness: 280 }}
+                          transition={{ type: 'spring', damping: 28, stiffness: 500 }}
                         >
                           <Ionicons name="checkmark" size={14} color={colors.white} />
                         </MotiView>
