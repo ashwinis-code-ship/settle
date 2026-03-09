@@ -86,7 +86,7 @@ export default function FriendDetailScreen() {
     const items: FriendActivityItem[] = [];
 
     if (isFullySettled) {
-      items.push({ kind: 'fully_settled', showViewHistory: olderPhases.length === 0 && hasMoreOlder });
+      items.push({ kind: 'fully_settled', showViewHistory: olderPhases.length === 0 && (hasMoreOlder || currentPhase.length > 0) });
     } else {
       currentPhase.forEach((tx, idx) => items.push({ kind: 'transaction', data: tx, listIndex: idx }));
     }
@@ -592,7 +592,7 @@ export default function FriendDetailScreen() {
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: textColor }]}>All Transactions</Text>
               <Text style={[styles.sectionSubtitle, { color: secondaryTextColor }]}>
-                {isFullySettled && hasMoreOlder && olderPhases.length === 0
+                {isFullySettled && olderPhases.length === 0 && (hasMoreOlder || currentPhase.length > 0)
                   ? 'View history'
                   : `${currentPhase.length + olderPhases.flat().length} item${(currentPhase.length + olderPhases.flat().length) !== 1 ? 's' : ''}`}
               </Text>
