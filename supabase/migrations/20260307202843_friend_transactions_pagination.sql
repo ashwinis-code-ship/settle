@@ -1,5 +1,6 @@
--- Paginated friend transactions for settlement phase feature
--- Returns combined expenses + settlements between two users with cursor-based pagination
+-- Paginated friend transactions for settlement phase feature.
+-- Returns combined expenses + settlements between two users with cursor-based pagination.
+-- Initial version: basic return shape (no category, no group_type).
 
 CREATE OR REPLACE FUNCTION get_friend_transactions(
   p_user1_id UUID,
@@ -23,7 +24,6 @@ RETURNS TABLE (
 DECLARE
   shared_group_ids UUID[];
 BEGIN
-  -- Get shared group IDs (both users are members, group not deleted)
   SELECT ARRAY_AGG(DISTINCT gm1.group_id) INTO shared_group_ids
   FROM public.group_members gm1
   JOIN public.group_members gm2 ON gm1.group_id = gm2.group_id
@@ -37,7 +37,7 @@ BEGIN
   END IF;
 
   RETURN QUERY
-  WITH   expense_impacts AS (
+  WITH expense_impacts AS (
     SELECT
       e.id,
       'expense'::TEXT,
@@ -88,7 +88,8 @@ BEGIN
     UNION ALL
     SELECT * FROM settlement_rows
   )
-  SELECT c.id, c.type, c.description, c.amount, c.currency, c.created_at, c.group_id, c.group_name, c.notes, c.paid_by
+  SELECT c.id, c.type, c.description, c.amount, c.currency, c.created_at,
+         c.group_id, c.group_name, c.notes, c.paid_by
   FROM combined c
   WHERE
     (p_cursor_created_at IS NULL)
