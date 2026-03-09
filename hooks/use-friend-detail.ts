@@ -285,7 +285,7 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
       const groupBalancesArray: GroupBalance[] = [];
       for (const [groupId, data] of groupBalanceMap.entries()) {
         const gi = groupMap.get(groupId);
-        if (gi && data.count > 0 && gi.type === 'group') {
+        if (gi && gi.type === 'group') {
           groupBalancesArray.push({
             group_id: groupId,
             group_name: gi.name,
