@@ -451,32 +451,60 @@ export default function FriendDetailScreen() {
   const renderFullySettledState = useCallback((showViewHistory: boolean) => {
     const friendName = friend?.user.name || params.name || 'Friend';
     return (
-      <View style={[styles.settledState, { backgroundColor: cardBg }]}>
-        <View style={[styles.settledStateIcon, { backgroundColor: colors.success + '20' }]}>
-          <Ionicons name="checkmark-circle" size={48} color={colors.success} />
-        </View>
-        <Text style={[styles.settledStateTitle, { color: textColor }]}>
-          All settled up!
-        </Text>
-        <Text style={[styles.settledStateText, { color: secondaryTextColor }]}>
-          You and {friendName.split(' ')[0]} are all square. No one owes anyone.
-        </Text>
+      <MotiView
+        from={{ opacity: 0, scale: 0.85 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 180, delay: 100 }}
+        style={[styles.settledState, { backgroundColor: cardBg }]}
+      >
+        {/* Pulsing checkmark — signals "done", keeps the state alive */}
+        <MotiView
+          from={{ scale: 1 }}
+          animate={{ scale: 1.08 }}
+          transition={{ type: 'timing', duration: 900, loop: true, repeatReverse: true }}
+        >
+          <View style={[styles.settledStateIcon, { backgroundColor: colors.success + '20' }]}>
+            <Ionicons name="checkmark-circle" size={48} color={colors.success} />
+          </View>
+        </MotiView>
+
+        {/* Staggered text — enters 150ms after the icon */}
+        <MotiView
+          from={{ opacity: 0, translateY: 8 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 200, delay: 250 }}
+        >
+          <Text style={[styles.settledStateTitle, { color: textColor }]}>
+            All settled up!
+          </Text>
+          <Text style={[styles.settledStateText, { color: secondaryTextColor }]}>
+            You and {friendName.split(' ')[0]} are all square.
+          </Text>
+        </MotiView>
+
+        {/* View history — fades in last */}
         {showViewHistory && (
-          <Pressable onPress={promoteCurrentPhase} style={{ marginTop: 12 }}>
-            {({ pressed }) => (
-              <MotiView
-                animate={{ scale: pressed ? 0.95 : 1, opacity: pressed ? 0.75 : 1 }}
-                transition={{ type: 'spring', damping: 18, stiffness: 300 }}
-                style={styles.viewOlderPill}
-              >
-                <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
-                  View history
-                </Text>
-              </MotiView>
-            )}
-          </Pressable>
+          <MotiView
+            from={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ type: 'timing', duration: 300, delay: 450 }}
+          >
+            <Pressable onPress={promoteCurrentPhase} style={{ marginTop: 12 }}>
+              {({ pressed }) => (
+                <MotiView
+                  animate={{ scale: pressed ? 0.95 : 1, opacity: pressed ? 0.75 : 1 }}
+                  transition={{ type: 'spring', damping: 18, stiffness: 300 }}
+                  style={styles.viewOlderPill}
+                >
+                  <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
+                    View history
+                  </Text>
+                </MotiView>
+              )}
+            </Pressable>
+          </MotiView>
         )}
-      </View>
+      </MotiView>
     );
   }, [cardBg, textColor, secondaryTextColor, friend?.user.name, params.name, promoteCurrentPhase]);
 

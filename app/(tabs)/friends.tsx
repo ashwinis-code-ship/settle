@@ -10,7 +10,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import { Avatar } from '@/components/ui/avatar';
 import { FlashList } from '@shopify/flash-list';
-import { MotiView } from 'moti';
+import { AnimatePresence, MotiView } from 'moti';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
     Alert,
@@ -224,18 +224,41 @@ export default function FriendsScreen() {
     );
   };
 
-  const renderEmptyState = () => (
-    <EmptyState
-      icon="person-add-outline"
-      title="No friends yet"
-      description="Add an expense with someone to see them here"
-      actionLabel="Add Expense"
-      onAction={() => {
-        hapticLight();
-        router.push('/add-expense');
-      }}
-    />
-  );
+  const FILTER_EMPTY_MESSAGES: Record<FilterType, { title: string; description: string; icon: string }> = {
+    all:         { title: 'No friends yet',     description: 'Add an expense with someone to see them here', icon: 'people-outline' },
+    outstanding: { title: 'All balanced',       description: 'No outstanding balances right now — nice!',    icon: 'checkmark-circle-outline' },
+    i_owe:       { title: 'Nothing to pay',     description: "You don't owe anyone right now.",               icon: 'arrow-up-circle-outline'  },
+    they_owe:    { title: 'Nothing to collect', description: 'No one owes you right now.',                    icon: 'arrow-down-circle-outline' },
+  };
+
+  const renderEmptyState = () => {
+    const hasNoFriendsAtAll = friends.length === 0;
+    const msg = hasNoFriendsAtAll
+      ? FILTER_EMPTY_MESSAGES.all
+      : FILTER_EMPTY_MESSAGES[activeFilter];
+
+    return (
+      <AnimatePresence>
+        <MotiView
+          key={hasNoFriendsAtAll ? 'no-friends' : activeFilter}
+          from={{ opacity: 0, scale: 0.94, translateY: 10 }}
+          animate={{ opacity: 1, scale: 1, translateY: 0 }}
+          exit={{ opacity: 0, scale: 0.94 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+        >
+          <EmptyState
+            icon={msg.icon as 'people-outline'}
+            title={msg.title}
+            description={msg.description}
+            {...(hasNoFriendsAtAll ? {
+              actionLabel: 'Add Expense',
+              onAction: () => { hapticLight(); router.push('/add-expense'); },
+            } : {})}
+          />
+        </MotiView>
+      </AnimatePresence>
+    );
+  };
 
   const renderHeader = () => (
     <MotiView
@@ -249,8 +272,6 @@ export default function FriendsScreen() {
         <Text style={[styles.headerSubtitle, { color: secondaryTextColor }]}>
           {displayedFriends.length > 0
             ? `${displayedFriends.length} of ${friends.length} friend${friends.length !== 1 ? 's' : ''}`
-            : friends.length > 0
-            ? 'No friends match this filter'
             : 'Split and see who owes what'}
         </Text>
       </View>

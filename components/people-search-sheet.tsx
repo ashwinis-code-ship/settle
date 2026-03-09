@@ -13,6 +13,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet, { BottomSheetFlashList, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import { MotiView } from 'moti';
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Linking,
@@ -232,10 +233,21 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
     );
 
     const renderItem = useCallback(
-      ({ item }: { item: ListItem }) => {
+      ({ item, index }: { item: ListItem; index: number }) => {
         if (item._type === 'sectionHeader') return renderSectionHeader(item.label);
-        if (item._type === 'group') return renderGroupRow(item.data);
-        return renderContactRow(item.data);
+        const delay = Math.min(index * 45, 280);
+        const row = item._type === 'group'
+          ? renderGroupRow(item.data)
+          : renderContactRow(item.data);
+        return (
+          <MotiView
+            from={{ opacity: 0, translateX: -14 }}
+            animate={{ opacity: 1, translateX: 0 }}
+            transition={{ type: 'spring', damping: 22, stiffness: 220, delay }}
+          >
+            {row}
+          </MotiView>
+        );
       },
       [renderSectionHeader, renderGroupRow, renderContactRow]
     );
