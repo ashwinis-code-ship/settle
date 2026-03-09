@@ -19,11 +19,21 @@ import type {
     ExpenseListItem,
     UserSummary,
 } from '@/types';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 
-async function fetchExpenses(groupId: string, userId: string): Promise<ExpenseListItem[]> {
-  // Fetch expenses with paid_by user and category
+const PAGE_SIZE = 50;
+
+interface ExpensePage {
+  items: ExpenseListItem[];
+  nextOffset: number | null;
+}
+
+async function fetchExpensePage(
+  groupId: string,
+  userId: string,
+  offset: number
+): Promise<ExpensePage> {
   const { data: expensesData, error: expensesError } = await supabase
     .from('expenses')
     .select(`
@@ -33,32 +43,32 @@ async function fetchExpenses(groupId: string, userId: string): Promise<ExpenseLi
     `)
     .eq('group_id', groupId)
     .order('expense_date', { ascending: false })
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .range(offset, offset + PAGE_SIZE - 1);
 
   if (expensesError) throw expensesError;
 
-  // Get splits for user's share calculation
-  const expenseIds = (expensesData || []).map((e) => e.id);
-  
-  const { data: splitsData } = await supabase
-    .from('expense_splits')
-    .select('expense_id, user_id, amount')
-    .in('expense_id', expenseIds);
+  const rows = expensesData || [];
 
-  // Build splits map
+  // Fetch splits for this page's expenses only
+  const expenseIds = rows.map((e) => e.id);
   const splitsMap: Record<string, { user_id: string; amount: number }[]> = {};
-  splitsData?.forEach((split) => {
-    if (!splitsMap[split.expense_id]) {
-      splitsMap[split.expense_id] = [];
-    }
-    splitsMap[split.expense_id].push(split);
-  });
 
-  // Transform to ExpenseListItem
-  const expensesList: ExpenseListItem[] = (expensesData || []).map((e) => {
+  if (expenseIds.length > 0) {
+    const { data: splitsData } = await supabase
+      .from('expense_splits')
+      .select('expense_id, user_id, amount')
+      .in('expense_id', expenseIds);
+
+    splitsData?.forEach((split) => {
+      if (!splitsMap[split.expense_id]) splitsMap[split.expense_id] = [];
+      splitsMap[split.expense_id].push(split);
+    });
+  }
+
+  const items: ExpenseListItem[] = rows.map((e) => {
     const splits = splitsMap[e.id] || [];
     const userSplit = splits.find((s) => s.user_id === userId);
-    const youPaid = e.paid_by === userId;
 
     return {
       id: e.id,
@@ -68,16 +78,20 @@ async function fetchExpenses(groupId: string, userId: string): Promise<ExpenseLi
       paid_by: e.paid_by_user as UserSummary,
       category: e.category as DbCategory | null,
       expense_date: e.expense_date,
+      created_at: e.created_at,
       your_share: userSplit?.amount || 0,
-      you_paid: youPaid,
+      you_paid: e.paid_by === userId,
       split_count: splits.length,
     };
   });
 
-  // Cache the result for offline access
-  await cache.setExpenses(groupId, expensesList);
+  // Cache first page for offline access
+  if (offset === 0) await cache.setExpenses(groupId, items);
 
-  return expensesList;
+  return {
+    items,
+    nextOffset: rows.length === PAGE_SIZE ? offset + PAGE_SIZE : null,
+  };
 }
 
 // Extended expense item with pending status
@@ -90,6 +104,12 @@ export interface ExpenseListItemWithStatus extends ExpenseListItem {
 interface UseExpensesResult {
   expenses: ExpenseListItemWithStatus[];
   isLoading: boolean;
+  /** True while loading additional pages (not the initial load) */
+  isFetchingMore: boolean;
+  /** Whether there are more expense pages to load from the server */
+  hasMoreExpenses: boolean;
+  /** Load the next page of 50 expenses */
+  loadMoreExpenses: () => void;
   error: string | null;
   createExpense: (data: ExpenseFormData, overrideGroupId?: string) => Promise<string | null>;
   deleteExpense: (expenseId: string) => Promise<boolean>;
@@ -110,17 +130,33 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
     }
   }, [groupId]);
 
-  // Query for fetching expenses from server
-  const { data, isLoading, error, refetch } = useQuery({
+  // Paginated query — pages of 50 expenses, accumulated
+  const {
+    data: infiniteData,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    error,
+    refetch,
+  } = useInfiniteQuery({
     queryKey: queryKeys.expenses(groupId || ''),
-    queryFn: () => fetchExpenses(groupId!, user!.id),
+    queryFn: ({ pageParam = 0 }) => fetchExpensePage(groupId!, user!.id, pageParam as number),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
     enabled: !!groupId && !!user && isOnline,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
   });
+
+  // Flatten all fetched pages into one list
+  const allServerExpenses = useMemo(
+    () => infiniteData?.pages.flatMap((p) => p.items) ?? [],
+    [infiniteData]
+  );
 
   // Combine server expenses with pending expenses
   const expenses = useMemo((): ExpenseListItemWithStatus[] => {
-    const serverExpenses: ExpenseListItemWithStatus[] = (data ?? []).map((e) => ({
+    const serverExpenses: ExpenseListItemWithStatus[] = allServerExpenses.map((e) => ({
       ...e,
       isPending: false,
       canEdit: canEditItem(e.id),
@@ -138,6 +174,7 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
       expense_date: p.expense_date,
       your_share: p.splits.find(s => s.user_id === user?.id)?.amount || 0,
       you_paid: p.paid_by === user?.id,
+      created_at: new Date().toISOString(), // pending items are always in the current phase
       split_count: p.splits.length,
       isPending: true,
       canEdit: true, // Pending items are always editable
@@ -152,7 +189,7 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
       // Then by date
       return new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime();
     });
-  }, [data, localPendingExpenses, user?.id, canEditItem]);
+  }, [allServerExpenses, localPendingExpenses, user?.id, canEditItem]);
 
   // Helper to invalidate related queries
   const invalidateQueries = () => {
@@ -300,6 +337,9 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
   return {
     expenses,
     isLoading: isLoading && localPendingExpenses.length === 0,
+    isFetchingMore: isFetchingNextPage,
+    hasMoreExpenses: hasNextPage ?? false,
+    loadMoreExpenses: fetchNextPage,
     error: error ? (error instanceof Error ? error.message : 'Failed to fetch expenses') : mutationError,
     createExpense,
     deleteExpense,

@@ -83,16 +83,37 @@ async function fetchGroups(userId: string): Promise<GroupListItem[]> {
     balanceMap[groupId] = balance;
   });
 
-  // Transform to GroupListItem
-  const groupsList: GroupListItem[] = (groupsData || []).map((g) => ({
-    id: g.id,
-    name: g.name,
-    image_url: g.image_url,
-    currency: g.currency,
-    member_count: memberCounts[g.id] || 1,
-    your_balance: balanceMap[g.id] || 0,
-    last_activity: g.updated_at,
-  }));
+  // Fetch the most recent checkpoint per group so last_activity reflects archives too
+  const { data: checkpointData } = await supabase
+    .from('group_checkpoints')
+    .select('group_id, created_at')
+    .in('group_id', groupIds)
+    .order('created_at', { ascending: false });
+
+  const latestCheckpointMap: Record<string, string> = {};
+  checkpointData?.forEach((cp) => {
+    if (!latestCheckpointMap[cp.group_id]) {
+      latestCheckpointMap[cp.group_id] = cp.created_at;
+    }
+  });
+
+  // Transform to GroupListItem — last_activity = greatest(updated_at, latest checkpoint)
+  const groupsList: GroupListItem[] = (groupsData || []).map((g) => {
+    const groupUpdated = g.updated_at;
+    const latestCheckpoint = latestCheckpointMap[g.id];
+    const lastActivity =
+      latestCheckpoint && latestCheckpoint > groupUpdated ? latestCheckpoint : groupUpdated;
+
+    return {
+      id: g.id,
+      name: g.name,
+      image_url: g.image_url,
+      currency: g.currency,
+      member_count: memberCounts[g.id] || 1,
+      your_balance: balanceMap[g.id] || 0,
+      last_activity: lastActivity,
+    };
+  });
 
   // Cache the transformed list for offline access
   await cache.setGroupsList(groupsList);

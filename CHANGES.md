@@ -50,62 +50,52 @@ Status: `[ ]` pending · `[~]` in progress · `[x]` done
 - [x] Activity header row becomes **"+ Add" only** — no other buttons
 - [x] Add **"Mark phase as done"** as a prominent action in `app/group/[id]/settings.tsx` (stub — wired up once DB migration lands)
 
-### Phase / "Mark as Done" system
+### Phase / "Archive" system
 
-- [ ] Tapping "Mark phase as done" in settings inserts a `group_checkpoint` record with `group_id`, `created_by`, `created_at`
-- [ ] This acts as a **phase boundary** — identical mental model to settlements in friend detail
-- [ ] **Current phase**: all expenses after the most recent checkpoint (or all if no checkpoint)
-  - Spectrum bar and total contribution reflect **current phase only**
-- [ ] **Older phases**: expenses between two checkpoints — collapsed, revealed one phase at a time via "View older" (same UX as friend detail's `loadOlderPhase`)
-- [ ] Each checkpoint renders as an inline divider in the activity list (styled like friend detail's settlement divider):
-  `——— marked as done · 12 Mar ———`
+- [x] Tapping "Archive current expenses" in settings inserts a `group_checkpoint` record with `group_id`, `created_by`, `created_at`
+- [x] This acts as a **phase boundary** — identical mental model to settlements in friend detail
+- [x] **Current phase**: all expenses after the most recent checkpoint (or all if no checkpoint)
+  - Spectrum bar and total contribution reflect **current phase only** (via `get_group_phase_balances` RPC)
+- [x] **Older phases**: expenses between two checkpoints — collapsed, revealed one phase at a time via "View older expenses"
+- [x] Each checkpoint renders as an inline divider: `——— [Name] archived on [date] ———`
   Tappable to **remove** the marker if added by mistake (prompts confirmation)
-- [ ] "View older" button appears below current phase when older phases exist
-- [ ] Removing a checkpoint merges its two adjacent phases back into one
+- [x] "View older expenses" button appears whenever older phases exist (even after new expenses added post-archive)
+- [x] Removing a checkpoint merges its two adjacent phases back into one (automatic — purely computed)
+- [x] "All archived" empty state card shown when current phase is empty (mirrors friend detail's "All settled up!" card)
+- [x] Server-side pagination — expenses fetched 50 at a time via `useInfiniteQuery`; "Load more expenses" row at bottom when more pages exist
+- [x] Settings: button disabled + subtitle updated when current phase is already empty (nothing to archive)
+- [x] After archiving, navigates back to group detail and immediately refetches via `useFocusEffect`
 
 ### Pull-to-refresh / data
-- [ ] `useExpenses` or a new `useGroupPhases` hook needs to be aware of checkpoints to split the list
+- [x] `useGroupPhases` hook (new) handles checkpoints, phase splitting, phase-aware balances, and mutations
 
 ---
 
 ## 3. Friends Detail Screen (`app/friend/[id].tsx`)
 
 ### Shared Groups section
-- [ ] Remove "OWES YOU ₹X" / "YOU OWE ₹X" balance labels from each shared group card
-- [ ] Remove the "Settled" badge
-- [ ] Replace with **transaction count only**: "4 transactions"
-  - If the group has been marked as done (all phases closed), show **"0 active transactions"** or just "completed"
-- [ ] Remove the chevron `>` — or keep it if navigating to group detail is still desired (keep for now)
-- [ ] No monetary amounts anywhere in the shared groups list — eliminates the misleading partial-balance confusion
+- [x] Remove "OWES YOU ₹X" / "YOU OWE ₹X" balance labels from each shared group card
+- [x] Remove the "Settled" badge
+- [x] Show **transaction count only**: "4 transactions" (already present in data)
+- [x] Keep the chevron `>` for navigating to group detail
+- [x] No monetary amounts anywhere in the shared groups list
 
 ---
 
 ## 4. Database / Backend (`supabase/migrations/`)
 
-- [ ] New table (or column): `group_checkpoints`
-  ```sql
-  create table group_checkpoints (
-    id          uuid primary key default gen_random_uuid(),
-    group_id    uuid not null references groups(id) on delete cascade,
-    created_by  uuid not null references users(id),
-    created_at  timestamptz not null default now(),
-    note        text
-  );
-  ```
-- [ ] `groups` list query: add `last_activity_at` — `greatest(max(expense_date), max(checkpoint.created_at))`
-- [ ] Group detail query: return checkpoints alongside expenses so the client can interleave them and split into phases
-- [ ] `useGroup` or new `useGroupPhases` hook: phases derived by splitting the flat expense+checkpoint list at each checkpoint boundary
+- [x] `group_checkpoints` table — migration applied (`add_group_checkpoints`)
+- [x] `get_group_phase_balances` RPC — returns per-member balance scoped to a phase window (`add_get_group_phase_balances_rpc`)
+- [x] `groups` list query: `last_activity` now uses `greatest(groups.updated_at, max(expense.created_at), max(checkpoint.created_at))` — updated in `fetchGroups`
+- [x] Group detail: checkpoints fetched alongside expenses via `useGroupPhases` hook; phase splitting done client-side
 
 ---
 
 ## 5. New / Modified Hooks
 
-- [ ] `useGroupPhases` (new) — mirrors `useFriendDetail` phase logic:
-  - `currentPhase`: expenses after latest checkpoint
-  - `olderPhases`: array of phases (each an array of expenses), paginated
-  - `checkpoints`: list of checkpoint records for rendering dividers
-  - `hasMoreOlder`, `loadOlderPhase`, `removeCheckpoint`
-- [ ] `useGroups` — add `last_activity_at` to `GroupListItem` type
+- [x] `useGroupPhases` (new) — `currentPhase`, `olderPhases`, `checkpoints`, `hasMoreOlder`, `loadOlderPhase`, `removeCheckpoint`, `addCheckpoint`, `isCurrentPhaseEmpty`, server-side pagination via `useInfiniteQuery`
+- [x] `useExpenses` — refactored to `useInfiniteQuery` (pages of 50); exposes `hasMoreExpenses`, `loadMoreExpenses`, `isFetchingMore`
+- [x] `useGroups` — `last_activity` updated to incorporate latest checkpoint timestamp
 
 ---
 

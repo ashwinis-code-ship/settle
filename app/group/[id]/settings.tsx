@@ -30,6 +30,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroup } from '@/hooks/use-group';
+import { useGroupPhases } from '@/hooks/use-group-phases';
 import { hapticSuccess, hapticWarning } from '@/lib/haptics';
 import {
     pickImageFromCamera,
@@ -55,6 +56,8 @@ export default function GroupSettingsScreen() {
         leaveGroup,
         deleteGroup
     } = useGroup(id);
+
+    const { addCheckpoint, isCurrentPhaseEmpty } = useGroupPhases(id);
 
     // Bottom sheet ref
     const bottomSheetRef = useRef<BottomSheet>(null);
@@ -338,10 +341,31 @@ export default function GroupSettingsScreen() {
     };
 
     const handleMarkPhaseDone = () => {
+        if (!isOnline) {
+            hapticWarning();
+            Alert.alert('No Connection', 'Archiving requires an internet connection.', [{ text: 'OK' }]);
+            return;
+        }
         Alert.alert(
-            'Mark Phase as Done',
-            'This will create a checkpoint for the current phase. Older expenses will move to history and contributions will reset.\n\nThis feature is coming soon.',
-            [{ text: 'OK' }]
+            'Archive current expenses?',
+            'Current expenses will be archived. The contributions and balance spectrum will reset for the next phase. You can still view older expenses anytime.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Archive',
+                    onPress: async () => {
+                        setIsSubmitting(true);
+                        const ok = await addCheckpoint();
+                        setIsSubmitting(false);
+                        if (ok) {
+                            hapticSuccess();
+                            router.back();
+                        } else {
+                            Alert.alert('Error', 'Failed to archive. Try again.');
+                        }
+                    },
+                },
+            ]
         );
     };
 
@@ -559,23 +583,25 @@ export default function GroupSettingsScreen() {
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ type: 'timing', duration: 500, delay: 150 }}
                     >
-                        <Text style={[styles.sectionTitle, { color: textColor, marginTop: 24 }]}>Phase</Text>
+                        <Text style={[styles.sectionTitle, { color: textColor, marginTop: 24 }]}>Archive</Text>
                         <View style={[styles.sectionCard, { backgroundColor: cardBg }]}>
                             <Pressable
                                 style={({ pressed }) => [
                                     styles.phaseAction,
-                                    { opacity: (!isOnline || isSubmitting) ? 0.5 : pressed ? 0.7 : 1 },
+                                    { opacity: (!isOnline || isSubmitting || isCurrentPhaseEmpty) ? 0.4 : pressed ? 0.7 : 1 },
                                 ]}
                                 onPress={handleMarkPhaseDone}
-                                disabled={!isOnline || isSubmitting}
+                                disabled={!isOnline || isSubmitting || isCurrentPhaseEmpty}
                             >
                                 <View style={[styles.phaseIconWrap, { backgroundColor: colors.primary[100] }]}>
-                                    <Ionicons name="checkmark-circle-outline" size={22} color={colors.primary[600]} />
+                                    <Ionicons name="archive-outline" size={22} color={colors.primary[600]} />
                                 </View>
                                 <View style={styles.phaseActionContent}>
-                                    <Text style={[styles.phaseActionTitle, { color: textColor }]}>Mark phase as done</Text>
+                                    <Text style={[styles.phaseActionTitle, { color: textColor }]}>Archive current expenses</Text>
                                     <Text style={[styles.phaseActionSubtitle, { color: secondaryTextColor }]}>
-                                        Creates a checkpoint · resets contributions and moves expenses to history
+                                        {isCurrentPhaseEmpty
+                                            ? 'Nothing to archive — no new expenses since last archive'
+                                            : 'Resets contributions and balance · older expenses stay in history'}
                                     </Text>
                                 </View>
                                 <Ionicons name="chevron-forward" size={18} color={secondaryTextColor} />

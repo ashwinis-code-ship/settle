@@ -109,11 +109,26 @@ export interface ExpenseListItem {
   paid_by: UserSummary;
   category: DbCategory | null;
   expense_date: string;
+  /** ISO timestamp when the record was created — used for phase boundary comparisons */
+  created_at: string;
   /** Your split amount. 0 means you are not included in this expense's split. */
   your_share: number;
   /** True if current user paid for this */
   you_paid: boolean;
   split_count: number;
+}
+
+/**
+ * A group phase checkpoint — marks the end of a phase.
+ * Any group member can create or delete one.
+ */
+export interface GroupCheckpoint {
+  id: string;
+  group_id: string;
+  created_by: string;
+  /** Display name of the member who created the checkpoint */
+  creator_name: string;
+  created_at: string;
 }
 
 // ============================================

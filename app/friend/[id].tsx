@@ -170,9 +170,6 @@ export default function FriendDetailScreen() {
   };
 
   const renderGroupCard = (groupBalance: GroupBalance, index: number) => {
-    const isPositive = groupBalance.balance > 0;
-    const balanceColor = getBalanceColor(groupBalance.balance);
-
     return (
       <MotiView
         key={groupBalance.group_id}
@@ -184,20 +181,17 @@ export default function FriendDetailScreen() {
           onPress={() => handleGroupPress(groupBalance.group_id)}
           style={({ pressed }) => [
             styles.groupCard,
-            { 
-              backgroundColor: cardBg, 
+            {
+              backgroundColor: cardBg,
               opacity: pressed ? 0.9 : 1,
               transform: [{ scale: pressed ? 0.98 : 1 }],
             },
           ]}
         >
-          {/* Group Icon */}
           <Avatar
             group={{ name: groupBalance.group_name, image_url: groupBalance.image_url }}
             size={40}
           />
-
-          {/* Group Info */}
           <View style={styles.groupInfo}>
             <Text style={[styles.groupName, { color: textColor }]} numberOfLines={1}>
               {groupBalance.group_name}
@@ -206,26 +200,6 @@ export default function FriendDetailScreen() {
               {groupBalance.transaction_count} transaction{groupBalance.transaction_count !== 1 ? 's' : ''}
             </Text>
           </View>
-
-          {/* Balance */}
-          <View style={styles.groupBalanceContainer}>
-            {groupBalance.balance !== 0 ? (
-              <>
-                <Text style={[styles.groupBalanceLabel, { color: balanceColor }]}>
-                  {isPositive ? 'owes you' : 'you owe'}
-                </Text>
-                <Text style={[styles.groupBalanceAmount, { color: balanceColor }]}>
-                  {formatBalance(groupBalance.balance, groupBalance.currency)}
-                </Text>
-              </>
-            ) : (
-              <View style={[styles.settledBadgeSmall, { backgroundColor: colors.success + '20' }]}>
-                <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-                <Text style={[styles.settledTextSmall, { color: colors.success }]}>Settled</Text>
-              </View>
-            )}
-          </View>
-
           <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
         </Pressable>
       </MotiView>
