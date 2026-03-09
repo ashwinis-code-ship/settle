@@ -12,7 +12,7 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import BottomSheet, { BottomSheetFlatList, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetFlashList, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -343,10 +343,11 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
 
         {/* List */}
         {hasContactPermission && !isLoading && (
-          <BottomSheetFlatList
+          <BottomSheetFlashList
             data={listItems}
             renderItem={renderItem}
             keyExtractor={keyExtractor}
+            getItemType={(item: ListItem) => item._type}
             ListEmptyComponent={
               <View style={styles.emptyState}>
                 <Ionicons name="person-add-outline" size={48} color={colors.gray[400]} />

@@ -7,9 +7,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
+import { FlashList } from '@shopify/flash-list';
 import { MotiView } from 'moti';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -153,10 +154,284 @@ export default function HomeScreen() {
     );
   }
 
+  const renderActivityItem = useCallback(({ item, index }: { item: ActivityItem; index: number }) => {
+    const isSettlement = item.type === 'settlement';
+    const isYouPaid = item.paid_by.id === user?.id;
+
+    return (
+      <MotiView
+        from={{ opacity: 0, translateX: -20, scale: 0.95 }}
+        animate={{ opacity: 1, translateX: 0, scale: 1 }}
+        transition={{
+          type: 'spring',
+          damping: 18,
+          stiffness: 120,
+          delay: Math.min(index * 60, 300),
+        }}
+      >
+        <Pressable
+          onPress={() => handleActivityPress(item)}
+          style={({ pressed }) => [
+            styles.activityItem,
+            {
+              backgroundColor: cardBg,
+              opacity: pressed ? 0.9 : 1,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            },
+          ]}
+        >
+          {/* Icon */}
+          <View
+            style={[
+              styles.activityIcon,
+              {
+                backgroundColor: isSettlement
+                  ? colors.primary[100]
+                  : colors.gray[100],
+              },
+            ]}
+          >
+            {item.category_icon ? (
+              <Text style={styles.activityEmoji}>{item.category_icon}</Text>
+            ) : (
+              <Ionicons
+                name={isSettlement ? 'swap-horizontal' : 'receipt-outline'}
+                size={18}
+                color={isSettlement ? colors.primary[500] : colors.gray[600]}
+              />
+            )}
+          </View>
+
+          {/* Details */}
+          <View style={styles.activityDetails}>
+            <Text style={[styles.activityDescription, { color: textColor }]} numberOfLines={1}>
+              {isSettlement
+                ? (isYouPaid
+                    ? `You paid ${item.paid_to?.name}`
+                    : `${item.paid_by.name} paid you`)
+                : item.description
+              }
+            </Text>
+            <View style={styles.activityMeta}>
+              <Text style={[styles.activityDate, { color: secondaryTextColor }]}>
+                {formatDate(item.date)}
+              </Text>
+              {item.group_name && (
+                <>
+                  <Text style={[styles.activityDot, { color: secondaryTextColor }]}>•</Text>
+                  <Text style={[styles.activityGroup, { color: secondaryTextColor }]} numberOfLines={1}>
+                    {item.group_name}
+                  </Text>
+                </>
+              )}
+            </View>
+          </View>
+
+          {/* Amount */}
+          <View style={styles.activityAmountContainer}>
+            {isSettlement ? (
+              <Text style={[styles.activityAmount, { color: colors.primary[500] }]}>
+                {formatCurrency(item.amount, item.currency)}
+              </Text>
+            ) : (
+              <>
+                <Text style={[styles.activityAmount, { color: textColor }]}>
+                  {formatCurrency(item.amount, item.currency)}
+                </Text>
+                {item.your_share !== undefined && item.your_share > 0 && (
+                  <Text style={[styles.activityShare, { color: colors.error }]}>
+                    you owe {formatCurrency(item.your_share, item.currency)}
+                  </Text>
+                )}
+                {isYouPaid && (
+                  <Text style={[styles.activityShare, { color: colors.success }]}>
+                    you paid
+                  </Text>
+                )}
+              </>
+            )}
+          </View>
+
+          {/* Chevron for expenses */}
+          {!isSettlement && (
+            <Ionicons name="chevron-forward" size={16} color={secondaryTextColor} />
+          )}
+        </Pressable>
+      </MotiView>
+    );
+  }, [user?.id, cardBg, textColor, secondaryTextColor, handleActivityPress, formatDate]);
+
+  const renderListHeader = useCallback(() => (
+    <>
+      {/* Header */}
+      <MotiView
+        from={{ opacity: 0, translateY: -20 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 100 }}
+        style={styles.header}
+      >
+        <View style={styles.headerLeft}>
+          <Text style={[styles.greeting, { color: secondaryTextColor }]}>
+            Welcome back,
+          </Text>
+          <Text style={[styles.name, { color: textColor }]}>
+            {userName} 👋
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => router.push('/(tabs)/profile')}
+          style={({ pressed }) => [
+            styles.avatarButton,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <Avatar user={{ name: userName, avatar_url: user?.avatar_url ?? null }} size={44} />
+        </Pressable>
+      </MotiView>
+
+      {/* Balance Summary Card */}
+      <MotiView
+        from={{ opacity: 0, translateY: 20, scale: 0.95 }}
+        animate={{ opacity: 1, translateY: 0, scale: 1 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 100, delay: 150 }}
+        style={[
+          styles.balanceCard,
+          {
+            backgroundColor: balanceSummary.netBalance >= 0
+              ? colors.primary[500]
+              : colors.error
+          }
+        ]}
+      >
+        <Text style={styles.balanceLabel}>
+          {balanceSummary.netBalance >= 0 ? 'You are owed' : 'You owe'}
+        </Text>
+        {isLoadingFriends ? (
+          <ActivityIndicator color={colors.white} size="small" style={{ marginVertical: 12 }} />
+        ) : (
+          <Text style={styles.balanceValue}>
+            {formatCurrency(Math.abs(balanceSummary.netBalance))}
+          </Text>
+        )}
+        <View style={styles.balanceRow}>
+          <View style={styles.balanceItem}>
+            <Ionicons name="arrow-up-circle" size={20} color={colors.white} />
+            <View>
+              <Text style={styles.balanceItemLabel}>You get back</Text>
+              <Text style={styles.balanceItemValue}>
+                {formatCurrency(balanceSummary.totalOwed)}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.balanceDivider} />
+          <View style={styles.balanceItem}>
+            <Ionicons name="arrow-down-circle" size={20} color={colors.white} />
+            <View>
+              <Text style={styles.balanceItemLabel}>You owe</Text>
+              <Text style={styles.balanceItemValue}>
+                {formatCurrency(balanceSummary.totalOwing)}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </MotiView>
+
+      {/* Quick Actions */}
+      <MotiView
+        from={{ opacity: 0, translateY: 20 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 300 }}
+      >
+        <Text style={[styles.sectionTitle, { color: textColor }]}>Quick Actions</Text>
+        <View style={styles.actionsRow}>
+          <Pressable
+            onPress={handleAddExpense}
+            style={({ pressed }) => [
+              styles.actionCard,
+              {
+                backgroundColor: cardBg,
+                opacity: pressed ? 0.9 : 1,
+                transform: [{ scale: pressed ? 0.95 : 1 }],
+              },
+            ]}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: colors.primary[100] }]}>
+              <Ionicons name="add-circle-outline" size={28} color={colors.primary[500]} />
+            </View>
+            <Text style={[styles.actionLabel, { color: textColor }]}>Add Expense</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={handleCreateGroup}
+            style={({ pressed }) => [
+              styles.actionCard,
+              {
+                backgroundColor: cardBg,
+                opacity: pressed ? 0.9 : 1,
+                transform: [{ scale: pressed ? 0.95 : 1 }],
+              },
+            ]}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: colors.success + '20' }]}>
+              <Ionicons name="people-outline" size={28} color={colors.success} />
+            </View>
+            <Text style={[styles.actionLabel, { color: textColor }]}>Create Group</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={handleSettleUp}
+            style={({ pressed }) => [
+              styles.actionCard,
+              {
+                backgroundColor: cardBg,
+                opacity: pressed ? 0.9 : 1,
+                transform: [{ scale: pressed ? 0.95 : 1 }],
+              },
+            ]}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: colors.warning + '20' }]}>
+              <Ionicons name="wallet-outline" size={28} color={colors.warning} />
+            </View>
+            <Text style={[styles.actionLabel, { color: textColor }]}>Settle Up</Text>
+          </Pressable>
+        </View>
+      </MotiView>
+
+      {/* Recent Activity title */}
+      <MotiView
+        from={{ opacity: 0, translateY: 20 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 100, delay: 350 }}
+      >
+        <Text style={[styles.sectionTitle, { color: textColor }]}>Recent Activity</Text>
+      </MotiView>
+    </>
+  ), [
+    textColor, secondaryTextColor, cardBg, balanceSummary, isLoadingFriends,
+    userName, user?.avatar_url, handleAddExpense, handleCreateGroup, handleSettleUp,
+  ]);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-      <ScrollView
-        style={styles.content}
+      <FlashList
+        data={activities}
+        renderItem={renderActivityItem}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={renderListHeader}
+        ListEmptyComponent={
+          isLoadingActivity ? (
+            <SkeletonActivityList count={4} />
+          ) : (
+            <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
+              <EmptyState
+                icon="time-outline"
+                title="No recent activity"
+                description="Your expenses and settlements will appear here"
+                compact
+              />
+            </View>
+          )
+        }
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -167,274 +442,7 @@ export default function HomeScreen() {
             colors={[colors.primary[500]]}
           />
         }
-      >
-        {/* Header */}
-        <MotiView
-          from={{ opacity: 0, translateY: -20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring', damping: 18, stiffness: 100 }}
-          style={styles.header}
-        >
-          <View style={styles.headerLeft}>
-            <Text style={[styles.greeting, { color: secondaryTextColor }]}>
-              Welcome back,
-            </Text>
-            <Text style={[styles.name, { color: textColor }]}>
-              {userName} 👋
-            </Text>
-          </View>
-          <Pressable
-            onPress={() => router.push('/(tabs)/profile')}
-            style={({ pressed }) => [
-              styles.avatarButton,
-              { opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <Avatar user={{ name: userName, avatar_url: user?.avatar_url ?? null }} size={44} />
-          </Pressable>
-        </MotiView>
-
-        {/* Balance Summary Card */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20, scale: 0.95 }}
-          animate={{ opacity: 1, translateY: 0, scale: 1 }}
-          transition={{ type: 'spring', damping: 18, stiffness: 100, delay: 150 }}
-          style={[
-            styles.balanceCard, 
-            { 
-              backgroundColor: balanceSummary.netBalance >= 0 
-                ? colors.primary[500] 
-                : colors.error 
-            }
-          ]}
-        >
-          <Text style={styles.balanceLabel}>
-            {balanceSummary.netBalance >= 0 ? 'You are owed' : 'You owe'}
-          </Text>
-          {isLoadingFriends ? (
-            <ActivityIndicator color={colors.white} size="small" style={{ marginVertical: 12 }} />
-          ) : (
-            <Text style={styles.balanceValue}>
-              {formatCurrency(Math.abs(balanceSummary.netBalance))}
-            </Text>
-          )}
-          <View style={styles.balanceRow}>
-            <View style={styles.balanceItem}>
-              <Ionicons name="arrow-up-circle" size={20} color={colors.white} />
-              <View>
-                <Text style={styles.balanceItemLabel}>You get back</Text>
-                <Text style={styles.balanceItemValue}>
-                  {formatCurrency(balanceSummary.totalOwed)}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.balanceDivider} />
-            <View style={styles.balanceItem}>
-              <Ionicons name="arrow-down-circle" size={20} color={colors.white} />
-              <View>
-                <Text style={styles.balanceItemLabel}>You owe</Text>
-                <Text style={styles.balanceItemValue}>
-                  {formatCurrency(balanceSummary.totalOwing)}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </MotiView>
-
-        {/* Quick Actions */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 300 }}
-        >
-          <Text style={[styles.sectionTitle, { color: textColor }]}>Quick Actions</Text>
-          <View style={styles.actionsRow}>
-            <Pressable 
-              onPress={handleAddExpense}
-              style={({ pressed }) => [
-                styles.actionCard,
-                { 
-                  backgroundColor: cardBg, 
-                  opacity: pressed ? 0.9 : 1,
-                  transform: [{ scale: pressed ? 0.95 : 1 }],
-                },
-              ]}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: colors.primary[100] }]}>
-                <Ionicons name="add-circle-outline" size={28} color={colors.primary[500]} />
-              </View>
-              <Text style={[styles.actionLabel, { color: textColor }]}>Add Expense</Text>
-            </Pressable>
-            
-            <Pressable 
-              onPress={handleCreateGroup}
-              style={({ pressed }) => [
-                styles.actionCard,
-                { 
-                  backgroundColor: cardBg, 
-                  opacity: pressed ? 0.9 : 1,
-                  transform: [{ scale: pressed ? 0.95 : 1 }],
-                },
-              ]}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: colors.success + '20' }]}>
-                <Ionicons name="people-outline" size={28} color={colors.success} />
-              </View>
-              <Text style={[styles.actionLabel, { color: textColor }]}>Create Group</Text>
-            </Pressable>
-            
-            <Pressable 
-              onPress={handleSettleUp}
-              style={({ pressed }) => [
-                styles.actionCard,
-                { 
-                  backgroundColor: cardBg, 
-                  opacity: pressed ? 0.9 : 1,
-                  transform: [{ scale: pressed ? 0.95 : 1 }],
-                },
-              ]}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: colors.warning + '20' }]}>
-                <Ionicons name="wallet-outline" size={28} color={colors.warning} />
-              </View>
-              <Text style={[styles.actionLabel, { color: textColor }]}>Settle Up</Text>
-            </Pressable>
-          </View>
-        </MotiView>
-
-        {/* Recent Activity */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring', damping: 18, stiffness: 100, delay: 350 }}
-          style={styles.recentSection}
-        >
-          <Text style={[styles.sectionTitle, { color: textColor }]}>Recent Activity</Text>
-          
-          {isLoadingActivity ? (
-            <SkeletonActivityList count={4} />
-          ) : activities.length === 0 ? (
-            <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
-              <EmptyState
-                icon="time-outline"
-                title="No recent activity"
-                description="Your expenses and settlements will appear here"
-                compact
-              />
-            </View>
-          ) : (
-            <View style={styles.activityList}>
-              {activities.map((item, index) => {
-                const isSettlement = item.type === 'settlement';
-                const isYouPaid = item.paid_by.id === user?.id;
-                
-                return (
-                  <MotiView
-                    key={item.id}
-                    from={{ opacity: 0, translateX: -20, scale: 0.95 }}
-                    animate={{ opacity: 1, translateX: 0, scale: 1 }}
-                    transition={{ 
-                      type: 'spring', 
-                      damping: 18, 
-                      stiffness: 120, 
-                      delay: Math.min(index * 60, 300),
-                    }}
-                  >
-                    <Pressable
-                      onPress={() => handleActivityPress(item)}
-                      style={({ pressed }) => [
-                        styles.activityItem,
-                        { 
-                          backgroundColor: cardBg, 
-                          opacity: pressed ? 0.9 : 1,
-                          transform: [{ scale: pressed ? 0.98 : 1 }],
-                        },
-                      ]}
-                    >
-                      {/* Icon */}
-                      <View
-                        style={[
-                          styles.activityIcon,
-                          {
-                            backgroundColor: isSettlement
-                              ? colors.primary[100]
-                              : colors.gray[100],
-                          },
-                        ]}
-                      >
-                        {item.category_icon ? (
-                          <Text style={styles.activityEmoji}>{item.category_icon}</Text>
-                        ) : (
-                          <Ionicons
-                            name={isSettlement ? 'swap-horizontal' : 'receipt-outline'}
-                            size={18}
-                            color={isSettlement ? colors.primary[500] : colors.gray[600]}
-                          />
-                        )}
-                      </View>
-
-                      {/* Details */}
-                      <View style={styles.activityDetails}>
-                        <Text style={[styles.activityDescription, { color: textColor }]} numberOfLines={1}>
-                          {isSettlement 
-                            ? (isYouPaid 
-                                ? `You paid ${item.paid_to?.name}` 
-                                : `${item.paid_by.name} paid you`)
-                            : item.description
-                          }
-                        </Text>
-                        <View style={styles.activityMeta}>
-                          <Text style={[styles.activityDate, { color: secondaryTextColor }]}>
-                            {formatDate(item.date)}
-                          </Text>
-                          {item.group_name && (
-                            <>
-                              <Text style={[styles.activityDot, { color: secondaryTextColor }]}>•</Text>
-                              <Text style={[styles.activityGroup, { color: secondaryTextColor }]} numberOfLines={1}>
-                                {item.group_name}
-                              </Text>
-                            </>
-                          )}
-                        </View>
-                      </View>
-
-                      {/* Amount */}
-                      <View style={styles.activityAmountContainer}>
-                        {isSettlement ? (
-                          <Text style={[styles.activityAmount, { color: colors.primary[500] }]}>
-                            {formatCurrency(item.amount, item.currency)}
-                          </Text>
-                        ) : (
-                          <>
-                            <Text style={[styles.activityAmount, { color: textColor }]}>
-                              {formatCurrency(item.amount, item.currency)}
-                            </Text>
-                            {item.your_share !== undefined && item.your_share > 0 && (
-                              <Text style={[styles.activityShare, { color: colors.error }]}>
-                                you owe {formatCurrency(item.your_share, item.currency)}
-                              </Text>
-                            )}
-                            {isYouPaid && (
-                              <Text style={[styles.activityShare, { color: colors.success }]}>
-                                you paid
-                              </Text>
-                            )}
-                          </>
-                        )}
-                      </View>
-
-                      {/* Chevron for expenses */}
-                      {!isSettlement && (
-                        <Ionicons name="chevron-forward" size={16} color={secondaryTextColor} />
-                      )}
-                    </Pressable>
-                  </MotiView>
-                );
-              })}
-            </View>
-          )}
-        </MotiView>
-      </ScrollView>
+      />
     </SafeAreaView>
   );
 }
@@ -448,9 +456,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
-  },
-  content: {
-    flex: 1,
   },
   contentContainer: {
     paddingHorizontal: 24,
@@ -554,9 +559,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
-  recentSection: {
-    flex: 1,
-  },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -572,10 +574,6 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 14,
     textAlign: 'center',
-  },
-  // Activity feed styles
-  activityList: {
-    flex: 1,
   },
   activityItem: {
     flexDirection: 'row',

@@ -11,9 +11,9 @@ import {
   Text,
   Pressable,
   Modal,
-  FlatList,
   TextInput,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
@@ -112,7 +112,7 @@ export function CountryPicker({ selectedCountry, onSelect }: CountryPickerProps)
           </View>
 
           {/* Country List */}
-          <FlatList
+          <FlashList
             data={filteredCountries}
             keyExtractor={(item) => item.code}
             contentContainerStyle={styles.listContent}

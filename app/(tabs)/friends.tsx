@@ -9,11 +9,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import { Avatar } from '@/components/ui/avatar';
+import { FlashList } from '@shopify/flash-list';
 import { MotiView } from 'moti';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
     Alert,
-    FlatList,
     NativeScrollEvent,
     NativeSyntheticEvent,
     Pressable,
@@ -355,11 +355,14 @@ export default function FriendsScreen() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-      <FlatList
+      <FlashList
         data={displayedFriends}
         renderItem={renderFriendCard}
         keyExtractor={(item) => item.user.id}
-        contentContainerStyle={[styles.listContent, { paddingBottom: scrubberBottom + 80 }]}
+        contentContainerStyle={{
+          ...styles.listContent,
+          paddingBottom: scrubberBottom + 80,
+        }}
         ListHeaderComponent={
           <>
             {renderHeader()}

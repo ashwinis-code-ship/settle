@@ -8,6 +8,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Avatar } from '@/components/ui/avatar';
+import { FlashList } from '@shopify/flash-list';
 import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -375,46 +376,51 @@ export default function SettleUpScreen() {
       </View>
 
       {/* Results */}
-      <ScrollView style={styles.resultsContainer} showsVerticalScrollIndicator={false}>
-        {isSearching ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={colors.primary[500]} />
-            <Text style={[styles.loadingText, { color: secondaryTextColor }]}>
-              Finding friends with balances...
-            </Text>
-          </View>
-        ) : searchResults.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="checkmark-circle" size={48} color={colors.success} />
-            <Text style={[styles.emptyTitle, { color: textColor }]}>All Settled Up!</Text>
-            <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
-              You don't have any pending balances with friends.
-            </Text>
-          </View>
-        ) : (
-          searchResults.map((result) => (
-            <Pressable
-              key={result.user.id}
-              style={({ pressed }) => [
-                styles.resultCard,
-                { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },
-              ]}
-              onPress={() => handleSelectTarget(result)}
-            >
-              <Avatar user={result.user} size={44} />
-              <View style={styles.resultInfo}>
-                <Text style={[styles.resultName, { color: textColor }]}>{result.user.name}</Text>
-                <Text style={[styles.resultBalance, { 
-                  color: result.balance > 0 ? colors.success : colors.error 
-                }]}>
-                  {getBalanceText(result.balance)} {formatBalance(result.balance)}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
-            </Pressable>
-          ))
+      <FlashList
+        data={isSearching ? [] : searchResults}
+        keyExtractor={(item) => item.user.id}
+        renderItem={({ item: result }) => (
+          <Pressable
+            style={({ pressed }) => [
+              styles.resultCard,
+              { backgroundColor: cardBg, opacity: pressed ? 0.8 : 1 },
+            ]}
+            onPress={() => handleSelectTarget(result)}
+          >
+            <Avatar user={result.user} size={44} />
+            <View style={styles.resultInfo}>
+              <Text style={[styles.resultName, { color: textColor }]}>{result.user.name}</Text>
+              <Text style={[styles.resultBalance, {
+                color: result.balance > 0 ? colors.success : colors.error
+              }]}>
+                {getBalanceText(result.balance)} {formatBalance(result.balance)}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+          </Pressable>
         )}
-      </ScrollView>
+        ListEmptyComponent={
+          isSearching ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={colors.primary[500]} />
+              <Text style={[styles.loadingText, { color: secondaryTextColor }]}>
+                Finding friends with balances...
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="checkmark-circle" size={48} color={colors.success} />
+              <Text style={[styles.emptyTitle, { color: textColor }]}>All Settled Up!</Text>
+              <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
+                You don't have any pending balances with friends.
+              </Text>
+            </View>
+          )
+        }
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        style={styles.resultsContainer}
+      />
     </View>
   );
 

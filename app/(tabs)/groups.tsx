@@ -9,11 +9,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import { Avatar } from '@/components/ui/avatar';
+import { FlashList } from '@shopify/flash-list';
 import { MotiView } from 'moti';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
     Alert,
-    FlatList,
     NativeScrollEvent,
     NativeSyntheticEvent,
     Pressable,
@@ -292,7 +292,7 @@ export default function GroupsScreen() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-      <FlatList
+      <FlashList
         data={displayedGroups}
         renderItem={renderGroupCard}
         keyExtractor={(item) => item.id}
@@ -311,10 +311,10 @@ export default function GroupsScreen() {
             )}
           </>
         }
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingBottom: scrubberBottom + 80, flexGrow: 1 },
-        ]}
+        contentContainerStyle={{
+          ...styles.listContent,
+          paddingBottom: scrubberBottom + 80,
+        }}
         ListEmptyComponent={
           isLoading ? (
             <SkeletonList count={4} />

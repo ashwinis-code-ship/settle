@@ -11,9 +11,9 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Avatar } from '@/components/ui/avatar';
 import { MotiView } from 'moti';
 import { useCallback, useMemo, useRef } from 'react';
+import { FlashList } from '@shopify/flash-list';
 import {
     Alert,
-    FlatList,
     Pressable,
     RefreshControl,
     StyleSheet,
@@ -505,12 +505,12 @@ export default function GroupDetailScreen() {
 
         {/*
           Passing renderHeader() (pre-rendered JSX element) instead of renderHeader
-          (function reference) is critical: FlatList checks isValidElement and uses the
+          (function reference) is critical: FlashList checks isValidElement and uses the
           element in-place, so MotiView stays mounted across re-renders and animations
-          don't retrigger. Passing the function itself causes FlatList to treat each new
+          don't retrigger. Passing the function itself causes FlashList to treat each new
           reference as a new component type, unmounting/remounting on every re-render.
         */}
-        <FlatList
+        <FlashList
           data={activityData}
           renderItem={renderActivityItem}
           keyExtractor={(item, index) => {
@@ -520,6 +520,7 @@ export default function GroupDetailScreen() {
             if (item.kind === 'load_more_expenses') return 'load-more-expenses';
             return `view-older-${index}`;
           }}
+          getItemType={(item) => item.kind}
           ListHeaderComponent={renderHeader()}
           ListEmptyComponent={renderEmptyActivity()}
           contentContainerStyle={styles.listContent}

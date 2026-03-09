@@ -9,15 +9,15 @@ import { EditSettlementSheet } from '@/components/edit-settlement-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { Avatar } from '@/components/ui/avatar';
+import { FlashList } from '@shopify/flash-list';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -35,6 +35,16 @@ import { useSettlements } from '@/hooks/use-settlements';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import type { FriendTransaction } from '@/types';
 import { CURRENCIES } from '@/types/database';
+
+// ─── Flat list item types ─────────────────────────────────────────────────────
+
+type FriendActivityItem =
+  | { kind: 'transaction'; data: FriendTransaction; listIndex: number }
+  | { kind: 'view_older' }
+  | { kind: 'fully_settled'; showViewHistory: boolean }
+  | { kind: 'empty_transactions' };
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function FriendDetailScreen() {
   const params = useLocalSearchParams<{ id: string; name?: string }>();
@@ -69,6 +79,34 @@ export default function FriendDetailScreen() {
   const cardBg = isDark ? colors.gray[800] : colors.white;
   const settlementLineColor = isDark ? colors.gray[600] : colors.gray[300];
   const settlementTextColor = textColor; // Neutral solid color, no green/red
+
+  // ─── Flat activity data array for FlashList ───────────────────────────────
+
+  const activityItems = useMemo<FriendActivityItem[]>(() => {
+    const items: FriendActivityItem[] = [];
+
+    if (isFullySettled) {
+      items.push({ kind: 'fully_settled', showViewHistory: olderPhases.length === 0 && hasMoreOlder });
+    } else {
+      currentPhase.forEach((tx, idx) => items.push({ kind: 'transaction', data: tx, listIndex: idx }));
+    }
+
+    olderPhases.forEach((phase, phaseIdx) => {
+      phase.forEach((tx, txIdx) => {
+        items.push({ kind: 'transaction', data: tx, listIndex: currentPhase.length + phaseIdx * 100 + txIdx });
+      });
+    });
+
+    if (hasMoreOlder && (!isFullySettled || olderPhases.length > 0)) {
+      items.push({ kind: 'view_older' });
+    }
+
+    if (items.length === 0 && groupBalances.length === 0 && !isLoading) {
+      items.push({ kind: 'empty_transactions' });
+    }
+
+    return items;
+  }, [currentPhase, olderPhases, isFullySettled, hasMoreOlder, groupBalances.length, isLoading]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -378,6 +416,178 @@ export default function FriendDetailScreen() {
     );
   };
 
+  const renderViewOlderButton = useCallback(() => (
+    <View style={styles.viewOlderContainer}>
+      <Pressable
+        onPress={loadOlderPhase}
+        disabled={isLoadingOlder}
+        style={({ pressed }) => [
+          styles.viewOlderButton,
+          { opacity: pressed ? 0.7 : 1 },
+        ]}
+      >
+        {isLoadingOlder ? (
+          <ActivityIndicator size="small" color={colors.primary[500]} />
+        ) : (
+          <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
+            View older expenses
+          </Text>
+        )}
+      </Pressable>
+    </View>
+  ), [loadOlderPhase, isLoadingOlder]);
+
+  const renderFullySettledState = useCallback((showViewHistory: boolean) => {
+    const friendName = friend?.user.name || params.name || 'Friend';
+    return (
+      <View style={[styles.settledState, { backgroundColor: cardBg }]}>
+        <View style={[styles.settledStateIcon, { backgroundColor: colors.success + '20' }]}>
+          <Ionicons name="checkmark-circle" size={48} color={colors.success} />
+        </View>
+        <Text style={[styles.settledStateTitle, { color: textColor }]}>
+          All settled up!
+        </Text>
+        <Text style={[styles.settledStateText, { color: secondaryTextColor }]}>
+          You and {friendName.split(' ')[0]} are all square. No one owes anyone.
+        </Text>
+        {showViewHistory && (
+          <Pressable
+            onPress={promoteCurrentPhase}
+            style={({ pressed }) => [
+              styles.viewOlderButton,
+              { opacity: pressed ? 0.7 : 1, marginTop: 12 },
+            ]}
+          >
+            <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
+              View history
+            </Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  }, [cardBg, textColor, secondaryTextColor, friend?.user.name, params.name, promoteCurrentPhase]);
+
+  const renderEmptyTransactions = useCallback(() => (
+    <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
+      <EmptyState
+        icon="wallet-outline"
+        title="No transactions yet"
+        description="Add an expense to start tracking your shared expenses with this friend"
+        actionLabel="Add Expense"
+        onAction={handleAddExpense}
+        compact
+      />
+    </View>
+  ), [cardBg, handleAddExpense]);
+
+  const renderFriendActivityItem = useCallback(({ item }: { item: FriendActivityItem }) => {
+    if (item.kind === 'transaction') return renderTransactionItem(item.data, item.listIndex);
+    if (item.kind === 'view_older') return renderViewOlderButton();
+    if (item.kind === 'fully_settled') return renderFullySettledState(item.showViewHistory);
+    if (item.kind === 'empty_transactions') return renderEmptyTransactions();
+    return null;
+  }, [renderTransactionItem, renderViewOlderButton, renderFullySettledState, renderEmptyTransactions]);
+
+  const renderListHeader = useCallback(() => {
+    const friendName = friend?.user.name || params.name || 'Friend';
+    const balance = friend?.total_balance || 0;
+    const balanceColor = getBalanceColor(balance);
+    const currencySymbol = CURRENCIES[friend?.primary_currency || 'INR']?.symbol || '₹';
+
+    return (
+      <>
+        {/* Friend Info Card */}
+        <MotiView
+          from={{ opacity: 0, translateY: 20, scale: 0.95 }}
+          animate={{ opacity: 1, translateY: 0, scale: 1 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 120 }}
+          style={[styles.friendCard, { backgroundColor: cardBg }]}
+        >
+          {friend && <Avatar user={friend.user} size={72} style={{ marginBottom: 12 }} />}
+          <Text style={[styles.friendName, { color: textColor }]}>{friendName}</Text>
+
+          {/* Balance Display */}
+          <View style={styles.balanceSection}>
+            <Text style={[styles.balanceLabel, { color: balanceColor }]}>
+              {getBalanceText(balance, friendName.split(' ')[0])}
+            </Text>
+            {balance !== 0 && (
+              <Text style={[styles.balanceAmount, { color: balanceColor }]}>
+                {formatBalance(balance, friend?.primary_currency)}
+              </Text>
+            )}
+            {balance === 0 && (
+              <View style={styles.settledBadge}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+              </View>
+            )}
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            <Pressable
+              onPress={handleAddExpense}
+              style={[styles.actionButton, { backgroundColor: colors.primary[500] }]}
+            >
+              <Ionicons name="add" size={20} color={colors.white} />
+              <Text style={styles.actionButtonText}>Add Expense</Text>
+            </Pressable>
+            {balance !== 0 && (
+              <Pressable
+                onPress={handleSettleUp}
+                style={[styles.actionButton, styles.settleButton, { borderColor: colors.primary[500] }]}
+              >
+                <Ionicons name="wallet-outline" size={20} color={colors.primary[500]} />
+                <Text style={[styles.actionButtonText, { color: colors.primary[500] }]}>Settle Up</Text>
+              </Pressable>
+            )}
+          </View>
+        </MotiView>
+
+        {/* Shared Groups Section */}
+        {groupBalances.length > 0 && (
+          <MotiView
+            from={{ opacity: 0, translateY: 10 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 100 }}
+          >
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: textColor }]}>Shared Groups</Text>
+              <Text style={[styles.sectionSubtitle, { color: secondaryTextColor }]}>
+                {groupBalances.length} group{groupBalances.length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            <View style={styles.groupsList}>
+              {groupBalances.map((gb, index) => renderGroupCard(gb, index))}
+            </View>
+          </MotiView>
+        )}
+
+        {/* Transaction History Section Header */}
+        {activityItems.length > 0 && activityItems[0].kind !== 'empty_transactions' && (
+          <MotiView
+            from={{ opacity: 0, translateY: 10 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 180 }}
+          >
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: textColor }]}>All Transactions</Text>
+              <Text style={[styles.sectionSubtitle, { color: secondaryTextColor }]}>
+                {isFullySettled && hasMoreOlder && olderPhases.length === 0
+                  ? 'View history'
+                  : `${currentPhase.length + olderPhases.flat().length} item${(currentPhase.length + olderPhases.flat().length) !== 1 ? 's' : ''}`}
+              </Text>
+            </View>
+          </MotiView>
+        )}
+      </>
+    );
+  }, [
+    friend, params.name, cardBg, textColor, secondaryTextColor,
+    groupBalances, activityItems, currentPhase, olderPhases, isFullySettled, hasMoreOlder,
+    handleAddExpense, handleSettleUp, renderGroupCard,
+  ]);
+
   if (isLoading && !friend) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
@@ -468,212 +678,43 @@ export default function FriendDetailScreen() {
   }
 
   const friendName = friend?.user.name || params.name || 'Friend';
-  const balance = friend?.total_balance || 0;
-  const balanceColor = getBalanceColor(balance);
-
   const currencySymbol = CURRENCIES[friend?.primary_currency || 'INR']?.symbol || '₹';
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-    <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={handleBack} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={textColor} />
-        </Pressable>
-        <Text style={[styles.headerTitle, { color: textColor }]} numberOfLines={1}>
-          {friendName}
-        </Text>
-        <View style={styles.backButton} />
-      </View>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Pressable onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={textColor} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: textColor }]} numberOfLines={1}>
+            {friendName}
+          </Text>
+          <View style={styles.backButton} />
+        </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.primary[500]}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Friend Info Card */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20, scale: 0.95 }}
-          animate={{ opacity: 1, translateY: 0, scale: 1 }}
-          transition={{ type: 'spring', damping: 18, stiffness: 120 }}
-          style={[styles.friendCard, { backgroundColor: cardBg }]}
-        >
-          {friend && <Avatar user={friend.user} size={72} style={{ marginBottom: 12 }} />}
-          <Text style={[styles.friendName, { color: textColor }]}>{friendName}</Text>
-          
-          {/* Balance Display */}
-          <View style={styles.balanceSection}>
-            <Text style={[styles.balanceLabel, { color: balanceColor }]}>
-              {getBalanceText(balance, friendName.split(' ')[0])}
-            </Text>
-            {balance !== 0 && (
-              <Text style={[styles.balanceAmount, { color: balanceColor }]}>
-                {formatBalance(balance, friend?.primary_currency)}
-              </Text>
-            )}
-            {balance === 0 && (
-              <View style={styles.settledBadge}>
-                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-              </View>
-            )}
-          </View>
-
-          {/* Action Buttons */}
-          <View style={styles.actionButtons}>
-            <Pressable
-              onPress={handleAddExpense}
-              style={[styles.actionButton, { backgroundColor: colors.primary[500] }]}
-            >
-              <Ionicons name="add" size={20} color={colors.white} />
-              <Text style={styles.actionButtonText}>Add Expense</Text>
-            </Pressable>
-            {balance !== 0 && (
-              <Pressable
-                onPress={handleSettleUp}
-                style={[styles.actionButton, styles.settleButton, { borderColor: colors.primary[500] }]}
-              >
-                <Ionicons name="wallet-outline" size={20} color={colors.primary[500]} />
-                <Text style={[styles.actionButtonText, { color: colors.primary[500] }]}>Settle Up</Text>
-              </Pressable>
-            )}
-          </View>
-        </MotiView>
-
-        {/* Shared Groups Section */}
-        {groupBalances.length > 0 && (
-          <MotiView
-            from={{ opacity: 0, translateY: 10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 100 }}
-          >
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: textColor }]}>
-                Shared Groups
-              </Text>
-              <Text style={[styles.sectionSubtitle, { color: secondaryTextColor }]}>
-                {groupBalances.length} group{groupBalances.length !== 1 ? 's' : ''}
-              </Text>
-            </View>
-            <View style={styles.groupsList}>
-              {groupBalances.map((gb, index) => renderGroupCard(gb, index))}
-            </View>
-          </MotiView>
-        )}
-
-        {/* Transaction History Section */}
-        {(currentPhase.length > 0 || isFullySettled || hasMoreOlder || olderPhases.length > 0) && (
-          <MotiView
-            from={{ opacity: 0, translateY: 10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 180 }}
-          >
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: textColor }]}>
-                All Transactions
-              </Text>
-              <Text style={[styles.sectionSubtitle, { color: secondaryTextColor }]}>
-                {isFullySettled && hasMoreOlder && olderPhases.length === 0
-                  ? 'View history'
-                  : `${currentPhase.length + olderPhases.flat().length} item${(currentPhase.length + olderPhases.flat().length) !== 1 ? 's' : ''}`}
-              </Text>
-            </View>
-
-            {/* Current phase transactions */}
-            {!isFullySettled && (
-              <View style={styles.transactionsList}>
-                {currentPhase.map((tx, index) => renderTransactionItem(tx, index))}
-              </View>
-            )}
-
-            {/* Fully settled state */}
-            {isFullySettled && (
-              <View style={[styles.settledState, { backgroundColor: cardBg }]}>
-                <View style={[styles.settledStateIcon, { backgroundColor: colors.success + '20' }]}>
-                  <Ionicons name="checkmark-circle" size={48} color={colors.success} />
-                </View>
-                <Text style={[styles.settledStateTitle, { color: textColor }]}>
-                  All settled up!
-                </Text>
-                <Text style={[styles.settledStateText, { color: secondaryTextColor }]}>
-                  You and {friendName.split(' ')[0]} are all square. No one owes anyone.
-                </Text>
-                {olderPhases.length === 0 && (
-                  <Pressable
-                    onPress={promoteCurrentPhase}
-                    style={({ pressed }) => [
-                      styles.viewOlderButton,
-                      { opacity: pressed ? 0.7 : 1, marginTop: 12 },
-                    ]}
-                  >
-                    <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
-                      View history
-                    </Text>
-                  </Pressable>
-                )}
-              </View>
-            )}
-
-            {/* Older phases + single paginated "View older" button */}
-            {olderPhases.length > 0 && (
-              <View style={styles.olderPhaseList}>
-                {olderPhases.map((phase, phaseIdx) => (
-                  <View
-                    key={`phase-${phaseIdx}`}
-                    style={styles.transactionsList}
-                  >
-                    {phase.map((tx, index) =>
-                      renderTransactionItem(tx, currentPhase.length + phaseIdx * 100 + index)
-                    )}
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {hasMoreOlder && (!isFullySettled || olderPhases.length > 0) && (
-              <View style={styles.viewOlderContainer}>
-                <Pressable
-                  onPress={loadOlderPhase}
-                  disabled={isLoadingOlder}
-                  style={({ pressed }) => [
-                    styles.viewOlderButton,
-                    { opacity: pressed ? 0.7 : 1 },
-                  ]}
-                >
-                  {isLoadingOlder ? (
-                    <ActivityIndicator size="small" color={colors.primary[500]} />
-                  ) : (
-                    <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
-                      View older expenses
-                    </Text>
-                  )}
-                </Pressable>
-              </View>
-            )}
-          </MotiView>
-        )}
-
-        {/* Empty State */}
-        {currentPhase.length === 0 && !isFullySettled && !hasMoreOlder && olderPhases.length === 0 && groupBalances.length === 0 && !isLoading && (
-          <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
-            <EmptyState
-              icon="wallet-outline"
-              title="No transactions yet"
-              description="Add an expense to start tracking your shared expenses with this friend"
-              actionLabel="Add Expense"
-              onAction={handleAddExpense}
-              compact
+        <FlashList
+          data={activityItems}
+          renderItem={renderFriendActivityItem}
+          keyExtractor={(item, index) => {
+            if (item.kind === 'transaction') return item.data.id;
+            if (item.kind === 'view_older') return 'view-older';
+            if (item.kind === 'fully_settled') return 'fully-settled';
+            return `empty-${index}`;
+          }}
+          getItemType={(item) => item.kind}
+          ListHeaderComponent={renderListHeader}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary[500]}
             />
-          </View>
-        )}
-      </ScrollView>
+          }
+        />
 
         <EditSettlementSheet
           ref={editSheetRef}
@@ -713,9 +754,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     textAlign: 'center',
-  },
-  scrollView: {
-    flex: 1,
   },
   scrollContent: {
     padding: 16,
@@ -870,9 +908,6 @@ const styles = StyleSheet.create({
   viewOlderContainer: {
     marginTop: 16,
     alignItems: 'center',
-  },
-  olderPhaseList: {
-    alignSelf: 'stretch',
   },
   viewOlderButton: {
     flexDirection: 'row',
