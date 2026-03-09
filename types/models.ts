@@ -109,7 +109,7 @@ export interface ExpenseListItem {
   paid_by: UserSummary;
   category: DbCategory | null;
   expense_date: string;
-  /** Your share of this expense (0 if you paid, positive if you owe) */
+  /** Your split amount. 0 means you are not included in this expense's split. */
   your_share: number;
   /** True if current user paid for this */
   you_paid: boolean;

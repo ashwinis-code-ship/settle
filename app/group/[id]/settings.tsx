@@ -337,6 +337,14 @@ export default function GroupSettingsScreen() {
         );
     };
 
+    const handleMarkPhaseDone = () => {
+        Alert.alert(
+            'Mark Phase as Done',
+            'This will create a checkpoint for the current phase. Older expenses will move to history and contributions will reset.\n\nThis feature is coming soon.',
+            [{ text: 'OK' }]
+        );
+    };
+
     const handleDeleteGroup = () => {
         // Pre-check: fast exit before showing the confirmation dialog
         if (!isOnline) {
@@ -545,6 +553,36 @@ export default function GroupSettingsScreen() {
                         </View>
                     </MotiView>
 
+                    {/* Phase */}
+                    <MotiView
+                        from={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ type: 'timing', duration: 500, delay: 150 }}
+                    >
+                        <Text style={[styles.sectionTitle, { color: textColor, marginTop: 24 }]}>Phase</Text>
+                        <View style={[styles.sectionCard, { backgroundColor: cardBg }]}>
+                            <Pressable
+                                style={({ pressed }) => [
+                                    styles.phaseAction,
+                                    { opacity: (!isOnline || isSubmitting) ? 0.5 : pressed ? 0.7 : 1 },
+                                ]}
+                                onPress={handleMarkPhaseDone}
+                                disabled={!isOnline || isSubmitting}
+                            >
+                                <View style={[styles.phaseIconWrap, { backgroundColor: colors.primary[100] }]}>
+                                    <Ionicons name="checkmark-circle-outline" size={22} color={colors.primary[600]} />
+                                </View>
+                                <View style={styles.phaseActionContent}>
+                                    <Text style={[styles.phaseActionTitle, { color: textColor }]}>Mark phase as done</Text>
+                                    <Text style={[styles.phaseActionSubtitle, { color: secondaryTextColor }]}>
+                                        Creates a checkpoint · resets contributions and moves expenses to history
+                                    </Text>
+                                </View>
+                                <Ionicons name="chevron-forward" size={18} color={secondaryTextColor} />
+                            </Pressable>
+                        </View>
+                    </MotiView>
+
                     {/* Danger Zone */}
                     <Text style={[styles.sectionTitle, { color: dangerColor, marginTop: 24 }]}>Danger Zone</Text>
                     <View style={[styles.sectionCard, { backgroundColor: cardBg }]}>
@@ -726,5 +764,29 @@ const styles = StyleSheet.create({
     nameEditActions: {
         flexDirection: 'row',
         gap: 8,
+    },
+    phaseAction: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        gap: 14,
+    },
+    phaseIconWrap: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    phaseActionContent: {
+        flex: 1,
+    },
+    phaseActionTitle: {
+        fontSize: 16,
+        fontWeight: '500',
+        marginBottom: 2,
+    },
+    phaseActionSubtitle: {
+        fontSize: 12,
     },
 });

@@ -68,7 +68,7 @@ async function fetchExpenses(groupId: string, userId: string): Promise<ExpenseLi
       paid_by: e.paid_by_user as UserSummary,
       category: e.category as DbCategory | null,
       expense_date: e.expense_date,
-      your_share: youPaid ? 0 : (userSplit?.amount || 0),
+      your_share: userSplit?.amount || 0,
       you_paid: youPaid,
       split_count: splits.length,
     };
@@ -136,7 +136,7 @@ export function useExpenses(groupId: string | undefined): UseExpensesResult {
       paid_by: { id: p.paid_by, name: p.paid_by_name, phone: '', avatar_url: null },
       category: p.category_id ? { id: p.category_id, name: '', icon: p.category_icon || '📦', color: '#C9C9C9', sort_order: 0 } : null,
       expense_date: p.expense_date,
-      your_share: p.paid_by === user?.id ? 0 : (p.splits.find(s => s.user_id === user?.id)?.amount || 0),
+      your_share: p.splits.find(s => s.user_id === user?.id)?.amount || 0,
       you_paid: p.paid_by === user?.id,
       split_count: p.splits.length,
       isPending: true,

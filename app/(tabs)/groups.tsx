@@ -30,7 +30,42 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroups } from '@/hooks/use-groups';
 import { hapticLight, hapticWarning } from '@/lib/haptics';
 import type { GroupListItem } from '@/types';
-import { CURRENCIES } from '@/types/database';
+
+// ─── Activity colour interpolation ───────────────────────────────────────────
+// Neutral (secondary text) → deep orange over 28 days, pure RGB lerp.
+// No step conditions — colour changes continuously with time.
+
+const ACTIVITY_MAX_MS = 28 * 24 * 60 * 60 * 1000; // 28 days
+const DEEP_ORANGE: [number, number, number] = [234, 88, 12]; // #EA580C
+
+function hexToRgb(hex: string): [number, number, number] {
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ];
+}
+
+function lerpColor(
+  from: [number, number, number],
+  to: [number, number, number],
+  t: number,
+): string {
+  const r = Math.round(from[0] + (to[0] - from[0]) * t);
+  const g = Math.round(from[1] + (to[1] - from[1]) * t);
+  const b = Math.round(from[2] + (to[2] - from[2]) * t);
+  return `rgb(${r},${g},${b})`;
+}
+
+function getActivityColor(dateStr: string | null, isDark: boolean): string {
+  if (!dateStr) return isDark ? '#D1D5DB' : '#4B5563';
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const t = Math.min(Math.max(diffMs / ACTIVITY_MAX_MS, 0), 1);
+  const neutral = hexToRgb(isDark ? '#D1D5DB' : '#4B5563');
+  return lerpColor(neutral, DEEP_ORANGE, t);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function GroupsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -78,90 +113,78 @@ export default function GroupsScreen() {
     router.push(`/group/${group.id}`);
   };
 
-  const formatBalance = (balance: number, currency: string) => {
-    const currencyInfo = CURRENCIES[currency as keyof typeof CURRENCIES] || CURRENCIES.INR;
-    const absBalance = Math.abs(balance).toFixed(2);
-    return `${currencyInfo.symbol}${absBalance}`;
+  const formatLastActivity = (dateStr: string | null): string => {
+    if (!dateStr) return 'No activity';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays <= 30) return `${diffDays} days ago`;
+
+    const diffMonths = Math.floor(diffDays / 30);
+    if (diffMonths === 1) return '1 month ago';
+    if (diffMonths < 12) return `${diffMonths} months ago`;
+
+    const diffYears = Math.floor(diffDays / 365);
+    if (diffYears === 1) return '1 year ago';
+    return `${diffYears} years ago`;
   };
 
-  const getBalanceColor = (balance: number) => {
-    if (balance > 0) return colors.success;
-    if (balance < 0) return colors.error;
-    return secondaryTextColor;
-  };
-
-  const getBalanceText = (balance: number) => {
-    if (balance > 0) return 'you are owed';
-    if (balance < 0) return 'you owe';
-    return 'settled up';
-  };
-
-  const renderGroupCard = ({ item, index }: { item: GroupListItem; index: number }) => {
-    const balance = item.your_balance;
-    const balanceColor = getBalanceColor(balance);
-    
-    return (
-      <MotiView
-        from={{ opacity: 0, translateY: 20, scale: 0.95 }}
-        animate={{ opacity: 1, translateY: 0, scale: 1 }}
-        transition={{ 
-          type: 'spring', 
-          damping: 18,
-          stiffness: 120,
-          delay: Math.min(index * 80, 400),
-        }}
+  const renderGroupCard = ({ item, index }: { item: GroupListItem; index: number }) => (
+    <MotiView
+      from={{ opacity: 0, translateY: 20, scale: 0.95 }}
+      animate={{ opacity: 1, translateY: 0, scale: 1 }}
+      transition={{
+        type: 'spring',
+        damping: 18,
+        stiffness: 120,
+        delay: Math.min(index * 80, 400),
+      }}
+    >
+      <Pressable
+        onPress={() => handleGroupPress(item)}
+        style={({ pressed }) => [
+          styles.groupCard,
+          {
+            backgroundColor: cardBg,
+            opacity: pressed ? 0.9 : 1,
+            transform: [{ scale: pressed ? 0.98 : 1 }],
+          },
+        ]}
       >
-        <Pressable
-          onPress={() => handleGroupPress(item)}
-          style={({ pressed }) => [
-            styles.groupCard,
-            { 
-              backgroundColor: cardBg, 
-              opacity: pressed ? 0.9 : 1,
-              transform: [{ scale: pressed ? 0.98 : 1 }],
-            },
-          ]}
-        >
-          {/* Group Avatar */}
-          <Avatar group={item} size={50} />
+        {/* Group Avatar */}
+        <Avatar group={item} size={50} />
 
-          {/* Group Info */}
-          <View style={styles.groupInfo}>
-            <Text style={[styles.groupName, { color: textColor }]} numberOfLines={1}>
-              {item.name}
+        {/* Group Info */}
+        <View style={styles.groupInfo}>
+          <Text style={[styles.groupName, { color: textColor }]} numberOfLines={1}>
+            {item.name}
+          </Text>
+          <View style={styles.groupMeta}>
+            <Ionicons name="people-outline" size={14} color={secondaryTextColor} />
+            <Text style={[styles.groupMetaText, { color: secondaryTextColor }]}>
+              {item.member_count} {item.member_count === 1 ? 'member' : 'members'}
             </Text>
-            <View style={styles.groupMeta}>
-              <Ionicons name="people-outline" size={14} color={secondaryTextColor} />
-              <Text style={[styles.groupMetaText, { color: secondaryTextColor }]}>
-                {item.member_count} {item.member_count === 1 ? 'member' : 'members'}
-              </Text>
-            </View>
           </View>
+        </View>
 
-          {/* Balance */}
-          <View style={styles.balanceContainer}>
-            {balance !== 0 ? (
-              <>
-                <Text style={[styles.balanceAmount, { color: balanceColor }]}>
-                  {formatBalance(balance, item.currency)}
-                </Text>
-                <Text style={[styles.balanceLabel, { color: balanceColor }]}>
-                  {getBalanceText(balance)}
-                </Text>
-              </>
-            ) : (
-              <View style={styles.settledBadge}>
-                <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-                <Text style={[styles.settledText, { color: colors.success }]}>
-                  settled
-                </Text>
-              </View>
-            )}
-          </View>
-        </Pressable>
-      </MotiView>
-    );
-  };
+        {/* Last Activity */}
+        <View style={styles.lastActivityContainer}>
+          <Text style={[styles.lastActivityLabel, { color: secondaryTextColor }]}>
+            last active
+          </Text>
+          <Text style={[styles.lastActivityValue, { color: getActivityColor(item.last_activity, isDark) }]}>
+            {formatLastActivity(item.last_activity)}
+          </Text>
+        </View>
+      </Pressable>
+    </MotiView>
+  );
 
   const renderEmptyState = () => {
     // Show offline empty state when no cached data
@@ -337,25 +360,16 @@ const styles = StyleSheet.create({
   groupMetaText: {
     fontSize: 13,
   },
-  balanceContainer: {
+  lastActivityContainer: {
     alignItems: 'flex-end',
   },
-  balanceAmount: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  balanceLabel: {
+  lastActivityLabel: {
     fontSize: 11,
-    marginTop: 2,
+    marginBottom: 2,
   },
-  settledBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  settledText: {
-    fontSize: 13,
-    fontWeight: '500',
+  lastActivityValue: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',

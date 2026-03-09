@@ -24,7 +24,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GroupSettleSheet } from '@/components/group-settle-sheet';
 import { BalanceSpectrumBar } from '@/components/ui/balance-spectrum-bar';
-import { ContributionBar } from '@/components/ui/contribution-bar';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PendingBadge } from '@/components/ui/offline-banner';
 import { Skeleton, SkeletonActivityList } from '@/components/ui/skeleton';
@@ -151,9 +150,21 @@ export default function GroupDetailScreen() {
             {group?.members.length || 0} members
           </Text>
         </View>
+        {(group?.members.length ?? 0) > 1 && (
+          <Pressable
+            onPress={handleSettleUp}
+            style={({ pressed }) => [
+              styles.settleButton,
+              { borderColor: colors.primary[500], opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Ionicons name="swap-horizontal" size={15} color={colors.primary[500]} />
+            <Text style={[styles.settleButtonText, { color: colors.primary[500] }]}>Settle</Text>
+          </Pressable>
+        )}
       </MotiView>
 
-      {/* Contributions — Stacked Bar */}
+      {/* Contributions — Spectrum Bar */}
       <MotiView
         from={{ opacity: 0, translateY: 20 }}
         animate={{ opacity: 1, translateY: 0 }}
@@ -166,29 +177,14 @@ export default function GroupDetailScreen() {
             {formatCurrency(sortedBalances.reduce((sum, b) => sum + b.total_paid, 0))}
           </Text>
         </View>
-        <ContributionBar
-          balances={sortedBalances}
-          currentUserId={user?.id ?? ''}
-          isDark={isDark}
-        />
-      </MotiView>
-
-      {/* Balance Spectrum */}
-      {sortedBalances.length > 1 && (
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 230 }}
-          style={styles.section}
-        >
-          <Text style={[styles.sectionTitle, { color: textColor }]}>Balance</Text>
+        {sortedBalances.length > 1 && (
           <BalanceSpectrumBar
             balances={sortedBalances}
             currentUserId={user?.id ?? ''}
             isDark={isDark}
           />
-        </MotiView>
-      )}
+        )}
+      </MotiView>
 
       {/* Activity Header */}
       <MotiView
@@ -198,39 +194,28 @@ export default function GroupDetailScreen() {
         style={styles.expensesHeader}
       >
         <Text style={[styles.sectionTitle, { color: textColor }]}>Activity</Text>
-        <View style={styles.headerActions}>
-          {(group?.members.length ?? 0) > 1 && (
-            <Pressable
-              onPress={handleSettleUp}
-              style={({ pressed }) => [
-                styles.settleButton,
-                {
-                  borderColor: colors.primary[500],
-                  opacity: pressed ? 0.7 : 1,
-                },
-              ]}
-            >
-              <Ionicons name="swap-horizontal" size={15} color={colors.primary[500]} />
-              <Text style={[styles.settleButtonText, { color: colors.primary[500] }]}>Settle</Text>
-            </Pressable>
-          )}
-          <Pressable
-            onPress={handleAddExpense}
-            style={({ pressed }) => [
-              styles.addExpenseButton,
-              { backgroundColor: colors.primary[500], opacity: pressed ? 0.8 : 1 },
-            ]}
-          >
-            <Ionicons name="add" size={18} color={colors.white} />
-            <Text style={styles.addExpenseText}>Add</Text>
-          </Pressable>
-        </View>
+        <Pressable
+          onPress={handleAddExpense}
+          style={({ pressed }) => [
+            styles.addExpenseButton,
+            { backgroundColor: colors.primary[500], opacity: pressed ? 0.8 : 1 },
+          ]}
+        >
+          <Ionicons name="add" size={18} color={colors.white} />
+          <Text style={styles.addExpenseText}>Add</Text>
+        </Pressable>
       </MotiView>
     </>
   );
 
   const renderExpenseItem = useCallback(({ item: expense, index }: { item: ExpenseListItemWithStatus; index: number }) => {
     const isYou = expense.you_paid;
+    // your_share is 0 iff the current user is not in expense_splits for this expense
+    const notIncluded = expense.your_share === 0;
+    const yourShareAmount = expense.your_share;
+    const iconBg = notIncluded
+      ? (isDark ? colors.gray[700] : colors.gray[200])
+      : (expense.category?.color ? expense.category.color + '20' : colors.primary[100]);
 
     return (
       <MotiView
@@ -250,11 +235,11 @@ export default function GroupDetailScreen() {
           ]}
         >
           {/* Category Icon */}
-          <View style={[styles.expenseIcon, { backgroundColor: expense.category?.color ? expense.category.color + '20' : colors.primary[100] }]}>
-            {expense.category ? (
+          <View style={[styles.expenseIcon, { backgroundColor: iconBg }]}>
+            {expense.category && !notIncluded ? (
               <Text style={styles.expenseIconEmoji}>{expense.category.icon}</Text>
             ) : (
-              <Ionicons name="receipt-outline" size={20} color={colors.primary[600]} />
+              <Ionicons name="receipt-outline" size={20} color={notIncluded ? (isDark ? colors.gray[500] : colors.gray[400]) : colors.primary[600]} />
             )}
           </View>
 
@@ -271,27 +256,25 @@ export default function GroupDetailScreen() {
             </Text>
           </View>
 
-          {/* Amount — mutually exclusive: lent (you paid) vs owe (someone else paid).
-              your_share = 0 for the payer, so we derive the lent amount from the split
-              count: total minus the payer's own equal share = what everyone else owes. */}
+          {/* Amount — total always shown; your share for anyone included in the split */}
           <View style={styles.expenseAmountContainer}>
             <Text style={[styles.expenseAmount, { color: textColor }]}>
               {formatCurrency(expense.amount, expense.currency)}
             </Text>
-            {isYou && expense.split_count > 1 ? (
-              <Text style={[styles.expenseShare, { color: colors.success }]}>
-                you lent {formatCurrency(expense.amount - (expense.amount / expense.split_count), expense.currency)}
+            {notIncluded ? (
+              <Text style={[styles.expenseShare, { color: secondaryTextColor }]}>
+                not involved
               </Text>
-            ) : expense.your_share > 0 ? (
-              <Text style={[styles.expenseShare, { color: colors.error }]}>
-                you owe {formatCurrency(expense.your_share, expense.currency)}
+            ) : expense.split_count > 1 ? (
+              <Text style={[styles.expenseShare, { color: secondaryTextColor }]}>
+                your share {formatCurrency(yourShareAmount, expense.currency)}
               </Text>
             ) : null}
           </View>
         </Pressable>
       </MotiView>
     );
-  }, [cardBg, textColor, secondaryTextColor, handleExpensePress]);
+  }, [cardBg, textColor, secondaryTextColor, isDark, handleExpensePress]);
 
   const renderEmptyActivity = useCallback(() => (
     <View style={styles.emptyExpenses}>
