@@ -268,57 +268,6 @@ export default function FriendsScreen() {
     </MotiView>
   );
 
-  // Calculate summary
-  const totalOwed = friends.reduce(
-    (sum, f) => (f.total_balance > 0 ? sum + f.total_balance : sum),
-    0
-  );
-  const totalOwe = friends.reduce(
-    (sum, f) => (f.total_balance < 0 ? sum + Math.abs(f.total_balance) : sum),
-    0
-  );
-
-  const renderSummary = () => {
-    if (friends.length === 0) return null;
-
-    return (
-      <MotiView
-        from={{ opacity: 0, translateY: 10 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: 'timing', duration: 400, delay: 100 }}
-        style={[styles.summaryCard, { backgroundColor: cardBg }]}
-      >
-        <View style={styles.summaryItem}>
-          <View style={[styles.summaryIcon, { backgroundColor: colors.success + '20' }]}>
-            <Ionicons name="arrow-down-circle" size={20} color={colors.success} />
-          </View>
-          <View>
-            <Text style={[styles.summaryLabel, { color: secondaryTextColor }]}>
-              You are owed
-            </Text>
-            <Text style={[styles.summaryAmount, { color: colors.success }]}>
-              ₹{totalOwed.toFixed(2)}
-            </Text>
-          </View>
-        </View>
-        <View style={[styles.summaryDivider, { backgroundColor: isDark ? colors.gray[700] : colors.gray[200] }]} />
-        <View style={styles.summaryItem}>
-          <View style={[styles.summaryIcon, { backgroundColor: colors.error + '20' }]}>
-            <Ionicons name="arrow-up-circle" size={20} color={colors.error} />
-          </View>
-          <View>
-            <Text style={[styles.summaryLabel, { color: secondaryTextColor }]}>
-              You owe
-            </Text>
-            <Text style={[styles.summaryAmount, { color: colors.error }]}>
-              ₹{totalOwe.toFixed(2)}
-            </Text>
-          </View>
-        </View>
-      </MotiView>
-    );
-  };
-
   if (error) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
@@ -366,12 +315,7 @@ export default function FriendsScreen() {
           ...styles.listContent,
           paddingBottom: scrubberBottom + 80,
         }}
-        ListHeaderComponent={
-          <>
-            {renderHeader()}
-            {renderSummary()}
-          </>
-        }
+        ListHeaderComponent={renderHeader()}
         ListEmptyComponent={
           isLoading ? (
             <SkeletonList count={4} />
@@ -443,43 +387,6 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 14,
     marginTop: 4,
-  },
-  summaryCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  summaryItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  summaryIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  summaryLabel: {
-    fontSize: 12,
-  },
-  summaryAmount: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  summaryDivider: {
-    width: 1,
-    height: 40,
-    marginHorizontal: 12,
   },
   friendCard: {
     flexDirection: 'row',

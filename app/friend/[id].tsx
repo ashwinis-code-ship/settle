@@ -101,12 +101,12 @@ export default function FriendDetailScreen() {
       items.push({ kind: 'view_older' });
     }
 
-    if (items.length === 0 && groupBalances.length === 0 && !isLoading) {
+    if (items.length === 0 && !isLoading) {
       items.push({ kind: 'empty_transactions' });
     }
 
     return items;
-  }, [currentPhase, olderPhases, isFullySettled, hasMoreOlder, groupBalances.length, isLoading]);
+  }, [currentPhase, olderPhases, isFullySettled, hasMoreOlder, isLoading]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -201,9 +201,9 @@ export default function FriendDetailScreen() {
     return secondaryTextColor;
   };
 
-  const getBalanceText = (balance: number, friendName: string) => {
-    if (balance > 0) return `${friendName} owes you`;
-    if (balance < 0) return `You owe ${friendName}`;
+  const getBalanceText = (balance: number) => {
+    if (balance > 0) return 'owes you';
+    if (balance < 0) return 'you owe';
     return 'All settled up';
   };
 
@@ -371,6 +371,10 @@ export default function FriendDetailScreen() {
           </Text>
           <View style={styles.transactionMeta}>
             <Text style={[styles.transactionDate, { color: secondaryTextColor }]}>
+              {item.paid_by_you ? 'You paid' : `${friendName.split(' ')[0]} paid`}
+            </Text>
+            <Text style={[styles.transactionDot, { color: secondaryTextColor }]}>•</Text>
+            <Text style={[styles.transactionDate, { color: secondaryTextColor }]}>
               {formatDate(item.date)}
             </Text>
             {item.group_type === 'group' && item.group_name && (
@@ -482,12 +486,10 @@ export default function FriendDetailScreen() {
         icon="wallet-outline"
         title="No transactions yet"
         description="Add an expense to start tracking your shared expenses with this friend"
-        actionLabel="Add Expense"
-        onAction={handleAddExpense}
         compact
       />
     </View>
-  ), [cardBg, handleAddExpense]);
+  ), [cardBg]);
 
   const renderFriendActivityItem = useCallback(({ item }: { item: FriendActivityItem }) => {
     if (item.kind === 'transaction') return renderTransactionItem(item.data, item.listIndex);
@@ -501,66 +503,46 @@ export default function FriendDetailScreen() {
     const friendName = friend?.user.name || params.name || 'Friend';
     const balance = friend?.total_balance || 0;
     const balanceColor = getBalanceColor(balance);
-    const currencySymbol = CURRENCIES[friend?.primary_currency || 'INR']?.symbol || '₹';
 
     return (
       <>
-        {/* Friend Info Card */}
+        {/* Friend Info Card — horizontal, matching group detail layout */}
         <MotiView
           from={{ opacity: 0, translateY: 20, scale: 0.95 }}
           animate={{ opacity: 1, translateY: 0, scale: 1 }}
-          transition={{ type: 'spring', damping: 18, stiffness: 120 }}
-          style={[styles.friendCard, { backgroundColor: cardBg }]}
+          transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 100 }}
+          style={[styles.friendInfoCard, { backgroundColor: cardBg }]}
         >
-          {friend && <Avatar user={friend.user} size={72} style={{ marginBottom: 12 }} />}
-          <Text style={[styles.friendName, { color: textColor }]}>{friendName}</Text>
-
-          {/* Balance Display */}
-          <View style={styles.balanceSection}>
-            <Text style={[styles.balanceLabel, { color: balanceColor }]}>
-              {getBalanceText(balance, friendName.split(' ')[0])}
+          {friend && <Avatar user={friend.user} size={60} />}
+          <View style={styles.friendDetails}>
+            <Text style={[styles.friendName, { color: textColor }]} numberOfLines={1}>
+              {friendName}
             </Text>
-            {balance !== 0 && (
-              <Text style={[styles.balanceAmount, { color: balanceColor }]}>
-                {formatBalance(balance, friend?.primary_currency)}
+            {balance === 0 ? (
+              <View style={styles.settledLine}>
+                <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                <Text style={[styles.friendBalanceLine, { color: colors.success, marginLeft: 4 }]}>
+                  All settled up
+                </Text>
+              </View>
+            ) : (
+              <Text style={[styles.friendBalanceLine, { color: balanceColor }]} numberOfLines={1}>
+                {`${getBalanceText(balance)} ${formatBalance(balance, friend?.primary_currency)}`}
               </Text>
             )}
-            {balance === 0 && (
-              <View style={styles.settledBadge}>
-                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-              </View>
-            )}
           </View>
-
-          {/* Action Buttons */}
-          <View style={styles.actionButtons}>
-            <Pressable onPress={handleAddExpense}>
-              {({ pressed }) => (
-                <MotiView
-                  animate={{ scale: pressed ? 0.95 : 1, opacity: pressed ? 0.85 : 1 }}
-                  transition={{ type: 'spring', damping: 18, stiffness: 300 }}
-                  style={[styles.actionButton, { backgroundColor: colors.primary[500] }]}
-                >
-                  <Ionicons name="add" size={20} color={colors.white} />
-                  <Text style={styles.actionButtonText}>Add Expense</Text>
-                </MotiView>
-              )}
+          {balance !== 0 && (
+            <Pressable
+              onPress={handleSettleUp}
+              style={({ pressed }) => [
+                styles.settleUpPill,
+                { borderColor: colors.primary[500], opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.95 : 1 }] },
+              ]}
+            >
+              <Ionicons name="swap-horizontal" size={15} color={colors.primary[500]} />
+              <Text style={[styles.settleUpPillText, { color: colors.primary[500] }]}>Settle</Text>
             </Pressable>
-            {balance !== 0 && (
-              <Pressable onPress={handleSettleUp}>
-                {({ pressed }) => (
-                  <MotiView
-                    animate={{ scale: pressed ? 0.95 : 1, opacity: pressed ? 0.85 : 1 }}
-                    transition={{ type: 'spring', damping: 18, stiffness: 300 }}
-                    style={[styles.actionButton, styles.settleButton, { borderColor: colors.primary[500] }]}
-                  >
-                    <Ionicons name="wallet-outline" size={20} color={colors.primary[500]} />
-                    <Text style={[styles.actionButtonText, { color: colors.primary[500] }]}>Settle Up</Text>
-                  </MotiView>
-                )}
-              </Pressable>
-            )}
-          </View>
+          )}
         </MotiView>
 
         {/* Shared Groups Section */}
@@ -568,7 +550,7 @@ export default function FriendDetailScreen() {
           <MotiView
             from={{ opacity: 0, translateY: 10 }}
             animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 100 }}
+            transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 180 }}
           >
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: textColor }]}>Shared Groups</Text>
@@ -582,29 +564,30 @@ export default function FriendDetailScreen() {
           </MotiView>
         )}
 
-        {/* Transaction History Section Header */}
-        {activityItems.length > 0 && activityItems[0].kind !== 'empty_transactions' && (
-          <MotiView
-            from={{ opacity: 0, translateY: 10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 180 }}
+        {/* Activity Section Header with inline + Add button */}
+        <MotiView
+          from={{ opacity: 0, translateY: 10 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 260 }}
+          style={styles.activityHeader}
+        >
+          <Text style={[styles.sectionTitle, { color: textColor }]}>Activity</Text>
+          <Pressable
+            onPress={handleAddExpense}
+            style={({ pressed }) => [
+              styles.addButton,
+              { backgroundColor: colors.primary[500], opacity: pressed ? 0.8 : 1 },
+            ]}
           >
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: textColor }]}>All Transactions</Text>
-              <Text style={[styles.sectionSubtitle, { color: secondaryTextColor }]}>
-                {isFullySettled && olderPhases.length === 0 && (hasMoreOlder || currentPhase.length > 0)
-                  ? 'View history'
-                  : `${currentPhase.length + olderPhases.flat().length} item${(currentPhase.length + olderPhases.flat().length) !== 1 ? 's' : ''}`}
-              </Text>
-            </View>
-          </MotiView>
-        )}
+            <Ionicons name="add" size={18} color={colors.white} />
+            <Text style={styles.addButtonText}>Add</Text>
+          </Pressable>
+        </MotiView>
       </>
     );
   }, [
     friend, params.name, cardBg, textColor, secondaryTextColor,
-    groupBalances, activityItems, currentPhase, olderPhases, isFullySettled, hasMoreOlder,
-    handleAddExpense, handleSettleUp, renderGroupCard,
+    groupBalances, handleAddExpense, handleSettleUp, renderGroupCard,
   ]);
 
   if (isLoading && !friend) {
@@ -621,30 +604,27 @@ export default function FriendDetailScreen() {
           <View style={styles.backButton} />
         </View>
         <View style={styles.loadingContainer}>
-          {/* Friend info skeleton */}
-          <View style={[styles.friendCard, { backgroundColor: cardBg }]}>
-            <Skeleton width={72} height={72} circle />
-            <View style={{ alignItems: 'center', marginTop: 16 }}>
-              <Skeleton width={120} height={20} borderRadius={6} />
+          {/* Friend info skeleton — horizontal */}
+          <View style={[styles.friendInfoCard, { backgroundColor: cardBg }]}>
+            <Skeleton width={60} height={60} circle />
+            <View style={{ flex: 1, marginLeft: 16 }}>
+              <Skeleton width={120} height={18} borderRadius={6} />
               <View style={{ height: 8 }} />
-              <Skeleton width={80} height={14} borderRadius={4} />
+              <Skeleton width={160} height={14} borderRadius={4} />
             </View>
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
-              <Skeleton width={120} height={40} borderRadius={20} />
-              <Skeleton width={100} height={40} borderRadius={20} />
-            </View>
+            <Skeleton width={72} height={32} borderRadius={16} />
           </View>
-          
+
           {/* Groups skeleton */}
-          <View style={{ padding: 16 }}>
+          <View style={{ paddingHorizontal: 0 }}>
             <Skeleton width={120} height={16} borderRadius={4} />
             <View style={{ height: 16 }} />
             <SkeletonCard />
           </View>
-          
-          {/* Transactions skeleton */}
-          <View style={{ padding: 16, paddingTop: 0 }}>
-            <Skeleton width={140} height={16} borderRadius={4} />
+
+          {/* Activity skeleton */}
+          <View style={{ marginTop: 20 }}>
+            <Skeleton width={80} height={16} borderRadius={4} />
             <View style={{ height: 16 }} />
             <SkeletonActivityList count={3} />
           </View>
@@ -795,55 +775,58 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  friendCard: {
+  friendInfoCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: 24,
-    borderRadius: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  friendName: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  balanceSection: {
-    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
     marginBottom: 20,
   },
-  balanceLabel: {
-    fontSize: 14,
-    fontWeight: '500',
+  friendDetails: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  friendName: {
+    fontSize: 20,
+    fontWeight: '700',
     marginBottom: 4,
   },
-  balanceAmount: {
-    fontSize: 28,
-    fontWeight: '700',
+  friendBalanceLine: {
+    fontSize: 14,
+    fontWeight: '500',
   },
-  settledBadge: {
-    marginTop: 4,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionButton: {
+  settledLine: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 6,
   },
-  settleButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
+  settleUpPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    gap: 4,
   },
-  actionButtonText: {
+  settleUpPillText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    gap: 4,
+  },
+  addButtonText: {
     color: colors.white,
     fontSize: 14,
     fontWeight: '600',
@@ -986,6 +969,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderRadius: 12,
+    marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.02,
@@ -1057,8 +1041,7 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 16,
   },
   errorContainer: {
     flex: 1,

@@ -269,7 +269,7 @@ export default function GroupsScreen() {
         <Text style={[styles.title, { color: textColor }]}>Groups</Text>
         <Text style={[styles.subtitle, { color: secondaryTextColor }]}>
           {groups.length > 0
-            ? `${groups.length} group${groups.length !== 1 ? 's' : ''}`
+            ? `${displayedGroups.length} of ${groups.length} group${groups.length !== 1 ? 's' : ''}`
             : 'Split for trips, roommates & more'}
         </Text>
       </View>

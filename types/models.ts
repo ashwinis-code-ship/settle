@@ -210,6 +210,8 @@ export interface FriendTransaction {
   category_icon?: string | null;
   /** Category hex color (expenses only) */
   category_color?: string | null;
+  /** True if the current user paid for this expense */
+  paid_by_you?: boolean;
 }
 
 // ============================================

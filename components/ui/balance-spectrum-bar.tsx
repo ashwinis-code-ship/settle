@@ -52,7 +52,7 @@ const OVERLAP = Math.round(AVATAR_SIZE * 0.9);   // 27
 const STEM_H = 8;
 const TRACK_H = 8;
 const SECTION_H = AVATAR_SIZE + STEM_H + TRACK_H; // 46 px total
-const CLUSTER_GAP = AVATAR_SIZE + 6;               // min centre-to-centre
+const CLUSTER_GAP = AVATAR_SIZE + 2;               // min centre-to-centre
 const TOOLTIP_ROW_H = 28;
 const TOOLTIP_PADDING = 20;
 const TOOLTIP_W = 178;
@@ -81,26 +81,31 @@ function computePositions(balances: GroupMemberBalance[], trackWidth: number): P
   }));
 }
 
+/** Median x of a sorted group — middle item for odd counts, avg of two middle for even. */
+function medianX(group: Positioned[]): number {
+  const mid = Math.floor(group.length / 2);
+  return group.length % 2 === 1
+    ? group[mid].x
+    : (group[mid - 1].x + group[mid].x) / 2;
+}
+
 function buildClusters(positioned: Positioned[]): Cluster[] {
   const sorted = [...positioned].sort((a, b) => a.x - b.x);
   const clusters: Cluster[] = [];
   let group: Positioned[] = [sorted[0]];
 
   for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i].x - group[group.length - 1].x < CLUSTER_GAP) {
+    // Use span from the first item in the group (not the last) so chaining
+    // cannot pull distant members in via a series of close consecutive pairs.
+    const spanIfAdded = sorted[i].x - group[0].x;
+    if (spanIfAdded < CLUSTER_GAP) {
       group.push(sorted[i]);
     } else {
-      clusters.push({
-        members: group.map(p => p.balance),
-        centerX: group.reduce((s, p) => s + p.x, 0) / group.length,
-      });
+      clusters.push({ members: group.map(p => p.balance), centerX: medianX(group) });
       group = [sorted[i]];
     }
   }
-  clusters.push({
-    members: group.map(p => p.balance),
-    centerX: group.reduce((s, p) => s + p.x, 0) / group.length,
-  });
+  clusters.push({ members: group.map(p => p.balance), centerX: medianX(group) });
   return clusters;
 }
 

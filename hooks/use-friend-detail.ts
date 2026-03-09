@@ -99,6 +99,7 @@ function mapRpcToTransaction(
     notes: row.notes ?? null,
     category_icon: row.category_icon ?? null,
     category_color: row.category_color ?? null,
+    paid_by_you: row.paid_by === userId,
   };
 }
 

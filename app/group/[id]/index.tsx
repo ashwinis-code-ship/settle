@@ -45,16 +45,16 @@ const formatCurrency = (amount: number, currency: string = 'INR') => {
 
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
 
-  if (date.toDateString() === today.toDateString()) return 'Today';
-  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
   return date.toLocaleDateString('en-IN', {
     day: 'numeric',
     month: 'short',
-    year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined,
+    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
   });
 };
 
@@ -225,6 +225,8 @@ export default function GroupDetailScreen() {
                 </Text>
               ) : null}
             </View>
+
+            <Ionicons name="chevron-forward" size={16} color={secondaryTextColor} style={{ marginLeft: 4 }} />
           </Pressable>
         </MotiView>
       );
@@ -264,11 +266,18 @@ export default function GroupDetailScreen() {
         <View style={styles.viewOlderContainer}>
           <Pressable
             onPress={() => { hapticLight(); loadOlderPhase(); }}
-            style={({ pressed }) => [styles.viewOlderButton, { opacity: pressed ? 0.7 : 1 }]}
           >
-            <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
-              View older expenses
-            </Text>
+            {({ pressed }) => (
+              <MotiView
+                animate={{ scale: pressed ? 0.95 : 1, opacity: pressed ? 0.75 : 1 }}
+                transition={{ type: 'spring', damping: 18, stiffness: 300 }}
+                style={styles.viewOlderPill}
+              >
+                <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
+                  View older expenses
+                </Text>
+              </MotiView>
+            )}
           </Pressable>
         </View>
       </MotiView>
@@ -294,11 +303,19 @@ export default function GroupDetailScreen() {
           {showViewOlder && (
             <Pressable
               onPress={() => { hapticLight(); loadOlderPhase(); }}
-              style={({ pressed }) => [styles.viewOlderButton, { opacity: pressed ? 0.7 : 1, marginTop: 12 }]}
+              style={{ marginTop: 12 }}
             >
-              <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
-                View older expenses
-              </Text>
+              {({ pressed }) => (
+                <MotiView
+                  animate={{ scale: pressed ? 0.95 : 1, opacity: pressed ? 0.75 : 1 }}
+                  transition={{ type: 'spring', damping: 18, stiffness: 300 }}
+                  style={styles.viewOlderPill}
+                >
+                  <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
+                    View older expenses
+                  </Text>
+                </MotiView>
+              )}
             </Pressable>
           )}
         </View>
@@ -492,13 +509,19 @@ export default function GroupDetailScreen() {
           transition={{ type: 'spring', damping: 18, stiffness: 100 }}
           style={[styles.header, { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] }]}
         >
-          <Pressable onPress={handleBack} style={styles.backButton}>
+          <Pressable
+            onPress={handleBack}
+            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
+          >
             <Ionicons name="arrow-back" size={24} color={textColor} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: textColor }]} numberOfLines={1}>
             {group?.name || 'Group'}
           </Text>
-          <Pressable onPress={handleSettings} style={styles.settingsButton}>
+          <Pressable
+            onPress={handleSettings}
+            style={({ pressed }) => [styles.settingsButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
+          >
             <Ionicons name="settings-outline" size={22} color={textColor} />
           </Pressable>
         </MotiView>
@@ -642,6 +665,15 @@ const styles = StyleSheet.create({
   viewOlderButton: {
     paddingVertical: 10,
     paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  viewOlderPill: {
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    backgroundColor: colors.primary[500] + '28',
+    borderWidth: 1.5,
+    borderColor: colors.primary[500] + '70',
     alignItems: 'center',
   },
   viewOlderText: { fontSize: 14, fontFamily: 'Nunito_700Bold' },
