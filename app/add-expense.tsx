@@ -586,7 +586,17 @@ export default function AddExpenseScreen() {
               >
                 <View style={styles.amountRow}>
                   <Pressable
-                    onPress={() => openSheet('currency')}
+                    onPress={() => {
+                      // --- Coming Soon ---
+                      // Multi-currency picker is not yet active. Show a teaser
+                      // alert until backend conversion support is ready.
+                      // To re-enable: replace this block with openSheet('currency')
+                      Alert.alert(
+                        'Coming Soon',
+                        'Support for other currencies is on the way!',
+                        [{ text: 'OK' }]
+                      );
+                    }}
                     style={({ pressed }) => [
                       styles.currencyPill,
                       { borderRightColor: borderColor, opacity: pressed ? 0.7 : 1 },

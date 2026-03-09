@@ -1,0 +1,97 @@
+PRIVACY POLICY
+Settle — Expense Splitting App
+Last updated: March 2026
+
+────────────────────────────────────────────────────────────────────────────────
+
+1. INTRODUCTION
+
+Settle ("we", "our", or "us") is committed to protecting your personal
+information. This Privacy Policy explains what data we collect, how we use it,
+and your rights in relation to it.
+
+By using the Settle app you agree to the practices described in this policy.
+
+────────────────────────────────────────────────────────────────────────────────
+
+2. INFORMATION WE COLLECT
+
+2.1 Account Information
+  • Name and phone number (used to create and identify your account)
+  • Profile photo (optional, uploaded by you)
+
+2.2 Expense & Group Data
+  • Groups you create or belong to
+  • Expenses you add, edit, or delete
+  • Split amounts and settlement records
+
+2.3 Contacts (optional)
+  • With your permission we access your device contacts to help you find friends
+    who already use Settle, and to invite others.
+  • We do not store your full contact list on our servers. Contact data is
+    used only locally and to match against registered phone numbers.
+
+2.4 Usage Data
+  • Anonymised analytics events (e.g. "expense added", "group created") to
+    understand how the app is used and improve features.
+  • No personally identifiable information is attached to analytics events.
+
+────────────────────────────────────────────────────────────────────────────────
+
+3. HOW WE USE YOUR INFORMATION
+
+  • To provide and improve the Settle service
+  • To sync your data across devices
+  • To send transactional notifications (e.g. when someone adds an expense)
+  • To detect and prevent fraud or abuse
+
+We do NOT sell your personal data to third parties.
+
+────────────────────────────────────────────────────────────────────────────────
+
+4. DATA STORAGE & SECURITY
+
+Your data is stored securely using Supabase (PostgreSQL). All data in transit
+is encrypted via TLS. We apply row-level security policies so users can only
+access data they are authorised to see.
+
+────────────────────────────────────────────────────────────────────────────────
+
+5. DATA RETENTION
+
+  • Your account data is retained for as long as your account is active.
+  • You may delete your account at any time; all associated data will be
+    permanently removed within 30 days.
+
+────────────────────────────────────────────────────────────────────────────────
+
+6. THIRD-PARTY SERVICES
+
+Settle uses the following third-party services, each with their own privacy
+policies:
+  • Supabase — database and authentication (supabase.com/privacy)
+  • Expo / React Native — app framework
+
+────────────────────────────────────────────────────────────────────────────────
+
+7. CHILDREN'S PRIVACY
+
+Settle is not directed at children under 13. We do not knowingly collect data
+from children.
+
+────────────────────────────────────────────────────────────────────────────────
+
+8. CHANGES TO THIS POLICY
+
+We may update this policy from time to time. Significant changes will be
+communicated via an in-app notice. Continued use after changes constitutes
+acceptance of the updated policy.
+
+────────────────────────────────────────────────────────────────────────────────
+
+9. CONTACT
+
+For privacy-related questions, contact us at:
+singhsandhusatnam@icloud.com
+
+────────────────────────────────────────────────────────────────────────────────

@@ -393,67 +393,17 @@ export default function ProfileScreen() {
   };
 
   const handleCurrencyChange = () => {
-    if (!isOnline) {
-      hapticWarning();
-      Alert.alert(
-        'No Connection',
-        'Changing default currency requires an internet connection.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-    
-    hapticSelection();
-    const currencyOptions = Object.entries(CURRENCIES);
-
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['Cancel', ...currencyOptions.map(([code, { name, symbol }]) => `${symbol} ${name} (${code})`)],
-          cancelButtonIndex: 0,
-          title: 'Default Currency',
-        },
-        (buttonIndex) => {
-          if (buttonIndex > 0) {
-            // Double-check offline status before executing (user might have gone offline while sheet was open)
-            if (!isOnline) {
-              hapticWarning();
-              Alert.alert(
-                'No Connection',
-                'Changing default currency requires an internet connection.',
-                [{ text: 'OK' }]
-              );
-              return;
-            }
-            setDefaultCurrency(currencyOptions[buttonIndex - 1][0] as CurrencyCode);
-          }
-        }
-      );
-    } else {
-      Alert.alert(
-        'Default Currency',
-        undefined,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          ...currencyOptions.map(([code, { name, symbol }]) => ({
-            text: `${symbol} ${name} (${code})${code === defaultCurrency ? ' ✓' : ''}`,
-            onPress: () => {
-              // Double-check offline status before executing (user might have gone offline while dialog was open)
-              if (!isOnline) {
-                hapticWarning();
-                Alert.alert(
-                  'No Connection',
-                  'Changing default currency requires an internet connection.',
-                  [{ text: 'OK' }]
-                );
-                return;
-              }
-              setDefaultCurrency(code as CurrencyCode);
-            },
-          })),
-        ]
-      );
-    }
+    hapticLight();
+    Alert.alert(
+      'Coming Soon',
+      'Multi-currency support is on the way. For now, expenses use your group\'s default currency.',
+      [{ text: 'Got it' }]
+    );
+    // --- Future implementation ---
+    // Full currency picker will be re-enabled here once backend supports
+    // per-user default currency and multi-currency expense conversion.
+    // The action sheet / Alert.alert picker code has been removed; restore from
+    // git history (commit before feat: expense screen redesign) when ready.
   };
 
   // const handleNotificationToggle = async (value: boolean) => {
@@ -813,17 +763,6 @@ export default function ProfileScreen() {
             </Pressable>
           </MotiView>
 
-          {/* App Version */}
-          <MotiView
-            from={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ type: 'timing', duration: 500, delay: 500 }}
-            style={styles.versionContainer}
-          >
-            <Text style={[styles.versionText, { color: secondaryTextColor }]}>
-              Settle v1.0.0
-            </Text>
-          </MotiView>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

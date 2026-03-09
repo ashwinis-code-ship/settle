@@ -2,6 +2,97 @@
 
 ---
 
+## v1.2.0 — 9 Mar 2026
+
+### Expense Screen Redesign
+
+**Expense Detail** (`expense/[id].tsx`) rebuilt as a read-only receipt-style card:
+
+- Receipt layout with category · date header, amount hero, paid-by row, per-member split breakdown, dashed dividers, and a meta footer (group / notes)
+- Edit navigates to `add-expense` in edit mode; pencil icon lives in the nav-bar header — the redundant bottom "Edit Expense" button removed
+- Fixed a crash (`group_id of null`) caused by `NavBar` being defined as an inner component; converted to a plain `renderNavBar()` function with a null-guard in `handleEdit`
+- Light-mode contrast: screen background is `gray[100]` so the white card lifts off it; card gets a hairline border and stronger shadow
+
+**Add / Edit Expense** (`add-expense.tsx`) overhauled:
+
+- **Inline currency pill** — `₹ INR ▾` sits left of the amount input separated by a hairline divider; tapping shows a "Coming Soon" alert (currency picker code preserved and commented for future activation)
+- **Category tile merged into description row** — left tile icon opens category picker; description input fills the rest
+- **Single bottom sheet for all pickers** — currency, category, and paid-by share one `BottomSheet` instance that mode-switches; no more inline expanders that push the form down
+- **Header tick (✓) replaces bottom submit button** in both create and edit modes; shows `ActivityIndicator` while saving
+- **Edit mode** — detects `expenseId` param, pre-fills all fields from `useExpense`, calls `updateExpense` on submit
+- **Haptics** — validation / save failure → `hapticHeavy`; success → `hapticSuccess`
+- `Keyboard.dismiss()` fires before any picker sheet opens; `returnKeyType="done"` + `onSubmitEditing` on amount field
+- Fixed race condition where category/paid-by sheet showed wrong content: `activeSheetRef` (a `useRef`) for immediate reads, `onChange` handler no longer resets `activeSheet` on close
+- Fixed cached-group sheet staying open: explicit `bottomSheetRef.close()` in `handleSelectGroup` + 320 ms form-reveal delay so keyboard doesn't open over the closing sheet
+
+### Create Group UX
+
+- Member search sheet auto-opens on mount (150 ms delay), matching the `add-expense` flow
+- Closing without selecting is safe — no `router.back()` triggered
+
+### PeopleSearchSheet — Unified Contact Row UI
+
+- Contact rows are now identical in single-select (Add Expense) and multi-select (Create Group) modes
+- Removed `contactRowBordered` style; selected items in multi-select show a checkbox + subtle `primary[500] + '14'` background tint only
+
+### UI/UX Upgrade — Phases 1–4
+
+**Phase 1 — Interaction Feel**
+
+- Consistent spring-scale press states across all tappable rows and cards
+- Snappier checkbox spring animation (`stiffness: 500`)
+- Shared `Checkbox` component extracted to `components/ui/checkbox.tsx`; used across `PeopleSearchSheet` and group member lists
+
+**Phase 2 — Loading States & Error Animations**
+
+- Shimmer skeleton loaders across home, friend detail, and group detail screens
+- Error states animate in with a shake; retry buttons pulse
+- Home screen hero card and quick-action buttons no longer re-animate after initial load — values fill in without replaying the entrance animation
+
+**Phase 3 — Moment Animations & Filter-Aware Empty States**
+
+- `AnimatePresence` wraps list transitions so items exit smoothly when filters change
+- Filter-aware empty states animate in per-filter context (Everyone / Outstanding / I Owe / They Owe)
+- Settled-up state re-centered correctly after `MotiView` wrapping
+
+**Phase 4 — System-Level Polish**
+
+- **Frosted glass tab bar** — `BlurView` background with `position: 'absolute'`; content scrolls underneath
+- Animated tab icons via `AnimatedTabIcon` — spring scale on press, opacity fade between active/inactive
+- Offline banner animated exit via `AnimatePresence` in `_layout.tsx`
+- Screen `paddingBottom` / `scrubberBottom` adjusted dynamically with `useSafeAreaInsets` for the floating tab bar on all tab screens
+
+### Friend Detail — Polish & Fixes
+
+- Fixed shared groups section showing/hiding inconsistently when all expenses are paid by a third party
+- Fixed "View history" button not appearing when `currentPhase` has transactions
+- Redesigned spectrum bar: avatar bubble clustering fixed, overlapping stacks tooltip polished
+- View-history pill contrast improved
+
+### Global
+
+- `colors.background.light` changed from `#FFFFFF` to `#F3F4F6` — all screens get the two-tone card-on-gray look in light mode, consistent with iOS grouped background convention
+- Group/friend detail header no longer re-animates on the 10-second background refetch interval
+
+### Settings & About
+
+- **Default currency** row now shows a "Coming Soon" alert — full multi-currency picker preserved in code with comments for future re-activation
+- **Support email** updated to `singhsandhusatnam@icloud.com`
+- **FAQ** shows a "Coming Soon" alert
+- **Privacy Policy** and **Terms of Service** link to raw text files in the repository (`docs/privacy-policy.txt`, `docs/terms-of-service.txt`)
+- Footer tagline changed to "Made with ❤️ for 🌻"
+- App version removed from below the Sign Out button (version is shown in the About screen)
+
+### New Files
+
+- `components/ui/checkbox.tsx` — shared animated checkbox
+- `docs/privacy-policy.txt` — Privacy Policy template
+- `docs/terms-of-service.txt` — Terms of Service template
+- `docs/UI_UX_UPGRADE_PLAN.md` — full phased upgrade roadmap
+- `docs/PERFORMANCE_ISSUES.md` — tracked performance issues
+
+---
+
 ## v1.1.0 — 9 Mar 2026
 
 ### Friend Detail — Full Overhaul

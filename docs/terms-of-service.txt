@@ -1,0 +1,109 @@
+TERMS OF SERVICE
+Settle — Expense Splitting App
+Last updated: March 2026
+
+────────────────────────────────────────────────────────────────────────────────
+
+1. ACCEPTANCE OF TERMS
+
+By downloading, installing, or using the Settle application ("App") you agree
+to be bound by these Terms of Service ("Terms"). If you do not agree, do not
+use the App.
+
+────────────────────────────────────────────────────────────────────────────────
+
+2. DESCRIPTION OF SERVICE
+
+Settle is an expense-splitting application that allows users to:
+  • Create groups with friends and contacts
+  • Record shared expenses and split them fairly
+  • Track balances and settle up with friends
+
+────────────────────────────────────────────────────────────────────────────────
+
+3. ELIGIBILITY
+
+You must be at least 13 years old to use Settle. By using the App you confirm
+that you meet this requirement.
+
+────────────────────────────────────────────────────────────────────────────────
+
+4. ACCOUNT RESPONSIBILITIES
+
+  • You are responsible for keeping your account credentials secure.
+  • You must provide accurate information when creating your account.
+  • You are responsible for all activity that occurs under your account.
+
+────────────────────────────────────────────────────────────────────────────────
+
+5. ACCEPTABLE USE
+
+You agree not to:
+  • Use the App for any unlawful purpose
+  • Harass, abuse, or harm other users
+  • Attempt to gain unauthorised access to any part of the service
+  • Reverse-engineer, decompile, or disassemble the App
+  • Use the App to transmit spam or malicious content
+
+────────────────────────────────────────────────────────────────────────────────
+
+6. EXPENSE DATA & ACCURACY
+
+Settle is a record-keeping tool. We do not process real financial transactions.
+We are not responsible for any financial disputes between users arising from
+information recorded in the App. It is your responsibility to verify that
+expense data is accurate.
+
+────────────────────────────────────────────────────────────────────────────────
+
+7. INTELLECTUAL PROPERTY
+
+All content, branding, and code within the Settle App are owned by or licensed
+to us. You may not copy, modify, distribute, or create derivative works without
+our prior written consent.
+
+────────────────────────────────────────────────────────────────────────────────
+
+8. DISCLAIMER OF WARRANTIES
+
+The App is provided "as is" without warranties of any kind, express or implied.
+We do not warrant that the App will be error-free, uninterrupted, or suitable
+for your particular purpose.
+
+────────────────────────────────────────────────────────────────────────────────
+
+9. LIMITATION OF LIABILITY
+
+To the fullest extent permitted by law, we shall not be liable for any indirect,
+incidental, special, consequential, or punitive damages arising from your use
+of the App.
+
+────────────────────────────────────────────────────────────────────────────────
+
+10. TERMINATION
+
+We reserve the right to suspend or terminate your account if you violate these
+Terms. You may delete your account at any time from within the App settings.
+
+────────────────────────────────────────────────────────────────────────────────
+
+11. CHANGES TO TERMS
+
+We may update these Terms from time to time. Continued use of the App after
+changes constitutes your acceptance of the new Terms.
+
+────────────────────────────────────────────────────────────────────────────────
+
+12. GOVERNING LAW
+
+These Terms are governed by applicable law. Any disputes shall be resolved
+through good-faith negotiation.
+
+────────────────────────────────────────────────────────────────────────────────
+
+13. CONTACT
+
+For questions about these Terms, contact us at:
+singhsandhusatnam@icloud.com
+
+────────────────────────────────────────────────────────────────────────────────

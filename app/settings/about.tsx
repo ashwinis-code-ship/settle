@@ -10,6 +10,7 @@ import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { MotiView } from 'moti';
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -45,7 +46,7 @@ export default function AboutScreen() {
 
   const handleEmail = () => {
     hapticLight();
-    Linking.openURL('mailto:support@settle.app?subject=Settle App Support');
+    Linking.openURL('mailto:singhsandhusatnam@icloud.com?subject=Settle App Support');
   };
 
   return (
@@ -101,7 +102,7 @@ export default function AboutScreen() {
             <View style={styles.linkContent}>
               <Text style={[styles.linkTitle, { color: textColor }]}>Contact Support</Text>
               <Text style={[styles.linkSubtitle, { color: secondaryTextColor }]}>
-                support@settle.app
+                singhsandhusatnam@icloud.com
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
@@ -109,7 +110,10 @@ export default function AboutScreen() {
 
           <Pressable
             style={[styles.linkItem, styles.linkItemLast]}
-            onPress={() => handleLink('https://settle.app/faq')}
+            onPress={() => {
+              hapticLight();
+              Alert.alert('Coming Soon', 'FAQ is on the way!', [{ text: 'OK' }]);
+            }}
           >
             <View style={[styles.linkIcon, { backgroundColor: colors.info + '20' }]}>
               <Ionicons name="help-circle-outline" size={20} color={colors.info} />
@@ -135,7 +139,7 @@ export default function AboutScreen() {
 
           <Pressable
             style={styles.linkItem}
-            onPress={() => handleLink('https://settle.app/privacy')}
+            onPress={() => handleLink('https://raw.githubusercontent.com/satnam-sandhu/settle/main/docs/privacy-policy.txt')}
           >
             <View style={[styles.linkIcon, { backgroundColor: colors.gray[200] }]}>
               <Ionicons name="shield-outline" size={20} color={colors.gray[600]} />
@@ -148,7 +152,7 @@ export default function AboutScreen() {
 
           <Pressable
             style={[styles.linkItem, styles.linkItemLast]}
-            onPress={() => handleLink('https://settle.app/terms')}
+            onPress={() => handleLink('https://raw.githubusercontent.com/satnam-sandhu/settle/main/docs/terms-of-service.txt')}
           >
             <View style={[styles.linkIcon, { backgroundColor: colors.gray[200] }]}>
               <Ionicons name="document-text-outline" size={20} color={colors.gray[600]} />
@@ -168,7 +172,7 @@ export default function AboutScreen() {
           style={styles.footer}
         >
           <Text style={[styles.footerText, { color: secondaryTextColor }]}>
-            Made with ❤️ for easy expense splitting
+            Made with ❤️ for 🌻
           </Text>
           <Text style={[styles.copyright, { color: secondaryTextColor }]}>
             © 2026 Settle. All rights reserved.
