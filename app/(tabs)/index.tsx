@@ -26,10 +26,223 @@ import { useUser } from '@/hooks/use-user';
 import { hapticLight, hapticWarning } from '@/lib/haptics';
 import { formatCurrency } from '@/lib/utils';
 
-export default function HomeScreen() {
+/**
+ * HomeHeader — stable module-level component so FlashList never remounts it.
+ *
+ * Defined outside HomeScreen so its reference is constant across renders.
+ * This prevents FlashList from unmounting/remounting the header when reactive
+ * state (e.g. isLoadingFriends) changes inside HomeScreen, which would
+ * otherwise cause all entry MotiView animations to replay.
+ */
+function HomeHeader() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { user: authUser } = useAuth();
+  const { user } = useUser();
+  const { isOnline } = useSync();
+  const { friends, isLoading: isLoadingFriends } = useFriends();
+
+  const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
+  const secondaryTextColor = isDark ? colors.text.dark.secondary : colors.text.light.secondary;
+  const cardBg = isDark ? colors.gray[800] : colors.white;
+
+  const balanceSummary = useMemo(() => {
+    if (!friends || friends.length === 0) {
+      return { totalOwed: 0, totalOwing: 0, netBalance: 0 };
+    }
+    let totalOwed = 0;
+    let totalOwing = 0;
+    friends.forEach(friend => {
+      if (friend.total_balance > 0) totalOwed += friend.total_balance;
+      else if (friend.total_balance < 0) totalOwing += Math.abs(friend.total_balance);
+    });
+    return { totalOwed, totalOwing, netBalance: totalOwed - totalOwing };
+  }, [friends]);
+
+  const userName = user?.name || authUser?.user_metadata?.name || 'User';
+
+  const handleAddExpense = useCallback(() => {
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert('No Connection', 'Adding expenses requires an internet connection.', [{ text: 'OK' }]);
+      return;
+    }
+    hapticLight();
+    router.push('/add-expense');
+  }, [isOnline]);
+
+  const handleCreateGroup = useCallback(() => {
+    hapticLight();
+    router.push('/create-group');
+  }, []);
+
+  const handleSettleUp = useCallback(() => {
+    if (!isOnline) {
+      hapticWarning();
+      Alert.alert('No Connection', 'Settling up requires an internet connection.', [{ text: 'OK' }]);
+      return;
+    }
+    hapticLight();
+    router.push('/settle-up');
+  }, [isOnline]);
+
+  return (
+    <>
+      {/* Header */}
+      <MotiView
+        from={{ opacity: 0, translateY: -20 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 100 }}
+        style={styles.header}
+      >
+        <View style={styles.headerLeft}>
+          <Text style={[styles.greeting, { color: secondaryTextColor }]}>
+            Welcome back,
+          </Text>
+          <Text style={[styles.name, { color: textColor }]}>
+            {userName} 👋
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => router.push('/(tabs)/profile')}
+          style={({ pressed }) => [
+            styles.avatarButton,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <Avatar user={{ name: userName, avatar_url: user?.avatar_url ?? null }} size={44} />
+        </Pressable>
+      </MotiView>
+
+      {/* Balance Summary Card */}
+      <MotiView
+        from={{ opacity: 0, translateY: 20, scale: 0.95 }}
+        animate={{ opacity: 1, translateY: 0, scale: 1 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 100, delay: 150 }}
+        style={[
+          styles.balanceCard,
+          {
+            backgroundColor: balanceSummary.netBalance >= 0
+              ? colors.primary[500]
+              : colors.error,
+          },
+        ]}
+      >
+        <Text style={styles.balanceLabel}>
+          {balanceSummary.netBalance >= 0 ? 'You are owed' : 'You owe'}
+        </Text>
+        {isLoadingFriends ? (
+          <>
+            <Skeleton width={130} height={38} borderRadius={8} style={{ marginVertical: 4, opacity: 0.35 }} />
+            <View style={{ flexDirection: 'row', gap: 16, marginTop: 10 }}>
+              <Skeleton width={95} height={18} borderRadius={6} style={{ opacity: 0.3 }} />
+              <Skeleton width={95} height={18} borderRadius={6} style={{ opacity: 0.3 }} />
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={styles.balanceValue}>
+              {formatCurrency(Math.abs(balanceSummary.netBalance))}
+            </Text>
+            <View style={styles.balanceRow}>
+              <View style={styles.balanceItem}>
+                <Ionicons name="arrow-up-circle" size={20} color={colors.white} />
+                <View>
+                  <Text style={styles.balanceItemLabel}>You get back</Text>
+                  <Text style={styles.balanceItemValue}>
+                    {formatCurrency(balanceSummary.totalOwed)}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.balanceDivider} />
+              <View style={styles.balanceItem}>
+                <Ionicons name="arrow-down-circle" size={20} color={colors.white} />
+                <View>
+                  <Text style={styles.balanceItemLabel}>You owe</Text>
+                  <Text style={styles.balanceItemValue}>
+                    {formatCurrency(balanceSummary.totalOwing)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </>
+        )}
+      </MotiView>
+
+      {/* Quick Actions */}
+      <MotiView
+        from={{ opacity: 0, translateY: 20 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 300 }}
+      >
+        <Text style={[styles.sectionTitle, { color: textColor }]}>Quick Actions</Text>
+        <View style={styles.actionsRow}>
+          <Pressable
+            onPress={handleAddExpense}
+            style={({ pressed }) => [
+              styles.actionCard,
+              {
+                backgroundColor: cardBg,
+                opacity: pressed ? 0.9 : 1,
+                transform: [{ scale: pressed ? 0.95 : 1 }],
+              },
+            ]}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: colors.primary[100] }]}>
+              <Ionicons name="add" size={28} color={colors.primary[500]} />
+            </View>
+            <Text style={[styles.actionLabel, { color: textColor }]}>Add Expense</Text>
+          </Pressable>
+          <Pressable
+            onPress={handleCreateGroup}
+            style={({ pressed }) => [
+              styles.actionCard,
+              {
+                backgroundColor: cardBg,
+                opacity: pressed ? 0.9 : 1,
+                transform: [{ scale: pressed ? 0.95 : 1 }],
+              },
+            ]}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: colors.primary[100] }]}>
+              <Ionicons name="people" size={28} color={colors.primary[500]} />
+            </View>
+            <Text style={[styles.actionLabel, { color: textColor }]}>Create Group</Text>
+          </Pressable>
+          <Pressable
+            onPress={handleSettleUp}
+            style={({ pressed }) => [
+              styles.actionCard,
+              {
+                backgroundColor: cardBg,
+                opacity: pressed ? 0.9 : 1,
+                transform: [{ scale: pressed ? 0.95 : 1 }],
+              },
+            ]}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: colors.warning + '20' }]}>
+              <Ionicons name="wallet-outline" size={28} color={colors.warning} />
+            </View>
+            <Text style={[styles.actionLabel, { color: textColor }]}>Settle Up</Text>
+          </Pressable>
+        </View>
+      </MotiView>
+
+      {/* Recent Activity title */}
+      <MotiView
+        from={{ opacity: 0, translateY: 20 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 100, delay: 350 }}
+      >
+        <Text style={[styles.sectionTitle, { color: textColor }]}>Recent Activity</Text>
+      </MotiView>
+    </>
+  );
+}
+
+export default function HomeScreen() {
+  const colorScheme = useColorScheme() ?? 'light';
+  const isDark = colorScheme === 'dark';
   const { user } = useUser();
   const { isOnline } = useSync();
   const { friends, isLoading: isLoadingFriends, refresh: refreshFriends } = useFriends();
@@ -56,65 +269,6 @@ export default function HomeScreen() {
   const secondaryTextColor = isDark ? colors.text.dark.secondary : colors.text.light.secondary;
   const backgroundColor = isDark ? colors.background.dark : colors.background.light;
   const cardBg = isDark ? colors.gray[800] : colors.white;
-
-  // Calculate balance summary from friends data
-  const balanceSummary = useMemo(() => {
-    if (!friends || friends.length === 0) {
-      return { totalOwed: 0, totalOwing: 0, netBalance: 0 };
-    }
-
-    let totalOwed = 0;  // Others owe you (positive balances)
-    let totalOwing = 0; // You owe others (negative balances)
-
-    friends.forEach(friend => {
-      if (friend.total_balance > 0) {
-        totalOwed += friend.total_balance;
-      } else if (friend.total_balance < 0) {
-        totalOwing += Math.abs(friend.total_balance);
-      }
-    });
-
-    return {
-      totalOwed,
-      totalOwing,
-      netBalance: totalOwed - totalOwing,
-    };
-  }, [friends]);
-
-  // Get user info from database, fallback to auth metadata
-  const userName = user?.name || authUser?.user_metadata?.name || 'User';
-  const handleAddExpense = () => {
-    if (!isOnline) {
-      hapticWarning();
-      Alert.alert(
-        'No Connection',
-        'Adding expenses requires an internet connection.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-    hapticLight();
-    router.push('/add-expense');
-  };
-
-  const handleCreateGroup = () => {
-    hapticLight();
-    router.push('/create-group');
-  };
-
-  const handleSettleUp = () => {
-    if (!isOnline) {
-      hapticWarning();
-      Alert.alert(
-        'No Connection',
-        'Settling up requires an internet connection.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-    hapticLight();
-    router.push('/settle-up');
-  };
 
   const handleActivityPress = (item: ActivityItem) => {
     if (item.type === 'expense') {
@@ -261,171 +415,13 @@ export default function HomeScreen() {
     );
   }, [user?.id, cardBg, textColor, secondaryTextColor, handleActivityPress, formatDate]);
 
-  const renderListHeader = useCallback(() => (
-    <>
-      {/* Header */}
-      <MotiView
-        from={{ opacity: 0, translateY: -20 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: 'spring', damping: 18, stiffness: 100 }}
-        style={styles.header}
-      >
-        <View style={styles.headerLeft}>
-          <Text style={[styles.greeting, { color: secondaryTextColor }]}>
-            Welcome back,
-          </Text>
-          <Text style={[styles.name, { color: textColor }]}>
-            {userName} 👋
-          </Text>
-        </View>
-        <Pressable
-          onPress={() => router.push('/(tabs)/profile')}
-          style={({ pressed }) => [
-            styles.avatarButton,
-            { opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <Avatar user={{ name: userName, avatar_url: user?.avatar_url ?? null }} size={44} />
-        </Pressable>
-      </MotiView>
-
-      {/* Balance Summary Card */}
-      <MotiView
-        from={{ opacity: 0, translateY: 20, scale: 0.95 }}
-        animate={{ opacity: 1, translateY: 0, scale: 1 }}
-        transition={{ type: 'spring', damping: 18, stiffness: 100, delay: 150 }}
-        style={[
-          styles.balanceCard,
-          {
-            backgroundColor: balanceSummary.netBalance >= 0
-              ? colors.primary[500]
-              : colors.error
-          }
-        ]}
-      >
-        <Text style={styles.balanceLabel}>
-          {balanceSummary.netBalance >= 0 ? 'You are owed' : 'You owe'}
-        </Text>
-        {isLoadingFriends ? (
-          <>
-            <Skeleton width={130} height={38} borderRadius={8} style={{ marginVertical: 4, opacity: 0.35 }} />
-            <View style={{ flexDirection: 'row', gap: 16, marginTop: 10 }}>
-              <Skeleton width={95} height={18} borderRadius={6} style={{ opacity: 0.3 }} />
-              <Skeleton width={95} height={18} borderRadius={6} style={{ opacity: 0.3 }} />
-            </View>
-          </>
-        ) : (
-          <>
-            <Text style={styles.balanceValue}>
-              {formatCurrency(Math.abs(balanceSummary.netBalance))}
-            </Text>
-            <View style={styles.balanceRow}>
-              <View style={styles.balanceItem}>
-                <Ionicons name="arrow-up-circle" size={20} color={colors.white} />
-                <View>
-                  <Text style={styles.balanceItemLabel}>You get back</Text>
-                  <Text style={styles.balanceItemValue}>
-                    {formatCurrency(balanceSummary.totalOwed)}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.balanceDivider} />
-              <View style={styles.balanceItem}>
-                <Ionicons name="arrow-down-circle" size={20} color={colors.white} />
-                <View>
-                  <Text style={styles.balanceItemLabel}>You owe</Text>
-                  <Text style={styles.balanceItemValue}>
-                    {formatCurrency(balanceSummary.totalOwing)}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </>
-        )}
-      </MotiView>
-
-      {/* Quick Actions */}
-      <MotiView
-        from={{ opacity: 0, translateY: 20 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: 'spring', damping: 18, stiffness: 120, delay: 300 }}
-      >
-        <Text style={[styles.sectionTitle, { color: textColor }]}>Quick Actions</Text>
-        <View style={styles.actionsRow}>
-          <Pressable
-            onPress={handleAddExpense}
-            style={({ pressed }) => [
-              styles.actionCard,
-              {
-                backgroundColor: cardBg,
-                opacity: pressed ? 0.9 : 1,
-                transform: [{ scale: pressed ? 0.95 : 1 }],
-              },
-            ]}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: colors.primary[100] }]}>
-              <Ionicons name="add-circle-outline" size={28} color={colors.primary[500]} />
-            </View>
-            <Text style={[styles.actionLabel, { color: textColor }]}>Add Expense</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={handleCreateGroup}
-            style={({ pressed }) => [
-              styles.actionCard,
-              {
-                backgroundColor: cardBg,
-                opacity: pressed ? 0.9 : 1,
-                transform: [{ scale: pressed ? 0.95 : 1 }],
-              },
-            ]}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: colors.success + '20' }]}>
-              <Ionicons name="people-outline" size={28} color={colors.success} />
-            </View>
-            <Text style={[styles.actionLabel, { color: textColor }]}>Create Group</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={handleSettleUp}
-            style={({ pressed }) => [
-              styles.actionCard,
-              {
-                backgroundColor: cardBg,
-                opacity: pressed ? 0.9 : 1,
-                transform: [{ scale: pressed ? 0.95 : 1 }],
-              },
-            ]}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: colors.warning + '20' }]}>
-              <Ionicons name="wallet-outline" size={28} color={colors.warning} />
-            </View>
-            <Text style={[styles.actionLabel, { color: textColor }]}>Settle Up</Text>
-          </Pressable>
-        </View>
-      </MotiView>
-
-      {/* Recent Activity title */}
-      <MotiView
-        from={{ opacity: 0, translateY: 20 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: 'spring', damping: 18, stiffness: 100, delay: 350 }}
-      >
-        <Text style={[styles.sectionTitle, { color: textColor }]}>Recent Activity</Text>
-      </MotiView>
-    </>
-  ), [
-    textColor, secondaryTextColor, cardBg, balanceSummary, isLoadingFriends,
-    userName, user?.avatar_url, handleAddExpense, handleCreateGroup, handleSettleUp,
-  ]);
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
       <FlashList
         data={activities}
         renderItem={renderActivityItem}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={renderListHeader}
+        ListHeaderComponent={HomeHeader}
         ListEmptyComponent={
           isLoadingActivity ? (
             <SkeletonActivityList count={4} />
