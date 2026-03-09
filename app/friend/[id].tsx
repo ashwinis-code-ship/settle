@@ -473,6 +473,7 @@ export default function FriendDetailScreen() {
           from={{ opacity: 0, translateY: 8 }}
           animate={{ opacity: 1, translateY: 0 }}
           transition={{ type: 'spring', damping: 18, stiffness: 200, delay: 250 }}
+          style={{ alignItems: 'center', alignSelf: 'stretch' }}
         >
           <Text style={[styles.settledStateTitle, { color: textColor }]}>
             All settled up!
@@ -488,6 +489,7 @@ export default function FriendDetailScreen() {
             from={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ type: 'timing', duration: 300, delay: 450 }}
+            style={{ alignItems: 'center' }}
           >
             <Pressable onPress={promoteCurrentPhase} style={{ marginTop: 12 }}>
               {({ pressed }) => (
@@ -951,6 +953,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     marginBottom: 8,
+    textAlign: 'center',
   },
   settledStateText: {
     fontSize: 15,
