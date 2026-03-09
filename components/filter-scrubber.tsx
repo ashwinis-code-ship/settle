@@ -2,11 +2,13 @@
  * FilterScrubber
  *
  * A floating frosted-glass pill that sits above the tab bar.
- * - Collapsed: shows 4 coloured dots (active one pulses/glows)
+ * - Collapsed: shows N coloured dots (active one pulses/glows)
  * - Expanded: touch expands the pill; drag finger to switch filter;
  *             a sliding highlight follows the active item
- * - Auto-collapses 1.5 s after finger lifts
+ * - Auto-collapses 500 ms after finger lifts
  * - Hides/shows based on scroll direction (controlled via `visible` prop)
+ *
+ * Accepts a generic `filters` array so it works for any screen.
  */
 
 import { BlurView } from 'expo-blur';
@@ -29,24 +31,51 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { colors } from '@/constants/colors';
 import { hapticLight } from '@/lib/haptics';
 
-// ─── Types & constants ────────────────────────────────────────────────────────
+// ─── Public types ─────────────────────────────────────────────────────────────
 
+export interface FilterOption {
+  key: string;
+  label: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  color: string;
+}
+
+/** Legacy alias kept so friends.tsx can keep using FilterType without changes */
 export type FilterType = 'all' | 'outstanding' | 'i_owe' | 'they_owe';
 
-const FILTERS = [
-  { key: 'all'         as FilterType, label: 'Everyone',    icon: 'people-outline'    as const, color: colors.gray[500]   },
-  { key: 'outstanding' as FilterType, label: 'Outstanding', icon: 'swap-horizontal'   as const, color: '#3B82F6'           },
-  { key: 'i_owe'       as FilterType, label: 'Paying',      icon: 'arrow-up-circle'   as const, color: colors.error       },
-  { key: 'they_owe'    as FilterType, label: 'Collecting',  icon: 'arrow-down-circle' as const, color: colors.success     },
-] as const;
+export const FRIEND_FILTERS: FilterOption[] = [
+  { key: 'all',         label: 'Everyone',    icon: 'people-outline',    color: colors.gray[500] },
+  { key: 'outstanding', label: 'Outstanding', icon: 'swap-horizontal',   color: '#3B82F6'        },
+  { key: 'i_owe',       label: 'Paying',      icon: 'arrow-up-circle',   color: colors.error     },
+  { key: 'they_owe',    label: 'Collecting',  icon: 'arrow-down-circle', color: colors.success   },
+];
+
+export const GROUP_FILTERS: FilterOption[] = [
+  { key: 'all',      label: 'All',      icon: 'people-outline',  color: colors.gray[500]   },
+  { key: 'active',   label: 'Active',   icon: 'flash-outline',   color: colors.primary[500] },
+  { key: 'archived', label: 'Archived', icon: 'archive-outline', color: '#EA580C'           },
+];
+
+export interface FilterScrubberProps {
+  filters: FilterOption[];
+  activeFilter: string;
+  onFilterChange: (filter: string) => void;
+  visible: boolean;
+  isDark: boolean;
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const { width: SCREEN_W } = Dimensions.get('window');
-
-const COLLAPSED_W = 136;
-const EXPANDED_W  = Math.min(SCREEN_W - 48, 340);
 const COLLAPSED_H = 38;
 const EXPANDED_H  = 56;
-const ITEM_W      = EXPANDED_W / 4;
+
+function getMetrics(count: number) {
+  const expandedW  = Math.min(SCREEN_W - 48, Math.max(280, count * 90));
+  const collapsedW = count * 34 + 24;
+  const itemW      = expandedW / count;
+  return { expandedW, collapsedW, itemW };
+}
 
 // ─── FilterDot ────────────────────────────────────────────────────────────────
 
@@ -64,7 +93,6 @@ function FilterDot({
   const dotSize  = isActive ? 13 : 8;
   const glowSize = dotSize + 10;
 
-  // Slow ambient glow ring — only opacity breathes, no scale change
   const glowStyle = useAnimatedStyle(() => ({
     opacity: isActive
       ? interpolate(pulse.value, [0, 1], [0.18, 0.52]) *
@@ -102,17 +130,19 @@ function FilterItem({
   filter,
   isActive,
   expanded,
+  itemW,
 }: {
-  filter: (typeof FILTERS)[number];
+  filter: FilterOption;
   isActive: boolean;
   expanded: Animated.SharedValue<number>;
+  itemW: number;
 }) {
   const animStyle = useAnimatedStyle(() => ({
     opacity: interpolate(expanded.value, [0.55, 1], [0, 1]),
   }));
 
   return (
-    <Animated.View style={[styles.filterItem, animStyle]}>
+    <Animated.View style={[styles.filterItem, { width: itemW }, animStyle]}>
       <Ionicons
         name={filter.icon}
         size={13}
@@ -132,54 +162,59 @@ function FilterItem({
   );
 }
 
-// ─── ActiveHighlight (sliding pill under selected item) ───────────────────────
+// ─── ActiveHighlight ──────────────────────────────────────────────────────────
 
 function ActiveHighlight({
   expanded,
   highlightX,
+  itemW,
 }: {
   expanded: Animated.SharedValue<number>;
   highlightX: Animated.SharedValue<number>;
+  itemW: number;
 }) {
   const style = useAnimatedStyle(() => ({
     opacity: interpolate(expanded.value, [0.5, 1], [0, 1]),
     transform: [{ translateX: highlightX.value + 4 }],
   }));
 
-  return <Animated.View style={[styles.highlight, style]} />;
+  return (
+    <Animated.View
+      style={[
+        styles.highlight,
+        { width: itemW - 8, height: EXPANDED_H - 16, borderRadius: (EXPANDED_H - 16) / 2 },
+        style,
+      ]}
+    />
+  );
 }
 
 // ─── FilterScrubber ───────────────────────────────────────────────────────────
 
-export interface FilterScrubberProps {
-  activeFilter: FilterType;
-  onFilterChange: (filter: FilterType) => void;
-  visible: boolean;
-  isDark: boolean;
-}
-
 export function FilterScrubber({
+  filters,
   activeFilter,
   onFilterChange,
   visible,
   isDark,
 }: FilterScrubberProps) {
-  const expanded   = useSharedValue(0);
-  const pulse      = useSharedValue(1);
-  const visibleSV  = useSharedValue(visible ? 1 : 0);
+  const { expandedW, collapsedW, itemW } = getMetrics(filters.length);
+  const maxIdx = filters.length - 1;
 
-  const activeIdx  = FILTERS.findIndex((f) => f.key === activeFilter);
-  const highlightX = useSharedValue(activeIdx * ITEM_W);
+  const expanded    = useSharedValue(0);
+  const pulse       = useSharedValue(1);
+  const visibleSV   = useSharedValue(visible ? 1 : 0);
 
-  const lastIdx      = useRef(activeIdx);
+  const activeIdx   = filters.findIndex((f) => f.key === activeFilter);
+  const highlightX  = useSharedValue(activeIdx * itemW);
+
+  const lastIdx       = useRef(activeIdx);
   const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Show / hide via shared value so the spring runs on the UI thread
   useEffect(() => {
     visibleSV.value = withSpring(visible ? 1 : 0, { damping: 28, stiffness: 180 });
   }, [visible]);
 
-  // Slow ambient glow breath — 4 s per full cycle, pure opacity (no scale)
   useEffect(() => {
     pulse.value = 0;
     pulse.value = withRepeat(
@@ -192,11 +227,10 @@ export function FilterScrubber({
     );
   }, [activeFilter]);
 
-  // Snap highlight to active item instantly (no spring — live tracking during drag)
   useEffect(() => {
-    highlightX.value = activeIdx * ITEM_W;
-    lastIdx.current = activeIdx;
-  }, [activeIdx]);
+    highlightX.value = activeIdx * itemW;
+    lastIdx.current  = activeIdx;
+  }, [activeIdx, itemW]);
 
   const clearCollapse = useCallback(() => {
     if (collapseTimer.current) {
@@ -216,11 +250,11 @@ export function FilterScrubber({
     (idx: number) => {
       if (idx !== lastIdx.current) {
         lastIdx.current = idx;
-        onFilterChange(FILTERS[idx].key);
+        onFilterChange(filters[idx].key);
         hapticLight();
       }
     },
-    [onFilterChange],
+    [onFilterChange, filters],
   );
 
   const panGesture = Gesture.Pan()
@@ -228,17 +262,15 @@ export function FilterScrubber({
     .onBegin((e) => {
       runOnJS(clearCollapse)();
       expanded.value = withSpring(1, { damping: 32, stiffness: 300 });
-      const leftEdge = (SCREEN_W - EXPANDED_W) / 2;
-      const idx = Math.max(0, Math.min(3, Math.floor((e.absoluteX - leftEdge) / ITEM_W)));
-      // Move highlight instantly on the UI thread — no JS round-trip, no spring
-      highlightX.value = idx * ITEM_W;
+      const leftEdge = (SCREEN_W - expandedW) / 2;
+      const idx = Math.max(0, Math.min(maxIdx, Math.floor((e.absoluteX - leftEdge) / itemW)));
+      highlightX.value = idx * itemW;
       runOnJS(handleFilterChange)(idx);
     })
     .onUpdate((e) => {
-      const leftEdge = (SCREEN_W - EXPANDED_W) / 2;
-      const idx = Math.max(0, Math.min(3, Math.floor((e.absoluteX - leftEdge) / ITEM_W)));
-      // Direct assignment = highlight is physically glued to the finger
-      highlightX.value = idx * ITEM_W;
+      const leftEdge = (SCREEN_W - expandedW) / 2;
+      const idx = Math.max(0, Math.min(maxIdx, Math.floor((e.absoluteX - leftEdge) / itemW)));
+      highlightX.value = idx * itemW;
       runOnJS(handleFilterChange)(idx);
     })
     .onFinalize(() => {
@@ -246,7 +278,7 @@ export function FilterScrubber({
     });
 
   const pillAnimStyle = useAnimatedStyle(() => ({
-    width:        interpolate(expanded.value, [0, 1], [COLLAPSED_W, EXPANDED_W]),
+    width:        interpolate(expanded.value, [0, 1], [collapsedW, expandedW]),
     height:       interpolate(expanded.value, [0, 1], [COLLAPSED_H, EXPANDED_H]),
     borderRadius: interpolate(expanded.value, [0, 1], [COLLAPSED_H / 2, EXPANDED_H / 2]),
   }));
@@ -277,13 +309,11 @@ export function FilterScrubber({
             pillAnimStyle,
           ]}
         >
-          {/* Frosted glass background */}
           <BlurView
             intensity={75}
             tint={isDark ? 'dark' : 'light'}
             style={StyleSheet.absoluteFill}
           />
-          {/* Tint overlay for contrast */}
           <View
             style={[
               StyleSheet.absoluteFill,
@@ -291,12 +321,10 @@ export function FilterScrubber({
             ]}
           />
 
-          {/* Sliding highlight under active item (expanded state) */}
-          <ActiveHighlight expanded={expanded} highlightX={highlightX} />
+          <ActiveHighlight expanded={expanded} highlightX={highlightX} itemW={itemW} />
 
-          {/* Dots (collapsed state) */}
           <Animated.View style={[styles.dotsLayer, dotsLayerAnimStyle]} pointerEvents="none">
-            {FILTERS.map((f, idx) => (
+            {filters.map((f, idx) => (
               <FilterDot
                 key={f.key}
                 color={f.color}
@@ -307,14 +335,17 @@ export function FilterScrubber({
             ))}
           </Animated.View>
 
-          {/* Labelled items (expanded state) */}
-          <Animated.View style={[styles.itemsLayer, itemsLayerAnimStyle]} pointerEvents="none">
-            {FILTERS.map((f, idx) => (
+          <Animated.View
+            style={[styles.itemsLayer, { width: expandedW }, itemsLayerAnimStyle]}
+            pointerEvents="none"
+          >
+            {filters.map((f, idx) => (
               <FilterItem
                 key={f.key}
                 filter={f}
                 isActive={idx === activeIdx}
                 expanded={expanded}
+                itemW={itemW}
               />
             ))}
           </Animated.View>
@@ -354,7 +385,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     flexDirection: 'row',
     alignItems: 'center',
-    width: EXPANDED_W,
     height: '100%',
   },
   dotWrapper: {
@@ -370,7 +400,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   filterItem: {
-    width: ITEM_W,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -379,18 +408,15 @@ const styles = StyleSheet.create({
   },
   filterLabel: {
     fontSize: 11,
-    fontWeight: '500',
+    fontFamily: 'Nunito_500Medium',
   },
   filterLabelActive: {
-    fontWeight: '700',
+    fontFamily: 'Nunito_700Bold',
   },
   highlight: {
     position: 'absolute',
     left: 0,
     top: 8,
-    width: ITEM_W - 8,
-    height: EXPANDED_H - 16,
-    borderRadius: (EXPANDED_H - 16) / 2,
     backgroundColor: 'rgba(255, 255, 255, 0.18)',
   },
 });

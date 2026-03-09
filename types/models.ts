@@ -74,6 +74,8 @@ export interface GroupListItem {
   member_count: number;
   your_balance: number;
   last_activity: string | null;
+  /** True when the group has no checkpoints OR its latest expense is newer than the latest checkpoint */
+  has_active_phase: boolean;
 }
 
 // ============================================

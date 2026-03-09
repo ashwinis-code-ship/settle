@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { FilterScrubber, type FilterType } from '@/components/filter-scrubber';
+import { FilterScrubber, FRIEND_FILTERS, type FilterType } from '@/components/filter-scrubber';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
@@ -389,8 +389,9 @@ export default function FriendsScreen() {
       {/* Floating filter scrubber */}
       <View style={[styles.scrubberContainer, { bottom: scrubberBottom }]} pointerEvents="box-none">
         <FilterScrubber
+          filters={FRIEND_FILTERS}
           activeFilter={activeFilter}
-          onFilterChange={setActiveFilter}
+          onFilterChange={(f) => setActiveFilter(f as FilterType)}
           visible={scrubberVisible}
           isDark={isDark}
         />

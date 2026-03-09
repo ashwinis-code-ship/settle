@@ -10,18 +10,22 @@ import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import { Avatar } from '@/components/ui/avatar';
 import { MotiView } from 'moti';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
     Alert,
     FlatList,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
     Pressable,
     RefreshControl,
     StyleSheet,
     Text,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { FilterScrubber, GROUP_FILTERS } from '@/components/filter-scrubber';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SkeletonList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
@@ -32,11 +36,13 @@ import { hapticLight, hapticWarning } from '@/lib/haptics';
 import type { GroupListItem } from '@/types';
 
 // ─── Activity colour interpolation ───────────────────────────────────────────
-// Neutral (secondary text) → deep orange over 28 days, pure RGB lerp.
-// No step conditions — colour changes continuously with time.
+// Neutral (secondary text) → archived orange-red over 28 days, pure RGB lerp.
+// Converges to the same #EA580C used for "All archived" badges and the Archived
+// filter tab — a very stale active group and an archived group are the same
+// signal: nothing is happening here.
 
 const ACTIVITY_MAX_MS = 28 * 24 * 60 * 60 * 1000; // 28 days
-const DEEP_ORANGE: [number, number, number] = [234, 88, 12]; // #EA580C
+const ARCHIVED_ORANGE: [number, number, number] = [234, 88, 12]; // #EA580C
 
 function hexToRgb(hex: string): [number, number, number] {
   return [
@@ -62,7 +68,7 @@ function getActivityColor(dateStr: string | null, isDark: boolean): string {
   const diffMs = Date.now() - new Date(dateStr).getTime();
   const t = Math.min(Math.max(diffMs / ACTIVITY_MAX_MS, 0), 1);
   const neutral = hexToRgb(isDark ? '#D1D5DB' : '#4B5563');
-  return lerpColor(neutral, DEEP_ORANGE, t);
+  return lerpColor(neutral, ARCHIVED_ORANGE, t);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,7 +78,11 @@ export default function GroupsScreen() {
   const isDark = colorScheme === 'dark';
   const { groups, isLoading, error, refresh } = useGroups();
   const { isOnline } = useSync();
+  const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('active');
+  const [scrubberVisible, setScrubberVisible] = useState(true);
+  const lastScrollY = useRef(0);
 
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
   const secondaryTextColor = isDark ? colors.text.dark.secondary : colors.text.light.secondary;
@@ -84,6 +94,23 @@ export default function GroupsScreen() {
     await refresh();
     setRefreshing(false);
   }, [refresh]);
+
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y;
+    const dy = y - lastScrollY.current;
+    lastScrollY.current = y;
+    if (y <= 0) { setScrubberVisible(true); return; }
+    if (dy > 10) setScrubberVisible(false);
+    else if (dy < -10) setScrubberVisible(true);
+  }, []);
+
+  const displayedGroups = useMemo(() => {
+    switch (activeFilter) {
+      case 'active':   return groups.filter((g) => g.has_active_phase);
+      case 'archived': return groups.filter((g) => !g.has_active_phase);
+      default:         return groups;
+    }
+  }, [groups, activeFilter]);
 
   // Refetch when screen comes into focus (e.g., after creating a group)
   useFocusEffect(
@@ -173,14 +200,25 @@ export default function GroupsScreen() {
           </View>
         </View>
 
-        {/* Last Activity */}
+        {/* Last Activity / Archive status */}
         <View style={styles.lastActivityContainer}>
-          <Text style={[styles.lastActivityLabel, { color: secondaryTextColor }]}>
-            last active
-          </Text>
-          <Text style={[styles.lastActivityValue, { color: getActivityColor(item.last_activity, isDark) }]}>
-            {formatLastActivity(item.last_activity)}
-          </Text>
+          {item.has_active_phase ? (
+            <>
+              <Text style={[styles.lastActivityLabel, { color: secondaryTextColor }]}>
+                last active
+              </Text>
+              <Text style={[styles.lastActivityValue, { color: getActivityColor(item.last_activity, isDark) }]}>
+                {formatLastActivity(item.last_activity)}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="archive-outline" size={12} color="#EA580C" />
+              <Text style={[styles.lastActivityValue, { color: '#EA580C', marginTop: 2 }]}>
+                All archived
+              </Text>
+            </>
+          )}
         </View>
       </Pressable>
     </MotiView>
@@ -238,10 +276,13 @@ export default function GroupsScreen() {
     </MotiView>
   );
 
+  const scrubberBottom = insets.bottom + 12;
+
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
       {renderHeader()}
-      
+
       {error && (
         <MotiView
           from={{ opacity: 0 }}
@@ -254,12 +295,13 @@ export default function GroupsScreen() {
       )}
 
       <FlatList
-        data={groups}
+        data={displayedGroups}
         renderItem={renderGroupCard}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[
           styles.listContent,
-          groups.length === 0 && !isLoading && styles.listContentEmpty,
+          { paddingBottom: scrubberBottom + 80 },
+          displayedGroups.length === 0 && !isLoading && styles.listContentEmpty,
         ]}
         ListEmptyComponent={
           isLoading ? (
@@ -277,8 +319,22 @@ export default function GroupsScreen() {
           />
         }
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       />
+
+      {/* Floating filter scrubber */}
+      <View style={[styles.scrubberContainer, { bottom: scrubberBottom }]} pointerEvents="box-none">
+        <FilterScrubber
+          filters={GROUP_FILTERS}
+          activeFilter={activeFilter}
+          onFilterChange={setActiveFilter}
+          visible={scrubberVisible}
+          isDark={isDark}
+        />
+      </View>
     </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -325,7 +381,12 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 24,
-    paddingBottom: 100,
+  },
+  scrubberContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
   listContentEmpty: {
     flex: 1,

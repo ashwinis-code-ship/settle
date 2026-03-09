@@ -83,25 +83,33 @@ async function fetchGroups(userId: string): Promise<GroupListItem[]> {
     balanceMap[groupId] = balance;
   });
 
-  // Fetch the most recent checkpoint per group so last_activity reflects archives too
-  const { data: checkpointData } = await supabase
-    .from('group_checkpoints')
-    .select('group_id, created_at')
-    .in('group_id', groupIds)
-    .order('created_at', { ascending: false });
+  // Fetch latest checkpoint per group (for last_activity) + active status via RPC
+  const [checkpointResult, activeStatusResult] = await Promise.all([
+    supabase
+      .from('group_checkpoints')
+      .select('group_id, created_at')
+      .in('group_id', groupIds)
+      .order('created_at', { ascending: false }),
+    supabase.rpc('get_group_active_status', { p_user_id: userId }),
+  ]);
 
   const latestCheckpointMap: Record<string, string> = {};
-  checkpointData?.forEach((cp) => {
+  checkpointResult.data?.forEach((cp) => {
     if (!latestCheckpointMap[cp.group_id]) {
       latestCheckpointMap[cp.group_id] = cp.created_at;
     }
   });
 
+  const activeStatusMap: Record<string, boolean> = {};
+  (activeStatusResult.data || []).forEach((row: { group_id: string; is_active: boolean }) => {
+    activeStatusMap[row.group_id] = row.is_active;
+  });
+
   // Transform to GroupListItem — last_activity = greatest(updated_at, latest checkpoint)
   const groupsList: GroupListItem[] = (groupsData || []).map((g) => {
-    const groupUpdated = g.updated_at;
+    const groupUpdated    = g.updated_at;
     const latestCheckpoint = latestCheckpointMap[g.id];
-    const lastActivity =
+    const lastActivity    =
       latestCheckpoint && latestCheckpoint > groupUpdated ? latestCheckpoint : groupUpdated;
 
     return {
@@ -112,6 +120,7 @@ async function fetchGroups(userId: string): Promise<GroupListItem[]> {
       member_count: memberCounts[g.id] || 1,
       your_balance: balanceMap[g.id] || 0,
       last_activity: lastActivity,
+      has_active_phase: activeStatusMap[g.id] ?? true,
     };
   });
 
@@ -158,6 +167,7 @@ export function useGroups(): UseGroupsResult {
               member_count: 0,
               your_balance: 0,
               last_activity: g.updated_at,
+              has_active_phase: true,
             }));
         }
         return [];
