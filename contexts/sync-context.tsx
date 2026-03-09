@@ -10,6 +10,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from 'react';
@@ -153,23 +154,42 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
   }, [user, isOnline, syncStatus, sync]);
 
+  // Memoize the context value so that consumers only re-render when actual
+  // data changes. Without this, the 10-second network heartbeat in
+  // use-network-status (setIsChecking) causes SyncProvider to re-render,
+  // which creates a new inline value object on every tick — triggering
+  // re-renders (and MotiView re-animations) across every useSync() consumer
+  // even when isOnline hasn't changed.
+  const contextValue = useMemo(() => ({
+    isOnline,
+    syncStatus,
+    pendingCount,
+    lastSyncResult,
+    lastSyncTime,
+    pendingExpensesList,
+    pendingSettlementsList,
+    sync,
+    refreshNetworkStatus,
+    refreshPendingItems,
+    isPendingItem,
+    canEditItem,
+  }), [
+    isOnline,
+    syncStatus,
+    pendingCount,
+    lastSyncResult,
+    lastSyncTime,
+    pendingExpensesList,
+    pendingSettlementsList,
+    sync,
+    refreshNetworkStatus,
+    refreshPendingItems,
+    isPendingItem,
+    canEditItem,
+  ]);
+
   return (
-    <SyncContext.Provider
-      value={{
-        isOnline,
-        syncStatus,
-        pendingCount,
-        lastSyncResult,
-        lastSyncTime,
-        pendingExpensesList,
-        pendingSettlementsList,
-        sync,
-        refreshNetworkStatus,
-        refreshPendingItems,
-        isPendingItem,
-        canEditItem,
-      }}
-    >
+    <SyncContext.Provider value={contextValue}>
       {children}
     </SyncContext.Provider>
   );

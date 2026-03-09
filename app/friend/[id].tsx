@@ -755,7 +755,7 @@ export default function FriendDetailScreen() {
             return `empty-${index}`;
           }}
           getItemType={(item) => item.kind}
-          ListHeaderComponent={renderListHeader}
+          ListHeaderComponent={renderListHeader()}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
