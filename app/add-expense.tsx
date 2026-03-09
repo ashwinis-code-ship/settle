@@ -505,7 +505,10 @@ export default function AddExpenseScreen() {
         transition={{ type: 'timing', duration: 300 }}
         style={[styles.header, { borderBottomColor: borderColor }]}
       >
-        <Pressable onPress={handleBack} style={styles.headerButton}>
+        <Pressable
+          onPress={handleBack}
+          style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
+        >
           <Ionicons name="close" size={24} color={textColor} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: textColor }]}>Add Expense</Text>
@@ -552,7 +555,10 @@ export default function AddExpenseScreen() {
                 </Text>
                 {/* Clear button for search mode selections */}
                 {isSearchMode && hasSelectedTarget && (
-                  <Pressable onPress={handleClearSelection} style={styles.clearButton}>
+                  <Pressable
+                    onPress={handleClearSelection}
+                    style={({ pressed }) => [styles.clearButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
+                  >
                     <Ionicons name="close-circle" size={22} color={secondaryTextColor} />
                   </Pressable>
                 )}
@@ -572,7 +578,7 @@ export default function AddExpenseScreen() {
               >
                 <Pressable
                   onPress={() => setShowCurrencyPicker(!showCurrencyPicker)}
-                  style={styles.currencyButton}
+                  style={({ pressed }) => [styles.currencyButton, { opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.92 : 1 }] }]}
                 >
                   <Text style={[styles.currencySymbol, { color: colors.primary[500] }]}>
                     {CURRENCIES[currency].symbol}
@@ -684,12 +690,13 @@ export default function AddExpenseScreen() {
                 {categories.map((category) => (
                   <Pressable
                     key={category.id}
-                    style={[
+                    style={({ pressed }) => [
                       styles.categoryItem,
                       selectedCategory?.id === category.id && {
                         backgroundColor: category.color + '20',
                         borderColor: category.color,
                       },
+                      { opacity: pressed ? 0.75 : 1, transform: [{ scale: pressed ? 0.93 : 1 }] },
                     ]}
                     onPress={() => {
                       hapticSelection();
@@ -751,9 +758,10 @@ export default function AddExpenseScreen() {
                 {group.members.map((member) => (
                   <Pressable
                     key={member.user_id}
-                    style={[
+                    style={({ pressed }) => [
                       styles.memberItem,
                       paidBy === member.user_id && { backgroundColor: colors.primary[50] },
+                      { opacity: pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
                     ]}
                     onPress={() => {
                       setPaidBy(member.user_id);
@@ -792,9 +800,10 @@ export default function AddExpenseScreen() {
                 return (
                   <Pressable
                     key={member.user_id}
-                    style={[
+                    style={({ pressed }) => [
                       styles.splitMemberItem,
                       { borderBottomColor: borderColor },
+                      { transform: [{ scale: pressed ? 0.98 : 1 }] },
                     ]}
                     onPress={() => toggleMemberInSplit(member.user_id)}
                   >
@@ -810,20 +819,22 @@ export default function AddExpenseScreen() {
                           {CURRENCIES[currency].symbol}{splitAmount.toFixed(2)}
                         </Text>
                       )}
-                      <View
-                        style={[
-                          styles.checkbox,
-                          isSelected && {
-                            backgroundColor: colors.primary[500],
-                            borderColor: colors.primary[500],
-                          },
-                          { borderColor },
-                        ]}
+                      <MotiView
+                        animate={{
+                          backgroundColor: isSelected ? colors.primary[500] : 'transparent',
+                          borderColor: isSelected ? colors.primary[500] : borderColor,
+                          scale: isSelected ? 1 : 1,
+                        }}
+                        transition={{ type: 'spring', damping: 18, stiffness: 280 }}
+                        style={[styles.checkbox, { borderColor }]}
                       >
-                        {isSelected && (
+                        <MotiView
+                          animate={{ scale: isSelected ? 1 : 0, opacity: isSelected ? 1 : 0 }}
+                          transition={{ type: 'spring', damping: 15, stiffness: 280 }}
+                        >
                           <Ionicons name="checkmark" size={14} color={colors.white} />
-                        )}
-                      </View>
+                        </MotiView>
+                      </MotiView>
                     </View>
                   </Pressable>
                 );

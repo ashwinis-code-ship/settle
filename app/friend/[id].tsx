@@ -323,7 +323,7 @@ export default function FriendDetailScreen() {
             onPress={() => handleSettlementPress(item)}
             style={({ pressed }) => [
               styles.settlementContainer,
-              { opacity: pressed ? 0.7 : 1 },
+              { opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
             ]}
           >
             <View style={[styles.settlementLine, { backgroundColor: settlementLineColor }]} />
@@ -408,7 +408,10 @@ export default function FriendDetailScreen() {
       >
         <Pressable
           onPress={() => handleTransactionPress(item)}
-          style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+          style={({ pressed }) => ({
+            opacity: pressed ? 0.8 : 1,
+            transform: [{ scale: pressed ? 0.98 : 1 }],
+          })}
         >
           {content}
         </Pressable>
@@ -421,17 +424,21 @@ export default function FriendDetailScreen() {
       <Pressable
         onPress={loadOlderPhase}
         disabled={isLoadingOlder}
-        style={({ pressed }) => [
-          styles.viewOlderButton,
-          { opacity: pressed ? 0.7 : 1 },
-        ]}
       >
-        {isLoadingOlder ? (
-          <ActivityIndicator size="small" color={colors.primary[500]} />
-        ) : (
-          <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
-            View older expenses
-          </Text>
+        {({ pressed }) => (
+          <MotiView
+            animate={{ scale: pressed ? 0.95 : 1, opacity: pressed ? 0.75 : 1 }}
+            transition={{ type: 'spring', damping: 18, stiffness: 300 }}
+            style={styles.viewOlderPill}
+          >
+            {isLoadingOlder ? (
+              <ActivityIndicator size="small" color={colors.primary[500]} />
+            ) : (
+              <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
+                View older expenses
+              </Text>
+            )}
+          </MotiView>
         )}
       </Pressable>
     </View>
@@ -451,16 +458,18 @@ export default function FriendDetailScreen() {
           You and {friendName.split(' ')[0]} are all square. No one owes anyone.
         </Text>
         {showViewHistory && (
-          <Pressable
-            onPress={promoteCurrentPhase}
-            style={({ pressed }) => [
-              styles.viewOlderButton,
-              { opacity: pressed ? 0.7 : 1, marginTop: 12 },
-            ]}
-          >
-            <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
-              View history
-            </Text>
+          <Pressable onPress={promoteCurrentPhase} style={{ marginTop: 12 }}>
+            {({ pressed }) => (
+              <MotiView
+                animate={{ scale: pressed ? 0.95 : 1, opacity: pressed ? 0.75 : 1 }}
+                transition={{ type: 'spring', damping: 18, stiffness: 300 }}
+                style={styles.viewOlderPill}
+              >
+                <Text style={[styles.viewOlderText, { color: colors.primary[500] }]}>
+                  View history
+                </Text>
+              </MotiView>
+            )}
           </Pressable>
         )}
       </View>
@@ -525,20 +534,30 @@ export default function FriendDetailScreen() {
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
-            <Pressable
-              onPress={handleAddExpense}
-              style={[styles.actionButton, { backgroundColor: colors.primary[500] }]}
-            >
-              <Ionicons name="add" size={20} color={colors.white} />
-              <Text style={styles.actionButtonText}>Add Expense</Text>
+            <Pressable onPress={handleAddExpense}>
+              {({ pressed }) => (
+                <MotiView
+                  animate={{ scale: pressed ? 0.95 : 1, opacity: pressed ? 0.85 : 1 }}
+                  transition={{ type: 'spring', damping: 18, stiffness: 300 }}
+                  style={[styles.actionButton, { backgroundColor: colors.primary[500] }]}
+                >
+                  <Ionicons name="add" size={20} color={colors.white} />
+                  <Text style={styles.actionButtonText}>Add Expense</Text>
+                </MotiView>
+              )}
             </Pressable>
             {balance !== 0 && (
-              <Pressable
-                onPress={handleSettleUp}
-                style={[styles.actionButton, styles.settleButton, { borderColor: colors.primary[500] }]}
-              >
-                <Ionicons name="wallet-outline" size={20} color={colors.primary[500]} />
-                <Text style={[styles.actionButtonText, { color: colors.primary[500] }]}>Settle Up</Text>
+              <Pressable onPress={handleSettleUp}>
+                {({ pressed }) => (
+                  <MotiView
+                    animate={{ scale: pressed ? 0.95 : 1, opacity: pressed ? 0.85 : 1 }}
+                    transition={{ type: 'spring', damping: 18, stiffness: 300 }}
+                    style={[styles.actionButton, styles.settleButton, { borderColor: colors.primary[500] }]}
+                  >
+                    <Ionicons name="wallet-outline" size={20} color={colors.primary[500]} />
+                    <Text style={[styles.actionButtonText, { color: colors.primary[500] }]}>Settle Up</Text>
+                  </MotiView>
+                )}
               </Pressable>
             )}
           </View>
@@ -592,7 +611,10 @@ export default function FriendDetailScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={handleBack} style={styles.backButton}>
+          <Pressable
+            onPress={handleBack}
+            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
+          >
             <Ionicons name="arrow-back" size={24} color={textColor} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: textColor }]}>{params.name || 'Friend'}</Text>
@@ -635,7 +657,10 @@ export default function FriendDetailScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={handleBack} style={styles.backButton}>
+          <Pressable
+            onPress={handleBack}
+            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
+          >
             <Ionicons name="arrow-back" size={24} color={textColor} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: textColor }]}>Error</Text>
@@ -644,11 +669,16 @@ export default function FriendDetailScreen() {
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color={colors.error} />
           <Text style={[styles.errorText, { color: textColor }]}>{error}</Text>
-          <Pressable
-            onPress={refresh}
-            style={[styles.retryButton, { backgroundColor: colors.primary[500] }]}
-          >
-            <Text style={styles.retryButtonText}>Retry</Text>
+          <Pressable onPress={refresh}>
+            {({ pressed }) => (
+              <MotiView
+                animate={{ scale: pressed ? 0.95 : 1, opacity: pressed ? 0.85 : 1 }}
+                transition={{ type: 'spring', damping: 18, stiffness: 300 }}
+                style={[styles.retryButton, { backgroundColor: colors.primary[500] }]}
+              >
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </MotiView>
+            )}
           </Pressable>
         </View>
       </SafeAreaView>
@@ -660,7 +690,10 @@ export default function FriendDetailScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={handleBack} style={styles.backButton}>
+          <Pressable
+            onPress={handleBack}
+            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
+          >
             <Ionicons name="arrow-back" size={24} color={textColor} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: textColor }]}>{params.name || 'Friend'}</Text>
@@ -685,7 +718,10 @@ export default function FriendDetailScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
-          <Pressable onPress={handleBack} style={styles.backButton}>
+          <Pressable
+            onPress={handleBack}
+            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
+          >
             <Ionicons name="arrow-back" size={24} color={textColor} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: textColor }]} numberOfLines={1}>
@@ -916,9 +952,20 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
   },
+  viewOlderPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: colors.primary[500] + '14',
+    borderWidth: 1,
+    borderColor: colors.primary[500] + '30',
+  },
   viewOlderText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   settlementContainer: {
     flexDirection: 'row',

@@ -259,7 +259,7 @@ export default function FriendsScreen() {
           onPress={handleAddExpenseFromHeader}
           style={({ pressed }) => [
             styles.headerAddButton,
-            { backgroundColor: colors.primary[500], opacity: pressed ? 0.8 : 1 },
+            { backgroundColor: colors.primary[500], opacity: pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.92 : 1 }] },
           ]}
         >
           <Ionicons name="add" size={24} color={colors.white} />
@@ -327,7 +327,10 @@ export default function FriendsScreen() {
           <Text style={[styles.errorText, { color: textColor }]}>{error}</Text>
           <Pressable
             onPress={refresh}
-            style={[styles.retryButton, { backgroundColor: colors.primary[500] }]}
+            style={({ pressed }) => [
+              styles.retryButton,
+              { backgroundColor: colors.primary[500], opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.95 : 1 }] },
+            ]}
           >
             <Text style={styles.retryButtonText}>Retry</Text>
           </Pressable>

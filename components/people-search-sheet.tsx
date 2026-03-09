@@ -158,7 +158,7 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
       (group: SearchResultGroup) => (
         <Pressable
           onPress={() => onGroupSelect?.(group)}
-          style={({ pressed }) => [styles.row, { opacity: pressed ? 0.75 : 1 }]}
+          style={({ pressed }) => [styles.row, { opacity: pressed ? 0.75 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] }]}
         >
           <Avatar group={group} size={44} />
           <View style={styles.rowInfo}>
@@ -197,6 +197,7 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
                   ? colors.gray[700]
                   : colors.gray[200],
                 opacity: pressed ? 0.8 : 1,
+                transform: [{ scale: pressed ? 0.97 : 1 }],
               },
             ]}
           >
@@ -271,7 +272,10 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
         >
           <Text style={[styles.headerTitle, { color: textColor }]}>{title}</Text>
           {doneText && (
-            <Pressable onPress={handleDonePress} style={styles.headerDoneButton}>
+            <Pressable
+              onPress={handleDonePress}
+              style={({ pressed }) => [styles.headerDoneButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.93 : 1 }] }]}
+            >
               <Text style={[styles.headerDoneText, { color: colors.primary[500] }]}>
                 {doneText}
               </Text>
@@ -296,7 +300,10 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
               style={[styles.searchInput, { color: textColor }]}
             />
             {searchQuery.length > 0 && (
-              <Pressable onPress={() => setSearchQuery('')}>
+              <Pressable
+                onPress={() => setSearchQuery('')}
+                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] })}
+              >
                 <Ionicons name="close-circle" size={20} color={colors.gray[400]} />
               </Pressable>
             )}
@@ -324,7 +331,10 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
             </Text>
             <Pressable
               onPress={() => Linking.openSettings()}
-              style={[styles.settingsButton, { backgroundColor: colors.primary[500] }]}
+              style={({ pressed }) => [
+                styles.settingsButton,
+                { backgroundColor: colors.primary[500], opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.96 : 1 }] },
+              ]}
             >
               <Text style={styles.settingsButtonText}>Open Settings</Text>
             </Pressable>
