@@ -71,6 +71,14 @@ export default function CreateGroupScreen() {
   // Bottom sheet ref
   const bottomSheetRef = useRef<BottomSheet>(null);
 
+  // Auto-open the member search sheet when the screen first mounts,
+  // same pattern as add-expense. Closing it without selecting is fine —
+  // the form stays and they can tap + any time to reopen.
+  useEffect(() => {
+    const timer = setTimeout(() => bottomSheetRef.current?.expand(), 150);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Form state
   const [groupName, setGroupName] = useState('');
   const [selectedContacts, setSelectedContacts] = useState<EnrichedContact[]>([]);

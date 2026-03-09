@@ -61,7 +61,7 @@ export const colors = {
 
   // Background colors
   background: {
-    light: '#FFFFFF',
+    light: '#F3F4F6',
     dark: '#0F172A',
   },
 

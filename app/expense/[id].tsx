@@ -1,38 +1,34 @@
 /**
  * Expense Detail Screen
- * 
- * View, edit, and delete an expense.
+ *
+ * Read-only receipt-style view of an expense.
+ * Tap "Edit" to navigate to add-expense (pre-filled) for editing.
  */
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
-import { useCategories } from '@/hooks/use-categories';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useExpense } from '@/hooks/use-expense';
 import { useGroup } from '@/hooks/use-group';
-import { hapticHeavy, hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
-import type { CurrencyCode, DbCategory, SplitType } from '@/types';
+import { hapticHeavy, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import type { CurrencyCode } from '@/types';
 import { CURRENCIES } from '@/types/database';
 
 export default function ExpenseDetailScreen() {
@@ -41,157 +37,33 @@ export default function ExpenseDetailScreen() {
   const isDark = colorScheme === 'dark';
   const { user } = useAuth();
 
-  const { expense, isLoading, error, updateExpense, deleteExpense, canEdit } = useExpense(id);
+  const { expense, isLoading, error, deleteExpense, canEdit } = useExpense(id);
   const { group } = useGroup(expense?.group_id);
-  const { categories } = useCategories();
 
-  // Edit mode state
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Form state for editing
-  const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<DbCategory | null>(null);
-  const [notes, setNotes] = useState('');
-  const [paidBy, setPaidBy] = useState<string>('');
-  const [splitType] = useState<SplitType>('equal_selected');
-  const [splitBetween, setSplitBetween] = useState<string[]>([]);
-
-  // UI state for pickers
-  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-  const [showPaidByPicker, setShowPaidByPicker] = useState(false);
-
-  // Theme colors
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
   const secondaryTextColor = isDark ? colors.text.dark.secondary : colors.text.light.secondary;
   const backgroundColor = isDark ? colors.background.dark : colors.background.light;
   const cardBg = isDark ? colors.gray[800] : colors.white;
-  const borderColor = isDark ? colors.gray[700] : colors.gray[200];
+  const separatorColor = isDark ? colors.gray[700] : colors.gray[200];
+  const cardBorderColor = isDark ? 'transparent' : colors.gray[200];
 
-  // Calculate split amounts based on amount and selected members
-  const splitAmounts = useMemo(() => {
-    const total = parseFloat(amount) || 0;
-    if (total <= 0 || splitBetween.length === 0) return {};
-
-    const perPerson = total / splitBetween.length;
-    const result: Record<string, number> = {};
-    splitBetween.forEach((userId) => {
-      result[userId] = Math.round(perPerson * 100) / 100;
+  const formatDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
     });
-    return result;
-  }, [amount, splitBetween]);
 
-  // Initialize form with expense data when entering edit mode
-  useEffect(() => {
-    if (expense && isEditing) {
-      setDescription(expense.description);
-      setAmount(expense.amount.toString());
-      setSelectedCategory(expense.category);
-      setNotes(expense.notes || '');
-      setPaidBy(expense.paid_by);
-      
-      // Set the split between from current expense splits
-      const currentSplitUserIds = expense.splits.map(s => s.user_id);
-      setSplitBetween(currentSplitUserIds);
-    }
-  }, [expense, isEditing, group]);
-
-  const handleBack = () => {
-    if (isEditing) {
-      setIsEditing(false);
-    } else {
-      router.back();
-    }
-  };
+  const formatCurrency = (value: number, currency: CurrencyCode) =>
+    `${CURRENCIES[currency].symbol}${value.toFixed(2)}`;
 
   const handleEdit = () => {
-    setIsEditing(true);
-  };
-
-  const handleSave = async () => {
     if (!expense) return;
-
-    const amountNum = parseFloat(amount);
-    if (!description.trim() || isNaN(amountNum) || amountNum <= 0) {
-      hapticWarning();
-      Alert.alert('Invalid Input', 'Please enter a valid description and amount.');
-      return;
-    }
-
-    if (splitBetween.length === 0) {
-      hapticWarning();
-      Alert.alert('Invalid Split', 'Please select at least one person to split with.');
-      return;
-    }
-
-    if (splitBetween.length === 1 && splitBetween[0] === paidBy) {
-      hapticWarning();
-      Alert.alert('Invalid Split', 'The person who paid cannot be the only one in the split.');
-      return;
-    }
-
-    if (!paidBy) {
-      hapticWarning();
-      Alert.alert('Invalid Input', 'Please select who paid.');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    // Calculate new splits based on selected members
-    const newSplitAmount = amountNum / splitBetween.length;
-    const newSplits = splitBetween.map((userId) => ({
-      user_id: userId,
-      amount: Math.round(newSplitAmount * 100) / 100,
-    }));
-
-    const success = await updateExpense(
-      {
-        description: description.trim(),
-        amount: amountNum,
-        paid_by: paidBy,
-        category_id: selectedCategory?.id || null,
-        notes: notes.trim() || null,
-      },
-      newSplits
-    );
-
-    setIsSubmitting(false);
-
-    if (success) {
-      hapticSuccess();
-      setIsEditing(false);
-    } else {
-      hapticWarning();
-      Alert.alert('Error', 'Failed to update expense. Please try again.');
-    }
-  };
-
-  const toggleMemberInSplit = (userId: string) => {
-    setSplitBetween((prev) => {
-      if (prev.includes(userId)) {
-        // Trying to deselect
-        const newList = prev.filter((id) => id !== userId);
-        
-        // Rule 1: At least one person must be in the split
-        if (newList.length === 0) {
-          hapticWarning();
-          return prev; // Don't allow
-        }
-        
-        // Rule 2: If only one person remains, they can't be the payer
-        if (newList.length === 1 && newList[0] === paidBy) {
-          hapticWarning();
-          return prev; // Don't allow
-        }
-        
-        hapticSelection();
-        return newList;
-      }
-      hapticSelection();
-      return [...prev, userId];
+    router.push({
+      pathname: '/add-expense',
+      params: { expenseId: id, groupId: expense.group_id },
     });
   };
 
@@ -199,7 +71,7 @@ export default function ExpenseDetailScreen() {
     hapticHeavy();
     Alert.alert(
       'Delete Expense',
-      'Are you sure you want to delete this expense? This action cannot be undone.',
+      'Are you sure you want to delete this expense? This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -209,7 +81,6 @@ export default function ExpenseDetailScreen() {
             setIsDeleting(true);
             const success = await deleteExpense();
             setIsDeleting(false);
-
             if (success) {
               hapticSuccess();
               router.back();
@@ -223,34 +94,85 @@ export default function ExpenseDetailScreen() {
     );
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-IN', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  };
+  const showMetaSection = (group && group.type !== 'direct') || !!expense?.notes;
 
-  const formatCurrency = (value: number, currency: CurrencyCode) => {
-    const currencyInfo = CURRENCIES[currency];
-    return `${currencyInfo.symbol}${value.toFixed(2)}`;
-  };
+  // Plain function (not a React component) — safe to call inside any return branch
+  // without React treating it as a new component type and unmounting the tree.
+  const renderNavBar = (showEdit: boolean) => (
+    <MotiView
+      from={{ opacity: 0, translateY: -16 }}
+      animate={{ opacity: 1, translateY: 0 }}
+      transition={{ type: 'spring', damping: 22, stiffness: 220 }}
+      style={[styles.navBar, { borderBottomColor: separatorColor }]}
+    >
+      <Pressable
+        onPress={() => router.back()}
+        style={({ pressed }) => [styles.navButton, { opacity: pressed ? 0.6 : 1 }]}
+      >
+        <Ionicons name="arrow-back" size={24} color={textColor} />
+      </Pressable>
+      <Text style={[styles.navTitle, { color: textColor }]}>Expense Details</Text>
+      {showEdit ? (
+        <Pressable
+          onPress={handleEdit}
+          style={({ pressed }) => [styles.navButton, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <Ionicons name="pencil" size={20} color={colors.primary[500]} />
+        </Pressable>
+      ) : (
+        <View style={styles.navButton} />
+      )}
+    </MotiView>
+  );
 
+  // --- Loading skeleton ---
   if (isLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary[500]} />
-        </View>
+        {renderNavBar(false)}
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.receiptCard, { backgroundColor: cardBg, borderColor: cardBorderColor }]}>
+            <View style={[styles.receiptTop, { backgroundColor: colors.primary[500] + '0E' }]}>
+              <View style={styles.receiptTopMeta}>
+                <Skeleton width={90} height={11} borderRadius={6} />
+                <Skeleton width={70} height={11} borderRadius={6} />
+              </View>
+              <Skeleton width={160} height={24} borderRadius={8} style={{ marginTop: 14, marginBottom: 12 }} />
+              <Skeleton width={120} height={44} borderRadius={10} />
+            </View>
+            <View style={[styles.separator, { backgroundColor: separatorColor }]} />
+            <View style={styles.receiptSection}>
+              <Skeleton width={52} height={10} borderRadius={5} style={{ marginBottom: 14 }} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Skeleton circle width={36} height={36} />
+                <Skeleton width={110} height={16} borderRadius={8} />
+              </View>
+            </View>
+            <View style={[styles.dashedSeparator, { borderColor: separatorColor }]} />
+            <View style={styles.receiptSection}>
+              <Skeleton width={130} height={10} borderRadius={5} style={{ marginBottom: 14 }} />
+              {[0, 1, 2].map((i) => (
+                <View key={i} style={[styles.splitRow, { marginBottom: i < 2 ? 14 : 0 }]}>
+                  <Skeleton circle width={32} height={32} />
+                  <Skeleton width={100} height={14} borderRadius={7} style={{ flex: 1 }} />
+                  <Skeleton width={68} height={14} borderRadius={7} />
+                </View>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
 
+  // --- Error state ---
   if (error || !expense) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+        {renderNavBar(false)}
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color={colors.error} />
           <Text style={[styles.errorText, { color: textColor }]}>
@@ -262,416 +184,143 @@ export default function ExpenseDetailScreen() {
     );
   }
 
+  // --- Main receipt view ---
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-      {/* Header */}
-      <MotiView
-        from={{ opacity: 0, translateY: -20 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: 'timing', duration: 300 }}
-        style={[styles.header, { borderBottomColor: borderColor }]}
-      >
-        <Pressable onPress={handleBack} style={styles.headerButton}>
-          <Ionicons
-            name={isEditing ? 'close' : 'arrow-back'}
-            size={24}
-            color={textColor}
-          />
-        </Pressable>
-        <Text style={[styles.headerTitle, { color: textColor }]}>
-          {isEditing ? 'Edit Expense' : 'Expense Details'}
-        </Text>
-        {canEdit && !isEditing && (
-          <Pressable onPress={handleEdit} style={styles.headerButton}>
-            <Ionicons name="pencil" size={22} color={colors.primary[500]} />
-          </Pressable>
-        )}
-        {isEditing && (
-          <Pressable
-            onPress={handleSave}
-            disabled={isSubmitting}
-            style={styles.headerButton}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator size="small" color={colors.primary[500]} />
-            ) : (
-              <Ionicons name="checkmark" size={26} color={colors.primary[500]} />
-            )}
-          </Pressable>
-        )}
-        {!canEdit && !isEditing && <View style={styles.headerButton} />}
-      </MotiView>
+      {renderNavBar(canEdit)}
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          style={styles.flex}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+        {/* Receipt Card */}
+        <MotiView
+          from={{ opacity: 0, translateY: 24 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 180, delay: 60 }}
+          style={[styles.receiptCard, { backgroundColor: cardBg, borderColor: cardBorderColor }]}
         >
-          {/* Amount Card */}
-          <MotiView
-            from={{ opacity: 0, translateY: 10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 300, delay: 50 }}
-            style={[styles.amountCard, { backgroundColor: colors.primary[500] }]}
-          >
-            {isEditing ? (
-              <View style={styles.amountEditContainer}>
-                <Text style={styles.currencySymbolEdit}>
-                  {CURRENCIES[expense.currency].symbol}
-                </Text>
-                <TextInput
-                  style={styles.amountInputEdit}
-                  value={amount}
-                  onChangeText={setAmount}
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                  placeholderTextColor="rgba(255,255,255,0.5)"
-                />
-              </View>
-            ) : (
-              <Text style={styles.amountText}>
-                {formatCurrency(expense.amount, expense.currency)}
-              </Text>
-            )}
-            {expense.category && (
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryIcon}>{expense.category.icon}</Text>
-                <Text style={styles.categoryName}>{expense.category.name}</Text>
-              </View>
-            )}
-          </MotiView>
-
-          {/* Description */}
-          <MotiView
-            from={{ opacity: 0, translateY: 10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 300, delay: 100 }}
-            style={[styles.card, { backgroundColor: cardBg }]}
-          >
-            <Text style={[styles.cardLabel, { color: secondaryTextColor }]}>Description</Text>
-            {isEditing ? (
-              <Input
-                value={description}
-                onChangeText={setDescription}
-                placeholder="What's this expense for?"
-                containerStyle={{ marginBottom: 0 }}
-              />
-            ) : (
-              <Text style={[styles.cardValue, { color: textColor }]}>
-                {expense.description}
-              </Text>
-            )}
-          </MotiView>
-
-          {/* Category (Edit Mode) */}
-          {isEditing && (
-            <MotiView
-              from={{ opacity: 0, translateY: 10 }}
-              animate={{ opacity: 1, translateY: 0 }}
-              transition={{ type: 'timing', duration: 300, delay: 150 }}
-              style={[styles.card, { backgroundColor: cardBg }]}
-            >
-              <Text style={[styles.cardLabel, { color: secondaryTextColor }]}>Category</Text>
-              <Pressable
-                onPress={() => setShowCategoryPicker(!showCategoryPicker)}
-                style={[styles.selectorButton, { borderColor }]}
-              >
-                {selectedCategory ? (
-                  <View style={styles.selectedCategory}>
-                    <Text style={styles.categoryEmoji}>{selectedCategory.icon}</Text>
-                    <Text style={[styles.selectorText, { color: textColor }]}>
-                      {selectedCategory.name}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={[styles.selectorPlaceholder, { color: secondaryTextColor }]}>
-                    Select a category
+          {/* Top band: category · date · title · amount */}
+          <View style={[styles.receiptTop, { backgroundColor: colors.primary[500] + '0E' }]}>
+            <View style={styles.receiptTopMeta}>
+              {expense.category ? (
+                <View style={styles.categoryPill}>
+                  <Text style={styles.categoryPillEmoji}>{expense.category.icon}</Text>
+                  <Text style={[styles.categoryPillName, { color: secondaryTextColor }]}>
+                    {expense.category.name}
                   </Text>
-                )}
-                <Ionicons name="chevron-down" size={20} color={secondaryTextColor} />
-              </Pressable>
-
-              {showCategoryPicker && (
-                <View style={styles.categoryGrid}>
-                  {categories.map((category) => (
-                    <Pressable
-                      key={category.id}
-                      style={[
-                        styles.categoryItem,
-                        selectedCategory?.id === category.id && {
-                          backgroundColor: category.color + '20',
-                          borderColor: category.color,
-                        },
-                      ]}
-                      onPress={() => {
-                        setSelectedCategory(category);
-                        setShowCategoryPicker(false);
-                      }}
-                    >
-                      <Text style={styles.categoryItemEmoji}>{category.icon}</Text>
-                      <Text
-                        style={[
-                          styles.categoryItemText,
-                          { color: selectedCategory?.id === category.id ? category.color : textColor },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {category.name}
-                      </Text>
-                    </Pressable>
-                  ))}
+                </View>
+              ) : (
+                <View style={styles.categoryPill}>
+                  <Ionicons name="receipt-outline" size={12} color={secondaryTextColor} />
+                  <Text style={[styles.categoryPillName, { color: secondaryTextColor }]}>
+                    Expense
+                  </Text>
                 </View>
               )}
-            </MotiView>
-          )}
-
-          {/* Date */}
-          <MotiView
-            from={{ opacity: 0, translateY: 10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 300, delay: 150 }}
-            style={[styles.card, { backgroundColor: cardBg }]}
-          >
-            <Text style={[styles.cardLabel, { color: secondaryTextColor }]}>Date</Text>
-            <View style={styles.dateRow}>
-              <Ionicons name="calendar-outline" size={20} color={secondaryTextColor} />
-              <Text style={[styles.cardValue, { color: textColor, marginLeft: 8 }]}>
+              <Text style={[styles.receiptDate, { color: secondaryTextColor }]}>
                 {formatDate(expense.expense_date)}
               </Text>
             </View>
-          </MotiView>
 
-          {/* Paid By */}
-          <MotiView
-            from={{ opacity: 0, translateY: 10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 300, delay: 200 }}
-            style={[styles.card, { backgroundColor: cardBg }]}
-          >
-            <Text style={[styles.cardLabel, { color: secondaryTextColor }]}>Paid by</Text>
-            {isEditing && group ? (
-              <>
-                <Pressable
-                  onPress={() => setShowPaidByPicker(!showPaidByPicker)}
-                  style={[styles.selectorButton, { borderColor }]}
-                >
-                  {paidBy ? (
-                    <View style={styles.selectedMember}>
-                      {group.members.find(m => m.user_id === paidBy) && (
-                        <Avatar user={group.members.find(m => m.user_id === paidBy)!.user} size={32} />
-                      )}
-                      <Text style={[styles.paidByName, { color: textColor, marginLeft: 10 }]}>
-                        {paidBy === user?.id ? 'You' : group.members.find(m => m.user_id === paidBy)?.user.name}
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text style={[styles.selectorPlaceholder, { color: secondaryTextColor }]}>
-                      Select who paid
-                    </Text>
-                  )}
-                  <Ionicons name="chevron-down" size={20} color={secondaryTextColor} />
-                </Pressable>
-
-                {showPaidByPicker && (
-                  <View style={[styles.memberPickerList, { backgroundColor: cardBg, borderColor }]}>
-                    {group.members.map((member) => (
-                      <Pressable
-                        key={member.user_id}
-                        style={[
-                          styles.memberPickerItem,
-                          paidBy === member.user_id && { backgroundColor: colors.primary[50] },
-                        ]}
-                        onPress={() => {
-                          setPaidBy(member.user_id);
-                          setShowPaidByPicker(false);
-                        }}
-                      >
-                        <Avatar user={member.user} size={32} />
-                        <Text style={[styles.memberPickerName, { color: textColor }]}>
-                          {member.user_id === user?.id ? 'You' : member.user.name}
-                        </Text>
-                        {paidBy === member.user_id && (
-                          <Ionicons name="checkmark" size={20} color={colors.primary[500]} />
-                        )}
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </>
-            ) : (
-              <View style={styles.paidByRow}>
-                <Avatar user={expense.paid_by_user} size={40} />
-                <Text style={[styles.paidByName, { color: textColor }]}>
-                  {expense.paid_by_user.id === user?.id ? 'You' : expense.paid_by_user.name}
-                </Text>
-              </View>
-            )}
-          </MotiView>
-
-          {/* Split Breakdown */}
-          <MotiView
-            from={{ opacity: 0, translateY: 10 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 300, delay: 250 }}
-            style={[styles.card, { backgroundColor: cardBg }]}
-          >
-            <Text style={[styles.cardLabel, { color: secondaryTextColor }]}>
-              {isEditing 
-                ? `Split between (${splitBetween.length} ${splitBetween.length === 1 ? 'person' : 'people'})`
-                : `Split between ${expense.splits.length} ${expense.splits.length === 1 ? 'person' : 'people'}`
-              }
+            <Text style={[styles.receiptTitle, { color: textColor }]} numberOfLines={2}>
+              {expense.description}
             </Text>
-            {isEditing && group ? (
-              // Editable split member list
-              group.members.map((member, index) => {
-                const isSelected = splitBetween.includes(member.user_id);
-                const memberSplitAmount = splitAmounts[member.user_id];
+            <Text style={[styles.receiptAmount, { color: textColor }]}>
+              {formatCurrency(expense.amount, expense.currency)}
+            </Text>
+          </View>
 
-                return (
-                  <Pressable
-                    key={member.user_id}
-                    style={[
-                      styles.splitItem,
-                      index < group.members.length - 1 && {
-                        borderBottomWidth: 1,
-                        borderBottomColor: borderColor,
-                      },
-                    ]}
-                    onPress={() => toggleMemberInSplit(member.user_id)}
-                  >
-                    <View style={styles.splitUser}>
-                      <Avatar user={member.user} size={32} />
-                      <Text style={[styles.splitName, { color: textColor }]}>
-                        {member.user_id === user?.id ? 'You' : member.user.name}
-                      </Text>
+          {/* Solid hairline separator */}
+          <View style={[styles.separator, { backgroundColor: separatorColor }]} />
+
+          {/* Paid by */}
+          <View style={styles.receiptSection}>
+            <Text style={[styles.sectionLabel, { color: secondaryTextColor }]}>PAID BY</Text>
+            <View style={styles.paidByRow}>
+              <Avatar user={expense.paid_by_user} size={36} />
+              <Text style={[styles.paidByName, { color: textColor }]}>
+                {expense.paid_by_user.id === user?.id ? 'You' : expense.paid_by_user.name}
+              </Text>
+            </View>
+          </View>
+
+          {/* Dashed separator */}
+          <View style={[styles.dashedSeparator, { borderColor: separatorColor }]} />
+
+          {/* Split breakdown */}
+          <View style={styles.receiptSection}>
+            <Text style={[styles.sectionLabel, { color: secondaryTextColor }]}>
+              SPLIT BETWEEN {expense.splits.length}{' '}
+              {expense.splits.length === 1 ? 'PERSON' : 'PEOPLE'}
+            </Text>
+            {expense.splits.map((split, index) => (
+              <View
+                key={split.user_id}
+                style={[styles.splitRow, index < expense.splits.length - 1 && styles.splitRowGap]}
+              >
+                <Avatar user={split.user} size={32} />
+                <Text style={[styles.splitName, { color: textColor }]}>
+                  {split.user_id === user?.id ? 'You' : split.user.name}
+                </Text>
+                <Text style={[styles.splitAmount, { color: secondaryTextColor }]}>
+                  {formatCurrency(split.amount, expense.currency)}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Footer: group + notes (conditional) */}
+          {showMetaSection && (
+            <>
+              <View style={[styles.dashedSeparator, { borderColor: separatorColor }]} />
+              <View style={styles.receiptSection}>
+                {group && group.type !== 'direct' && (
+                  <View style={styles.metaRow}>
+                    <Text style={[styles.metaLabel, { color: secondaryTextColor }]}>Group</Text>
+                    <View style={styles.metaValueRow}>
+                      <Avatar group={group} size={20} />
+                      <Text style={[styles.metaValue, { color: textColor }]}>{group.name}</Text>
                     </View>
-                    <View style={styles.splitRight}>
-                      {isSelected && memberSplitAmount > 0 && (
-                        <Text style={[styles.splitAmount, { color: secondaryTextColor, marginRight: 8 }]}>
-                          {formatCurrency(memberSplitAmount, expense.currency)}
-                        </Text>
-                      )}
-                      <View
-                        style={[
-                          styles.checkbox,
-                          isSelected && {
-                            backgroundColor: colors.primary[500],
-                            borderColor: colors.primary[500],
-                          },
-                          { borderColor },
-                        ]}
-                      >
-                        {isSelected && (
-                          <Ionicons name="checkmark" size={14} color={colors.white} />
-                        )}
-                      </View>
-                    </View>
-                  </Pressable>
-                );
-              })
-            ) : (
-              // View-only split list
-              expense.splits.map((split, index) => (
-                <View
-                  key={split.user_id}
-                  style={[
-                    styles.splitItem,
-                    index < expense.splits.length - 1 && {
-                      borderBottomWidth: 1,
-                      borderBottomColor: borderColor,
-                    },
-                  ]}
-                >
-                  <View style={styles.splitUser}>
-                    <Avatar user={split.user} size={32} />
-                    <Text style={[styles.splitName, { color: textColor }]}>
-                      {split.user_id === user?.id ? 'You' : split.user.name}
+                  </View>
+                )}
+                {expense.notes ? (
+                  <View style={styles.metaRow}>
+                    <Text style={[styles.metaLabel, { color: secondaryTextColor }]}>Notes</Text>
+                    <Text style={[styles.metaValue, styles.metaNotes, { color: textColor }]}>
+                      {expense.notes}
                     </Text>
                   </View>
-                  <Text style={[styles.splitAmount, { color: secondaryTextColor }]}>
-                    {formatCurrency(split.amount, expense.currency)}
-                  </Text>
-                </View>
-              ))
-            )}
-          </MotiView>
-
-          {/* Notes */}
-          {(expense.notes || isEditing) && (
-            <MotiView
-              from={{ opacity: 0, translateY: 10 }}
-              animate={{ opacity: 1, translateY: 0 }}
-              transition={{ type: 'timing', duration: 300, delay: 300 }}
-              style={[styles.card, { backgroundColor: cardBg }]}
-            >
-              <Text style={[styles.cardLabel, { color: secondaryTextColor }]}>Notes</Text>
-              {isEditing ? (
-                <Input
-                  value={notes}
-                  onChangeText={setNotes}
-                  placeholder="Add any additional notes..."
-                  multiline
-                  numberOfLines={3}
-                  containerStyle={{ marginBottom: 0 }}
-                />
-              ) : (
-                <Text style={[styles.cardValue, { color: textColor }]}>
-                  {expense.notes}
-                </Text>
-              )}
-            </MotiView>
-          )}
-
-          {/* Group Info — hidden for 1:1 direct groups */}
-          {group && group.type !== 'direct' && (
-            <MotiView
-              from={{ opacity: 0, translateY: 10 }}
-              animate={{ opacity: 1, translateY: 0 }}
-              transition={{ type: 'timing', duration: 300, delay: 350 }}
-              style={[styles.card, { backgroundColor: cardBg }]}
-            >
-              <Text style={[styles.cardLabel, { color: secondaryTextColor }]}>Group</Text>
-              <View style={styles.groupRow}>
-                <Avatar group={group} size={36} />
-                <Text style={[styles.groupName, { color: textColor }]}>{group.name}</Text>
+                ) : null}
               </View>
-            </MotiView>
+            </>
           )}
+        </MotiView>
 
-          {/* Delete Button */}
-          {canEdit && (
-            <MotiView
-              from={{ opacity: 0, translateY: 10 }}
-              animate={{ opacity: 1, translateY: 0 }}
-              transition={{ type: 'timing', duration: 300, delay: 400 }}
-              style={styles.deleteContainer}
+        {/* Actions */}
+        {canEdit && (
+          <MotiView
+            from={{ opacity: 0, translateY: 16 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 180, delay: 180 }}
+            style={styles.actionsContainer}
+          >
+            <Pressable
+              onPress={handleDelete}
+              disabled={isDeleting}
+              style={({ pressed }) => [
+                styles.deleteButton,
+                { opacity: pressed || isDeleting ? 0.6 : 1 },
+              ]}
             >
-              <Pressable
-                onPress={handleDelete}
-                disabled={isDeleting}
-                style={({ pressed }) => [
-                  styles.deleteButton,
-                  { opacity: pressed || isDeleting ? 0.7 : 1 },
-                ]}
-              >
-                {isDeleting ? (
-                  <ActivityIndicator size="small" color={colors.error} />
-                ) : (
-                  <>
-                    <Ionicons name="trash-outline" size={20} color={colors.error} />
-                    <Text style={styles.deleteText}>Delete Expense</Text>
-                  </>
-                )}
-              </Pressable>
-            </MotiView>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+              <Ionicons name="trash-outline" size={16} color={colors.error} />
+              <Text style={styles.deleteButtonText}>
+                {isDeleting ? 'Deleting…' : 'Delete Expense'}
+              </Text>
+            </Pressable>
+          </MotiView>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -680,13 +329,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  flex: {
-    flex: 1,
+  navBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  loadingContainer: {
-    flex: 1,
+  navButton: {
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  navTitle: {
+    fontSize: 18,
+    fontWeight: '600',
   },
   errorContainer: {
     flex: 1,
@@ -700,222 +359,143 @@ const styles = StyleSheet.create({
     marginTop: 16,
     textAlign: 'center',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  headerButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+    padding: 20,
+    paddingBottom: 52,
   },
-  amountCard: {
-    padding: 24,
+  receiptCard: {
     borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  receiptTop: {
+    paddingHorizontal: 24,
+    paddingTop: 22,
+    paddingBottom: 20,
+  },
+  receiptTopMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 14,
   },
-  amountText: {
-    fontSize: 42,
-    fontWeight: '700',
-    color: colors.white,
-  },
-  amountEditContainer: {
+  categoryPill: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 5,
   },
-  currencySymbolEdit: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: colors.white,
-    marginRight: 4,
-  },
-  amountInputEdit: {
-    fontSize: 42,
-    fontWeight: '700',
-    color: colors.white,
-    minWidth: 100,
-    textAlign: 'center',
-  },
-  categoryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginTop: 12,
-  },
-  categoryIcon: {
-    fontSize: 16,
-    marginRight: 6,
-  },
-  categoryName: {
-    fontSize: 14,
-    color: colors.white,
-    fontWeight: '500',
-  },
-  card: {
-    padding: 16,
-    borderRadius: 14,
-    marginBottom: 12,
-  },
-  cardLabel: {
+  categoryPillEmoji: {
     fontSize: 13,
-    fontWeight: '500',
-    marginBottom: 8,
+  },
+  categoryPillName: {
+    fontSize: 11,
+    fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
-  cardValue: {
-    fontSize: 16,
-    lineHeight: 24,
+  receiptDate: {
+    fontSize: 11,
+    fontWeight: '500',
   },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  receiptTitle: {
+    fontSize: 22,
+    fontWeight: '600',
+    letterSpacing: -0.3,
+    lineHeight: 28,
+    marginBottom: 6,
+  },
+  receiptAmount: {
+    fontSize: 44,
+    fontWeight: '700',
+    letterSpacing: -1.5,
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+  },
+  dashedSeparator: {
+    borderStyle: 'dashed',
+    borderTopWidth: 1,
+    marginHorizontal: 20,
+  },
+  receiptSection: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginBottom: 14,
   },
   paidByRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
   paidByName: {
     fontSize: 16,
-    fontWeight: '500',
-    marginLeft: 12,
+    fontWeight: '600',
   },
-  splitItem: {
+  splitRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
+    gap: 10,
   },
-  splitUser: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+  splitRowGap: {
+    marginBottom: 14,
   },
   splitName: {
+    flex: 1,
     fontSize: 15,
-    marginLeft: 10,
   },
   splitAmount: {
     fontSize: 15,
     fontWeight: '500',
   },
-  groupRow: {
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
+    marginBottom: 10,
+  },
+  metaLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    width: 46,
+    paddingTop: 1,
+  },
+  metaValueRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    flex: 1,
   },
-  groupName: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginLeft: 12,
+  metaValue: {
+    fontSize: 14,
+    flex: 1,
   },
-  deleteContainer: {
+  metaNotes: {
+    lineHeight: 20,
+  },
+  actionsContainer: {
     marginTop: 20,
-    alignItems: 'center',
+    gap: 10,
   },
   deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  deleteText: {
-    color: colors.error,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  selectorButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  selectedCategory: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  categoryEmoji: {
-    fontSize: 20,
-    marginRight: 8,
-  },
-  selectorText: {
-    fontSize: 15,
-  },
-  selectorPlaceholder: {
-    fontSize: 15,
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 12,
-  },
-  categoryItem: {
-    width: '31%',
-    alignItems: 'center',
-    padding: 10,
-    borderRadius: 10,
-    margin: '1%',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  categoryItemEmoji: {
-    fontSize: 22,
-    marginBottom: 4,
-  },
-  categoryItemText: {
-    fontSize: 11,
-    textAlign: 'center',
-  },
-  // New styles for editing paid by and splits
-  selectedMember: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  memberPickerList: {
-    marginTop: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  memberPickerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    gap: 10,
-  },
-  memberPickerName: {
-    flex: 1,
-    fontSize: 15,
-  },
-  splitRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
-    alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+  },
+  deleteButtonText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: colors.error,
   },
 });

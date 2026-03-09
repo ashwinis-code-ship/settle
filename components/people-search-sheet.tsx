@@ -190,17 +190,8 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
             onPress={() => onContactSelect(contact)}
             style={({ pressed }) => [
               styles.row,
-              isMultiSelect && styles.contactRowBordered,
-              {
-                backgroundColor: isSelected ? colors.primary[50] : 'transparent',
-                borderColor: isSelected
-                  ? colors.primary[500]
-                  : isDark
-                  ? colors.gray[700]
-                  : colors.gray[200],
-                opacity: pressed ? 0.8 : 1,
-                transform: [{ scale: pressed ? 0.97 : 1 }],
-              },
+              isMultiSelect && isSelected && { backgroundColor: colors.primary[500] + '14' },
+              { opacity: pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
             ]}
           >
             <Avatar
@@ -222,7 +213,7 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
           </Pressable>
         );
       },
-      [selectedIds, onContactSelect, isDark, textColor, secondaryTextColor]
+      [selectedIds, onContactSelect, textColor, secondaryTextColor]
     );
 
     const renderItem = useCallback(
@@ -445,12 +436,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 4,
     gap: 12,
-  } as ViewStyle,
-  contactRowBordered: {
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-    borderWidth: 1,
   } as ViewStyle,
   rowInfo: {
     flex: 1,
