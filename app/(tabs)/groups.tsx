@@ -225,18 +225,25 @@ export default function GroupsScreen() {
   );
 
   const renderEmptyState = () => {
-    // Show offline empty state when no cached data
-    if (!isOnline) {
-      return (
-        <EmptyState
-          icon="cloud-offline-outline"
-          title="No cached data"
-          description="Connect to the internet to load your groups"
-        />
-      );
-    }
-    
-    return (
+    const content = !isOnline ? (
+      <EmptyState
+        icon="cloud-offline-outline"
+        title="No cached data"
+        description="Connect to the internet to load your groups"
+      />
+    ) : activeFilter === 'archived' ? (
+      <EmptyState
+        icon="archive-outline"
+        title="No archived groups"
+        description="Groups you archive will appear here"
+      />
+    ) : activeFilter === 'active' ? (
+      <EmptyState
+        icon="flash-outline"
+        title="No active groups"
+        description="All your groups have been archived"
+      />
+    ) : (
       <EmptyState
         icon="people-outline"
         title="No groups yet"
@@ -245,6 +252,10 @@ export default function GroupsScreen() {
         onAction={handleCreateGroup}
       />
     );
+
+    // flex: 1 fills remaining space after the header so the empty state
+    // centers itself without pulling the header down
+    return <View style={{ flex: 1, justifyContent: 'center' }}>{content}</View>;
   };
 
   const renderHeader = () => (
@@ -281,27 +292,28 @@ export default function GroupsScreen() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-      {renderHeader()}
-
-      {error && (
-        <MotiView
-          from={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          style={styles.errorContainer}
-        >
-          <Ionicons name="alert-circle" size={18} color={colors.error} />
-          <Text style={styles.errorText}>{error}</Text>
-        </MotiView>
-      )}
-
       <FlatList
         data={displayedGroups}
         renderItem={renderGroupCard}
         keyExtractor={(item) => item.id}
+        ListHeaderComponent={
+          <>
+            {renderHeader()}
+            {error && (
+              <MotiView
+                from={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                style={styles.errorContainer}
+              >
+                <Ionicons name="alert-circle" size={18} color={colors.error} />
+                <Text style={styles.errorText}>{error}</Text>
+              </MotiView>
+            )}
+          </>
+        }
         contentContainerStyle={[
           styles.listContent,
-          { paddingBottom: scrubberBottom + 80 },
-          displayedGroups.length === 0 && !isLoading && styles.listContentEmpty,
+          { paddingBottom: scrubberBottom + 80, flexGrow: 1 },
         ]}
         ListEmptyComponent={
           isLoading ? (
@@ -346,9 +358,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
     paddingTop: 20,
     paddingBottom: 16,
+    marginBottom: 16,
   },
   title: {
     fontSize: 28,
@@ -356,7 +368,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    marginTop: 2,
+    marginTop: 4,
   },
   addButton: {
     width: 44,
@@ -382,6 +394,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 24,
   },
+  // note: no listContentEmpty — centering is handled by the empty component itself
   scrubberContainer: {
     position: 'absolute',
     left: 0,
