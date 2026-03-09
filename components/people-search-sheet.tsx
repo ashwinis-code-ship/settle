@@ -15,7 +15,6 @@ import { Ionicons } from '@expo/vector-icons';
 import BottomSheet, { BottomSheetFlashList, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Linking,
   Pressable,
   StyleSheet,
@@ -26,6 +25,7 @@ import {
 } from 'react-native';
 
 import { Avatar } from '@/components/ui/avatar';
+import { SkeletonContactList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { SearchResultGroup } from '@/hooks/use-contact-group-search';
@@ -343,12 +343,7 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
 
         {/* Loading */}
         {isLoading && hasContactPermission !== false && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={colors.primary[500]} />
-            <Text style={[styles.loadingText, { color: secondaryTextColor }]}>
-              Loading contacts...
-            </Text>
-          </View>
+          <SkeletonContactList count={8} />
         )}
 
         {/* List */}

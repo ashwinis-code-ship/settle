@@ -10,12 +10,12 @@ import { router } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
 import { MotiView } from 'moti';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/ui/empty-state';
-import { SkeletonActivityList } from '@/components/ui/skeleton';
+import { Skeleton, SkeletonActivityList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
@@ -307,33 +307,41 @@ export default function HomeScreen() {
           {balanceSummary.netBalance >= 0 ? 'You are owed' : 'You owe'}
         </Text>
         {isLoadingFriends ? (
-          <ActivityIndicator color={colors.white} size="small" style={{ marginVertical: 12 }} />
+          <>
+            <Skeleton width={130} height={38} borderRadius={8} style={{ marginVertical: 4, opacity: 0.35 }} />
+            <View style={{ flexDirection: 'row', gap: 16, marginTop: 10 }}>
+              <Skeleton width={95} height={18} borderRadius={6} style={{ opacity: 0.3 }} />
+              <Skeleton width={95} height={18} borderRadius={6} style={{ opacity: 0.3 }} />
+            </View>
+          </>
         ) : (
-          <Text style={styles.balanceValue}>
-            {formatCurrency(Math.abs(balanceSummary.netBalance))}
-          </Text>
+          <>
+            <Text style={styles.balanceValue}>
+              {formatCurrency(Math.abs(balanceSummary.netBalance))}
+            </Text>
+            <View style={styles.balanceRow}>
+              <View style={styles.balanceItem}>
+                <Ionicons name="arrow-up-circle" size={20} color={colors.white} />
+                <View>
+                  <Text style={styles.balanceItemLabel}>You get back</Text>
+                  <Text style={styles.balanceItemValue}>
+                    {formatCurrency(balanceSummary.totalOwed)}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.balanceDivider} />
+              <View style={styles.balanceItem}>
+                <Ionicons name="arrow-down-circle" size={20} color={colors.white} />
+                <View>
+                  <Text style={styles.balanceItemLabel}>You owe</Text>
+                  <Text style={styles.balanceItemValue}>
+                    {formatCurrency(balanceSummary.totalOwing)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </>
         )}
-        <View style={styles.balanceRow}>
-          <View style={styles.balanceItem}>
-            <Ionicons name="arrow-up-circle" size={20} color={colors.white} />
-            <View>
-              <Text style={styles.balanceItemLabel}>You get back</Text>
-              <Text style={styles.balanceItemValue}>
-                {formatCurrency(balanceSummary.totalOwed)}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.balanceDivider} />
-          <View style={styles.balanceItem}>
-            <Ionicons name="arrow-down-circle" size={20} color={colors.white} />
-            <View>
-              <Text style={styles.balanceItemLabel}>You owe</Text>
-              <Text style={styles.balanceItemValue}>
-                {formatCurrency(balanceSummary.totalOwing)}
-              </Text>
-            </View>
-          </View>
-        </View>
       </MotiView>
 
       {/* Quick Actions */}

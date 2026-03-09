@@ -646,7 +646,12 @@ export default function FriendDetailScreen() {
           <Text style={[styles.headerTitle, { color: textColor }]}>Error</Text>
           <View style={styles.backButton} />
         </View>
-        <View style={styles.errorContainer}>
+        <MotiView
+          from={{ opacity: 0, scale: 0.92 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+          style={styles.errorContainer}
+        >
           <Ionicons name="alert-circle" size={48} color={colors.error} />
           <Text style={[styles.errorText, { color: textColor }]}>{error}</Text>
           <Pressable onPress={refresh}>
@@ -660,7 +665,7 @@ export default function FriendDetailScreen() {
               </MotiView>
             )}
           </Pressable>
-        </View>
+        </MotiView>
       </SafeAreaView>
     );
   }

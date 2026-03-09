@@ -1,12 +1,22 @@
 /**
  * Skeleton Loading Components
- * 
+ *
  * Animated placeholder UI for loading states.
- * Uses Moti for smooth shimmer animations.
+ * Uses a true left-to-right shimmer sweep (LinearGradient + Reanimated)
+ * instead of an opacity pulse — the pattern iOS/Android users recognise
+ * and trust as a loading indicator.
  */
 
-import { MotiView } from 'moti';
-import { StyleSheet, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect } from 'react';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
+import { StyleSheet, View, ViewStyle } from 'react-native';
 
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -20,43 +30,65 @@ interface SkeletonProps {
   borderRadius?: number;
   /** Whether to show as a circle */
   circle?: boolean;
+  /** Additional styles applied to the outer container */
+  style?: ViewStyle;
 }
 
 /**
- * Base Skeleton component with shimmer animation
+ * Base Skeleton component with shimmer sweep animation.
+ * The shimmer travels left-to-right, repeating indefinitely.
  */
-export function Skeleton({ 
-  width = '100%', 
-  height = 16, 
+export function Skeleton({
+  width = '100%',
+  height = 16,
   borderRadius = 8,
   circle = false,
+  style,
 }: SkeletonProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
-  
+
   const baseColor = isDark ? colors.gray[700] : colors.gray[200];
-  const highlightColor = isDark ? colors.gray[600] : colors.gray[100];
+  const shimmerColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.65)';
+
+  // Travel distance: use numeric width when known, otherwise assume 300px.
+  // The container clips overflow so any overshoot is invisible.
+  const travelPx = (typeof width === 'number' ? width : 300) * 1.5;
+
+  const progress = useSharedValue(0);
+  useEffect(() => {
+    progress.value = withRepeat(
+      withTiming(1, { duration: 1100, easing: Easing.linear }),
+      -1,
+      false,
+    );
+  }, [progress]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: (progress.value - 0.5) * 2 * travelPx }],
+  }));
 
   const size = circle ? (typeof width === 'number' ? width : height) : undefined;
 
   return (
-    <MotiView
-      from={{ opacity: 0.5 }}
-      animate={{ opacity: 1 }}
-      transition={{
-        type: 'timing',
-        duration: 800,
-        loop: true,
-      }}
-      style={[
-        {
-          width: circle ? size : width,
-          height: circle ? size : height,
-          borderRadius: circle ? (size || height) / 2 : borderRadius,
-          backgroundColor: baseColor,
-        },
-      ]}
-    />
+    <View
+      style={[{
+        width: circle ? size : width,
+        height: circle ? size : height,
+        borderRadius: circle ? (size ?? height) / 2 : borderRadius,
+        backgroundColor: baseColor,
+        overflow: 'hidden',
+      }, style]}
+    >
+      <Animated.View style={[StyleSheet.absoluteFill, animStyle]}>
+        <LinearGradient
+          colors={['transparent', shimmerColor, 'transparent']}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+    </View>
   );
 }
 
@@ -167,6 +199,26 @@ export function SkeletonList({ count = 5 }: { count?: number }) {
 }
 
 /**
+ * Skeleton for a contact/people list row (avatar + name + phone)
+ */
+export function SkeletonContactList({ count = 7 }: { count?: number }) {
+  return (
+    <View>
+      {Array.from({ length: count }).map((_, i) => (
+        <View key={i} style={styles.contactRow}>
+          <Skeleton width={40} height={40} circle />
+          <View style={styles.contactContent}>
+            <Skeleton width={130} height={14} borderRadius={6} />
+            <View style={{ height: 6 }} />
+            <Skeleton width={90} height={11} borderRadius={5} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
  * Skeleton for activity list
  */
 export function SkeletonActivityList({ count = 4 }: { count?: number }) {
@@ -229,6 +281,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     opacity: 0.3,
     marginHorizontal: 16,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  contactContent: {
+    flex: 1,
   },
   list: {
     gap: 0,
