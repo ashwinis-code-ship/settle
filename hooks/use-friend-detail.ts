@@ -260,11 +260,13 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         let impactAmount = 0;
         if (expense.paid_by === user.id && friendSplit) impactAmount = friendSplit.amount;
         else if (expense.paid_by === friendId && mySplit) impactAmount = -mySplit.amount;
-        if (impactAmount === 0) return;
+        // Don't skip when a third party paid — the expense still counts toward the
+        // group's transaction_count so the group card is shown even when the bilateral
+        // balance impact is zero (e.g. both users owe the payer independently).
 
         const gd = groupBalanceMap.get(expense.group_id);
         if (gd) {
-          gd.balance += impactAmount;
+          if (impactAmount !== 0) gd.balance += impactAmount;
           gd.count += 1;
         }
       });
