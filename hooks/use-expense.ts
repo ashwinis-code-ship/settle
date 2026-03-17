@@ -11,6 +11,7 @@ import { syncQueue } from '@/lib/sync-queue';
 import { pendingExpenses, type PendingExpense } from '@/lib/pending-items';
 import { useAuth } from '@/contexts/auth-context';
 import { useSync } from '@/contexts/sync-context';
+import { useGroup } from '@/hooks/use-group';
 import { queryKeys } from '@/lib/query-client';
 import type {
   CurrencyCode,
@@ -119,6 +120,10 @@ export function useExpense(expenseId: string | undefined): UseExpenseResult {
         splits: pendingExpense.splits.map(s => ({ user_id: s.user_id, amount: s.amount, user: { id: s.user_id, name: '', phone: '', avatar_url: null } })),
       }
     : data ?? null;
+
+  // Group membership: used to allow any group member to edit/delete synced expenses
+  const { group } = useGroup(expense?.group_id ?? undefined);
+  const isInExpenseGroup = !!group?.members?.some((m) => m.user_id === user?.id);
 
   // Helper to invalidate related queries
   const invalidateQueries = (groupId?: string) => {
@@ -280,10 +285,11 @@ export function useExpense(expenseId: string | undefined): UseExpenseResult {
   };
 
   // User can edit if:
-  // 1. They created the expense AND
-  // 2. Either online OR it's a pending item
+  // - Pending (not synced yet): only creator (pending exists only on their device).
+  // - Synced: any group member, when online.
   const isCreator = expense?.created_by === user?.id;
-  const canEdit = isCreator && (isOnline || isPending);
+  const canEdit =
+    (isPending && isCreator) || (!isPending && isInExpenseGroup && isOnline);
 
   return {
     expense,

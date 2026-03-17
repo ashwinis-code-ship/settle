@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "settle",
+    "name": "Settle",
     "slug": "settle",
     "version": "1.2.0",
     "platforms": [
@@ -14,7 +14,11 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.satnamsandhu.settle"
+      "bundleIdentifier": "com.satnamsandhu.settle",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSContactsUsageDescription": "Allow Settle to access your contacts to easily find and add friends to expense groups."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -25,7 +29,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.satnamsandhu.settle"
+      "package": "com.satnamsandhu.settle",
+      "versionCode": 1
     },
     "plugins": [
       "expo-router",
