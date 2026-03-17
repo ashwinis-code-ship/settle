@@ -25,6 +25,9 @@ export const queryKeys = {
   groups: ['groups'] as const,
   group: (id: string) => ['group', id] as const,
   expenses: (groupId: string) => ['expenses', 'v2', groupId] as const,
+  expense: (id: string) => ['expense', id] as const,
+  expenseGroup: (id: string) => ['expenseGroup', id] as const,
+  expenseGroupsList: (groupId: string) => ['expenseGroupsList', groupId] as const,
   checkpoints: (groupId: string) => ['checkpoints', groupId] as const,
   phaseBalances: (groupId: string, afterTs: string | null) => ['phaseBalances', groupId, afterTs] as const,
   settlements: (params?: { groupId?: string; friendId?: string }) => 

@@ -108,8 +108,12 @@ export interface Database {
           created_at: string;
           group_id: string | null;
           group_name: string | null;
+          group_type: string | null;
           notes: string | null;
           paid_by: string;
+          category_icon: string | null;
+          category_color: string | null;
+          line_count: number | null;
         }[];
       };
       check_otp_verified: {

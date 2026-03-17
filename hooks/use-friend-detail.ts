@@ -78,6 +78,7 @@ function mapRpcToTransaction(
     paid_by: string;
     category_icon?: string | null;
     category_color?: string | null;
+    line_count?: number | null;
   },
   userId: string,
   friendName: string
@@ -88,7 +89,7 @@ function mapRpcToTransaction(
 
   return {
     id: row.id,
-    type: row.type as 'expense' | 'settlement',
+    type: row.type as 'expense' | 'settlement' | 'expense_group',
     description,
     amount: Number(row.amount),
     currency: row.currency as CurrencyCode,
@@ -100,6 +101,7 @@ function mapRpcToTransaction(
     category_icon: row.category_icon ?? null,
     category_color: row.category_color ?? null,
     paid_by_you: row.paid_by === userId,
+    line_count: row.line_count ?? undefined,
   };
 }
 
@@ -226,12 +228,12 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         groupMap.set(g.id, { name: g.name, currency: g.currency, type: g.type || 'group', image_url: g.image_url ?? null });
       });
 
-      // Fetch expenses and settlements for group balance (unchanged)
+      // Fetch expenses and settlements for group balance
       const { data: expenses } = await supabase
         .from('expenses')
         .select(
           `
-          id, description, amount, currency, created_at, group_id, paid_by,
+          id, description, amount, currency, created_at, group_id, paid_by, expense_group_id,
           expense_splits (user_id, amount)
         `
         )
@@ -246,9 +248,14 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         )
         .order('created_at', { ascending: false });
 
-      // Compute group balances
-      const groupBalanceMap = new Map<string, { balance: number; count: number }>();
-      allSharedGroupIds.forEach((gid) => groupBalanceMap.set(gid, { balance: 0, count: 0 }));
+      // Compute group balances. Transaction count = unique expense groups (or standalone expenses) + settlements.
+      const groupBalanceMap = new Map<
+        string,
+        { balance: number; expenseKeys: Set<string>; settlementCount: number }
+      >();
+      allSharedGroupIds.forEach((gid) =>
+        groupBalanceMap.set(gid, { balance: 0, expenseKeys: new Set(), settlementCount: 0 })
+      );
 
       expenses?.forEach((expense) => {
         const splits = expense.expense_splits as { user_id: string; amount: number }[];
@@ -268,7 +275,9 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
         const gd = groupBalanceMap.get(expense.group_id);
         if (gd) {
           if (impactAmount !== 0) gd.balance += impactAmount;
-          gd.count += 1;
+          // One transaction per expense_group (or per expense if standalone)
+          const transactionKey = (expense as { expense_group_id?: string | null }).expense_group_id ?? expense.id;
+          gd.expenseKeys.add(transactionKey);
         }
       });
 
@@ -278,7 +287,7 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
           const gd = groupBalanceMap.get(s.group_id);
           if (gd) {
             gd.balance += iPayedThem ? s.amount : -s.amount;
-            gd.count += 1;
+            gd.settlementCount += 1;
           }
         }
       });
@@ -287,12 +296,13 @@ export function useFriendDetail(friendId: string): UseFriendDetailResult {
       for (const [groupId, data] of groupBalanceMap.entries()) {
         const gi = groupMap.get(groupId);
         if (gi && gi.type === 'group') {
+          const transaction_count = data.expenseKeys.size + data.settlementCount;
           groupBalancesArray.push({
             group_id: groupId,
             group_name: gi.name,
             balance: data.balance,
             currency: (gi.currency || 'INR') as CurrencyCode,
-            transaction_count: data.count,
+            transaction_count,
             image_url: gi.image_url,
           });
         }

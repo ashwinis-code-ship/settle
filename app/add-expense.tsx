@@ -5,8 +5,8 @@
  * - groupId provided:            Add expense to an existing group
  * - friendId + friendName:       Add expense with a friend (1:1)
  * - No params:                   Search mode — sheet opens automatically
- * - expenseId + groupId params:  Edit mode — pre-fills form from existing expense,
- *                                calls updateExpense on submit instead of createExpense
+ * - expenseId + groupId params:  Edit single expense — pre-fills, updateExpense on submit
+ * - expenseGroupId + groupId:    Edit grouped expense — pre-fills all lines, updateGroupedExpense on submit
  */
 
 import { Ionicons } from '@expo/vector-icons';
@@ -45,6 +45,7 @@ import { useDirectGroup } from '@/hooks/use-direct-group';
 import type { EnrichedContact } from '@/hooks/use-enriched-contacts';
 import { normalizePhone } from '@/hooks/use-enriched-contacts';
 import { useExpense } from '@/hooks/use-expense';
+import { useExpenseGroup } from '@/hooks/use-expense-group';
 import { useExpenses } from '@/hooks/use-expenses';
 import { useGroup } from '@/hooks/use-group';
 import { Analytics } from '@/lib/analytics';
@@ -61,15 +62,18 @@ export default function AddExpenseScreen() {
     friendName?: string;
     contactsOnly?: string;
     expenseId?: string;
+    expenseGroupId?: string;
   }>();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { user } = useAuth();
   const { isOnline } = useSync();
 
-  // Edit mode
-  const isEditMode = !!params.expenseId;
+  // Edit mode: single expense or grouped expense
+  const isEditMode = !!params.expenseId || !!params.expenseGroupId;
+  const isEditModeGrouped = !!params.expenseGroupId;
   const { expense: existingExpense, updateExpense } = useExpense(params.expenseId);
+  const { expenseGroup, isLoading: isLoadingExpenseGroup } = useExpenseGroup(params.expenseGroupId);
 
   // Determine creation mode
   const hasPreselection = !!params.groupId || !!params.friendId;
@@ -84,7 +88,7 @@ export default function AddExpenseScreen() {
 
   const { group, isLoading: isLoadingGroup } = useGroup(resolvedGroupId);
   const { categories } = useCategories();
-  const { createExpense } = useExpenses(resolvedGroupId);
+  const { createGroupedExpense, updateGroupedExpense } = useExpenses(resolvedGroupId);
   const { findOrCreateDirectGroup, isLoading: isCreatingDirectGroup } = useDirectGroup();
 
   // Block offline in create mode
@@ -138,6 +142,12 @@ export default function AddExpenseScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [hasPrefilledFromExpense, setHasPrefilledFromExpense] = useState(false);
+  const [hasPrefilledFromGroup, setHasPrefilledFromGroup] = useState(false);
+
+  // Grouped expense: parent description (top-level when 2+ parts); description = Part 1 only when grouped
+  const [groupDescription, setGroupDescription] = useState('');
+  // Grouped expense: additional lines (when length >= 1 we create a grouped expense)
+  const [extraLines, setExtraLines] = useState<Array<{ description: string; amount: string; splitBetween: string[]; notes: string }>>([]);
 
   // Picker sheet state
   const pickerSheetRef = useRef<BottomSheet>(null);
@@ -151,9 +161,9 @@ export default function AddExpenseScreen() {
   const cardBg = isDark ? colors.gray[800] : colors.white;
   const borderColor = isDark ? colors.gray[700] : colors.gray[200];
 
-  // Pre-fill from existing expense when editing
+  // Pre-fill from existing single expense when editing
   useEffect(() => {
-    if (!isEditMode || !existingExpense || hasPrefilledFromExpense) return;
+    if (!params.expenseId || !existingExpense || hasPrefilledFromExpense) return;
     setAmount(existingExpense.amount.toString());
     setDescription(existingExpense.description);
     setSelectedCategory(existingExpense.category);
@@ -162,7 +172,34 @@ export default function AddExpenseScreen() {
     setSplitBetween(existingExpense.splits.map((s) => s.user_id));
     setCurrency(existingExpense.currency);
     setHasPrefilledFromExpense(true);
-  }, [isEditMode, existingExpense, hasPrefilledFromExpense]);
+  }, [params.expenseId, existingExpense, hasPrefilledFromExpense]);
+
+  // Pre-fill from grouped expense when editing (parent description = eg.description, Part 1 = lines[0].description)
+  useEffect(() => {
+    if (!isEditModeGrouped || !expenseGroup || hasPrefilledFromGroup) return;
+    const { group: eg, lines } = expenseGroup;
+    setGroupDescription(eg.description);
+    setSelectedCategory(eg.category);
+    setPaidBy(eg.paid_by);
+    setCurrency((lines[0]?.currency ?? 'INR') as CurrencyCode);
+    if (lines.length > 0) {
+      setDescription(lines[0].description);
+      setAmount(lines[0].amount.toString());
+      setSplitBetween(lines[0].splits.map((s) => s.user_id));
+      setNotes(lines[0].notes ?? '');
+      if (lines.length > 1) {
+        setExtraLines(
+          lines.slice(1).map((l) => ({
+            description: l.description,
+            amount: l.amount.toString(),
+            splitBetween: l.splits.map((s) => s.user_id),
+            notes: l.notes ?? '',
+          }))
+        );
+      }
+    }
+    setHasPrefilledFromGroup(true);
+  }, [isEditModeGrouped, expenseGroup, hasPrefilledFromGroup]);
 
   // Group selected from sheet
   const handleSelectGroup = useCallback((g: SearchResultGroup) => {
@@ -278,6 +315,75 @@ export default function AddExpenseScreen() {
     return result;
   }, [amount, splitBetween]);
 
+  // Total for grouped expense (first line amount + extra lines)
+  const totalAmount = useMemo(() => {
+    const first = parseFloat(amount) || 0;
+    const rest = extraLines.reduce((sum, line) => sum + (parseFloat(line.amount) || 0), 0);
+    return first + rest;
+  }, [amount, extraLines]);
+
+  const handleAddMoreExpense = useCallback(() => {
+    hapticSelection();
+    // Value in main description becomes Part 1; parent/group description gets that value so both are set
+    setGroupDescription((prev) => prev || description);
+    const defaultSplit = group?.members?.map((m) => m.user_id) ?? (user ? [user.id] : []);
+    setExtraLines((prev) => [...prev, { description: '', amount: '', splitBetween: defaultSplit, notes: '' }]);
+  }, [group?.members, user, description]);
+
+  const updateExtraLine = useCallback((index: number, updates: Partial<{ description: string; amount: string; splitBetween: string[]; notes: string }>) => {
+    setExtraLines((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...updates };
+      return next;
+    });
+  }, []);
+
+  const removeExtraLine = useCallback((index: number) => {
+    hapticSelection();
+    setExtraLines((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // When in grouped layout, removing Part 1 promotes first extra line to main form (Part 1)
+  const removePartOne = useCallback(() => {
+    if (extraLines.length === 0) return;
+    hapticSelection();
+    const first = extraLines[0];
+    setDescription(first.description);
+    setAmount(first.amount);
+    setSplitBetween(first.splitBetween);
+    setNotes(first.notes ?? '');
+    setExtraLines((prev) => prev.slice(1));
+  }, [extraLines]);
+
+  // Grouped layout only when we actually have 2+ parts; when editing and user removes to 1 part, show single-expense UI
+  const isGroupedLayout = extraLines.length > 0;
+
+  const toggleExtraLineSplit = useCallback((lineIndex: number, userId: string) => {
+    setExtraLines((prev) => {
+      const line = prev[lineIndex];
+      if (!line) return prev;
+      if (line.splitBetween.includes(userId)) {
+        const newList = line.splitBetween.filter((id) => id !== userId);
+        if (newList.length === 0) {
+          hapticWarning();
+          return prev;
+        }
+        if (newList.length === 1 && newList[0] === paidBy) {
+          hapticWarning();
+          return prev;
+        }
+        hapticSelection();
+        const next = [...prev];
+        next[lineIndex] = { ...line, splitBetween: newList };
+        return next;
+      }
+      hapticSelection();
+      const next = [...prev];
+      next[lineIndex] = { ...line, splitBetween: [...line.splitBetween, userId] };
+      return next;
+    });
+  }, [paidBy]);
+
   // Keep a ref in sync with activeSheet so the sheet content renders
   // immediately from the ref even before React's async state update commits.
   const activeSheetRef = useRef<'currency' | 'category' | 'paidBy' | null>(null);
@@ -318,13 +424,31 @@ export default function AddExpenseScreen() {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
     if (!hasSelectedTarget) newErrors.target = 'Select a group or contact';
-    if (!description.trim()) newErrors.description = 'Description is required';
+    if (isGroupedLayout) {
+      if (!groupDescription.trim()) newErrors.groupDescription = 'Group description is required';
+      if (!description.trim()) newErrors.description = 'Part 1 description is required';
+    } else {
+      if (!description.trim()) newErrors.description = 'Description is required';
+    }
     const amountNum = parseFloat(amount);
     if (!amount || isNaN(amountNum) || amountNum <= 0) newErrors.amount = 'Enter a valid amount';
     if (!paidBy) newErrors.paidBy = 'Select who paid';
     if (splitBetween.length === 0) newErrors.split = 'Select at least one person to split with';
     else if (splitBetween.length === 1 && splitBetween[0] === paidBy)
       newErrors.split = 'The person who paid cannot be the only one in the split';
+
+    if (extraLines.length > 0) {
+      const partNum = (idx: number) => idx + 2;
+      extraLines.forEach((line, idx) => {
+        if (!line.description.trim()) newErrors[`extraDesc_${idx}`] = `Part ${partNum(idx)} description is required`;
+        const lineAmt = parseFloat(line.amount);
+        if (!line.amount || isNaN(lineAmt) || lineAmt <= 0) newErrors[`extraAmount_${idx}`] = `Part ${partNum(idx)} amount is required`;
+        if (line.splitBetween.length === 0) newErrors[`extraSplit_${idx}`] = `Part ${partNum(idx)}: select at least one person to split with`;
+        else if (line.splitBetween.length === 1 && line.splitBetween[0] === paidBy)
+          newErrors[`extraSplit_${idx}`] = `Part ${partNum(idx)}: the person who paid cannot be the only one in the split`;
+      });
+    }
+
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) hapticHeavy();
     return Object.keys(newErrors).length === 0;
@@ -334,8 +458,8 @@ export default function AddExpenseScreen() {
     if (!validateForm()) return;
     setIsSubmitting(true);
 
-    // ---------- EDIT MODE ----------
-    if (isEditMode && existingExpense) {
+    // ---------- EDIT MODE (single expense) ----------
+    if (params.expenseId && existingExpense) {
       const amountNum = parseFloat(amount);
       const newSplitAmount = amountNum / splitBetween.length;
       const newSplits = splitBetween.map((uid) => ({
@@ -352,6 +476,61 @@ export default function AddExpenseScreen() {
         },
         newSplits
       );
+      setIsSubmitting(false);
+      if (success) {
+        hapticSuccess();
+        router.back();
+      } else {
+        hapticHeavy();
+        setErrors({ form: 'Failed to update expense. Please try again.' });
+      }
+      return;
+    }
+
+    // ---------- EDIT MODE (grouped expense, 2+ parts) ----------
+    if (isEditModeGrouped && params.expenseGroupId && extraLines.length >= 1) {
+      const groupedFormData = {
+        description: groupDescription.trim(),
+        category_id: selectedCategory?.id || null,
+        paid_by: paidBy,
+        currency,
+        expense_date: new Date(),
+        lines: [
+          { description: description.trim(), amount: parseFloat(amount), split_between: splitBetween, notes: notes.trim() || undefined },
+          ...extraLines.map((l) => ({
+            description: l.description.trim(),
+            amount: parseFloat(l.amount),
+            split_between: l.splitBetween,
+            notes: l.notes?.trim() || undefined,
+          })),
+        ],
+      };
+      const success = await updateGroupedExpense(params.expenseGroupId, groupedFormData);
+      setIsSubmitting(false);
+      if (success) {
+        hapticSuccess();
+        router.back();
+      } else {
+        hapticHeavy();
+        setErrors({ form: 'Failed to update grouped expense. Please try again.' });
+      }
+      return;
+    }
+
+    // ---------- EDIT MODE (grouped expense, user removed to 1 part → update group in place, keep 1 line) ----------
+    // Grouped-by-default: we never create a standalone expense; the expense_group stays with one child.
+    if (isEditModeGrouped && params.expenseGroupId && extraLines.length === 0) {
+      const groupedFormData = {
+        description: groupDescription.trim() || description.trim(),
+        category_id: selectedCategory?.id || null,
+        paid_by: paidBy,
+        currency,
+        expense_date: new Date(),
+        lines: [
+          { description: description.trim(), amount: parseFloat(amount), split_between: splitBetween, notes: notes.trim() || undefined },
+        ],
+      };
+      const success = await updateGroupedExpense(params.expenseGroupId, groupedFormData);
       setIsSubmitting(false);
       if (success) {
         hapticSuccess();
@@ -395,53 +574,78 @@ export default function AddExpenseScreen() {
         setIsSubmitting(false);
         return;
       }
-      const formData: ExpenseFormData = {
-        description: description.trim(), amount, currency,
+      // Grouped-by-default: always create via createGroupedExpense (1 or more lines). When 2+ parts, parent = groupDescription.
+      const groupedFormData = {
+        description: extraLines.length >= 1 ? groupDescription.trim() : description.trim(),
         category_id: selectedCategory?.id || null,
-        paid_by: paidBy || user.id,
-        split_type: 'equal_selected',
-        split_between: [user.id, actualFriendId],
-        notes: notes.trim(), expense_date: new Date(),
+        paid_by: paidBy || user!.id,
+        currency,
+        expense_date: new Date(),
+        lines:
+          extraLines.length >= 1
+            ? [
+                { description: description.trim(), amount: parseFloat(amount), split_between: splitBetween, notes: notes.trim() || undefined },
+                ...extraLines.map((l) => ({ description: l.description.trim(), amount: parseFloat(l.amount), split_between: l.splitBetween, notes: l.notes?.trim() || undefined })),
+              ]
+            : [{ description: description.trim(), amount: parseFloat(amount), split_between: splitBetween, notes: notes.trim() || undefined }],
       };
-      const expenseId = await createExpense(formData, directGroupId);
+      const groupId = await createGroupedExpense(groupedFormData, directGroupId);
       setIsSubmitting(false);
-      if (expenseId) {
+      if (groupId) {
         Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_COMPLETED, {
-          expense_id: expenseId, amount: parseFloat(amount), currency,
-          category_id: selectedCategory?.id, category_name: selectedCategory?.name,
-          split_type: 'equal_selected', member_count: 2, is_group_expense: false,
+          expense_id: groupId,
+          amount: parseFloat(amount),
+          currency,
+          category_id: selectedCategory?.id,
+          category_name: selectedCategory?.name,
+          split_type: 'equal_selected',
+          member_count: splitBetween.length,
+          is_group_expense: extraLines.length >= 1,
           has_notes: notes.trim().length > 0,
         });
         hapticSuccess();
         router.back();
       } else {
         Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_FAILED, { error_stage: 'submission' });
-        setErrors({ form: 'Failed to create expense. Please try again.' });
+        setErrors({ form: extraLines.length >= 1 ? 'Failed to create grouped expense. Please try again.' : 'Failed to create expense. Please try again.' });
       }
       return;
     }
 
-    // Normal group path
-    const formData: ExpenseFormData = {
-      description: description.trim(), amount, currency,
+    // Normal group path (or direct with resolvedGroupId). When 2+ parts, parent = groupDescription.
+    const groupedFormData = {
+      description: extraLines.length >= 1 ? groupDescription.trim() : description.trim(),
       category_id: selectedCategory?.id || null,
-      paid_by: paidBy, split_type: splitType,
-      split_between: splitBetween,
-      notes: notes.trim(), expense_date: new Date(),
+      paid_by: paidBy,
+      currency,
+      expense_date: new Date(),
+      lines:
+        extraLines.length >= 1
+          ? [
+              { description: description.trim(), amount: parseFloat(amount), split_between: splitBetween, notes: notes.trim() || undefined },
+              ...extraLines.map((l) => ({ description: l.description.trim(), amount: parseFloat(l.amount), split_between: l.splitBetween, notes: l.notes?.trim() || undefined })),
+            ]
+          : [{ description: description.trim(), amount: parseFloat(amount), split_between: splitBetween, notes: notes.trim() || undefined }],
     };
-    const expenseId = await createExpense(formData, resolvedGroupId);
+    const groupId = await createGroupedExpense(groupedFormData, resolvedGroupId);
     setIsSubmitting(false);
-    if (expenseId) {
+    if (groupId) {
       Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_COMPLETED, {
-        expense_id: expenseId, amount: parseFloat(amount), currency,
-        category_id: selectedCategory?.id, category_name: selectedCategory?.name,
-        split_type: splitType, member_count: splitBetween.length, is_group_expense: true,
+        expense_id: groupId,
+        amount: parseFloat(amount),
+        currency,
+        category_id: selectedCategory?.id,
+        category_name: selectedCategory?.name,
+        split_type: splitType,
+        member_count: splitBetween.length,
+        is_group_expense: extraLines.length >= 1,
         has_notes: notes.trim().length > 0,
       });
       hapticSuccess();
       router.back();
     } else {
       Analytics.track(EXPENSE_EVENTS.ADD_EXPENSE_FAILED, { error_stage: 'submission' });
+      setErrors({ form: extraLines.length >= 1 ? 'Failed to create grouped expense. Please try again.' : 'Failed to create expense. Please try again.' });
     }
   };
 
@@ -513,7 +717,7 @@ export default function AddExpenseScreen() {
             onPress={() => router.back()}
             style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
           >
-            <Ionicons name="close" size={24} color={textColor} />
+            <Ionicons name={isEditMode ? 'arrow-back' : 'close'} size={24} color={textColor} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: textColor }]}>{screenTitle}</Text>
           <Pressable
@@ -527,6 +731,11 @@ export default function AddExpenseScreen() {
           >
             {isSubmitting ? (
               <ActivityIndicator size="small" color={colors.primary[500]} />
+            ) : isEditMode ? (
+              <>
+                <Ionicons name="checkmark" size={20} color={colors.primary[500]} />
+                <Text style={[styles.headerSaveText, { color: colors.primary[500] }]}>Save</Text>
+              </>
             ) : (
               <Ionicons name="checkmark" size={26} color={colors.primary[500]} />
             )}
@@ -534,7 +743,12 @@ export default function AddExpenseScreen() {
         </MotiView>
 
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          {(hasPreselection || hasSelectedTarget || isEditMode) && (
+          {isEditModeGrouped && isLoadingExpenseGroup ? (
+            <View style={[styles.loadingContainer, { backgroundColor }]}>
+              <ActivityIndicator size="large" color={colors.primary[500]} />
+              <Text style={[styles.loadingText, { color: secondaryTextColor }]}>Loading expense…</Text>
+            </View>
+          ) : (hasPreselection || hasSelectedTarget || isEditMode) ? (
             <ScrollView
               style={styles.flex}
               contentContainerStyle={styles.scrollContent}
@@ -560,7 +774,7 @@ export default function AddExpenseScreen() {
                   </View>
                   <View style={styles.targetInfo}>
                     <Text style={[styles.targetLabel, { color: secondaryTextColor }]}>
-                      {isFriendTarget ? 'WITH' : 'GROUP'}
+                      {isEditMode ? 'EDITING IN' : isFriendTarget ? 'WITH' : 'GROUP'}
                     </Text>
                     <Text style={[styles.targetName, { color: textColor }]} numberOfLines={1}>
                       {targetLabel}
@@ -577,192 +791,514 @@ export default function AddExpenseScreen() {
                 </View>
               </MotiView>
 
-              {/* ── Amount Hero ── */}
-              <MotiView
-                from={{ opacity: 0, translateY: 10 }}
-                animate={{ opacity: 1, translateY: 0 }}
-                transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 90 }}
-                style={[styles.amountHero, { backgroundColor: colors.primary[500] + '0D' }]}
-              >
-                <View style={styles.amountRow}>
-                  <Pressable
-                    onPress={() => {
-                      // --- Coming Soon ---
-                      // Multi-currency picker is not yet active. Show a teaser
-                      // alert until backend conversion support is ready.
-                      // To re-enable: replace this block with openSheet('currency')
-                      Alert.alert(
-                        'Coming Soon',
-                        'Support for other currencies is on the way!',
-                        [{ text: 'OK' }]
-                      );
-                    }}
-                    style={({ pressed }) => [
-                      styles.currencyPill,
-                      { borderRightColor: borderColor, opacity: pressed ? 0.7 : 1 },
-                    ]}
+              {/* ── Single-expense layout: description, amount hero, paid by, split, notes ── */}
+              {!isGroupedLayout && (
+                <>
+                  <MotiView
+                    from={{ opacity: 0, translateY: 10 }}
+                    animate={{ opacity: 1, translateY: 0 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 90 }}
+                    style={styles.section}
                   >
-                    <Text style={[styles.currencyPillSymbol, { color: colors.primary[500] }]}>
-                      {CURRENCIES[currency].symbol}
-                    </Text>
-                    <Text style={[styles.currencyPillCode, { color: secondaryTextColor }]}>
-                      {currency}
-                    </Text>
-                    <Ionicons name="chevron-down" size={12} color={secondaryTextColor} />
-                  </Pressable>
-                  <TextInput
-                    style={[styles.amountInput, { color: textColor }]}
-                    placeholder="0.00"
-                    placeholderTextColor={isDark ? colors.gray[600] : colors.gray[300]}
-                    value={amount}
-                    onChangeText={setAmount}
-                    keyboardType="decimal-pad"
-                    autoFocus={!isEditMode}
-                    returnKeyType="done"
-                    onSubmitEditing={Keyboard.dismiss}
-                    textAlign="center"
-                  />
-                </View>
-                {errors.amount ? <Text style={styles.amountError}>{errors.amount}</Text> : null}
-              </MotiView>
-
-              {/* ── Description + Category ── */}
-              <MotiView
-                from={{ opacity: 0, translateY: 10 }}
-                animate={{ opacity: 1, translateY: 0 }}
-                transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 140 }}
-                style={styles.section}
-              >
-                <View style={[styles.descriptionCard, { backgroundColor: cardBg, borderColor }]}>
-                  <Pressable
-                    onPress={() => openSheet('category')}
-                    style={({ pressed }) => [
-                      styles.categoryTile,
-                      { borderRightColor: borderColor },
-                      selectedCategory ? { backgroundColor: selectedCategory.color + '18' } : {},
-                      { opacity: pressed ? 0.7 : 1 },
-                    ]}
-                  >
-                    {selectedCategory ? (
-                      <Text style={styles.categoryTileEmoji}>{selectedCategory.icon}</Text>
-                    ) : (
-                      <Ionicons name="grid-outline" size={20} color={secondaryTextColor} />
-                    )}
-                  </Pressable>
-                  <TextInput
-                    style={[styles.descriptionInput, { color: textColor }]}
-                    placeholder="What's this expense for?"
-                    placeholderTextColor={isDark ? colors.gray[600] : colors.gray[400]}
-                    value={description}
-                    onChangeText={setDescription}
-                    returnKeyType="done"
-                  />
-                </View>
-                {errors.description ? <Text style={styles.errorMessage}>{errors.description}</Text> : null}
-              </MotiView>
-
-              {/* ── Paid By ── */}
-              <MotiView
-                from={{ opacity: 0, translateY: 10 }}
-                animate={{ opacity: 1, translateY: 0 }}
-                transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 190 }}
-                style={styles.section}
-              >
-                <Text style={[styles.sectionLabel, { color: secondaryTextColor }]}>PAID BY</Text>
-                <Pressable
-                  onPress={() => openSheet('paidBy')}
-                  style={[styles.selectorRow, { backgroundColor: cardBg, borderColor }]}
-                >
-                  {paidBy ? (
-                    <View style={styles.selectorLeft}>
-                      {getMember(paidBy) && (
-                        <Avatar user={getMember(paidBy)!.user} size={30} style={{ marginRight: 10 }} />
-                      )}
-                      <Text style={[styles.selectorValue, { color: textColor }]}>
-                        {paidBy === user?.id ? 'You' : getMember(paidBy)?.user.name || 'Unknown'}
-                      </Text>
-                    </View>
-                  ) : (
-                    <View style={styles.selectorLeft}>
-                      <View style={[styles.selectorIconWrap, { backgroundColor: borderColor }]}>
-                        <Ionicons name="person-outline" size={16} color={secondaryTextColor} />
-                      </View>
-                      <Text style={[styles.selectorPlaceholder, { color: secondaryTextColor }]}>
-                        Who paid?
-                      </Text>
-                    </View>
-                  )}
-                  <Ionicons name="chevron-down" size={18} color={secondaryTextColor} />
-                </Pressable>
-                {errors.paidBy ? <Text style={styles.errorMessage}>{errors.paidBy}</Text> : null}
-              </MotiView>
-
-              {/* ── Split Between ── */}
-              <MotiView
-                from={{ opacity: 0, translateY: 10 }}
-                animate={{ opacity: 1, translateY: 0 }}
-                transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 240 }}
-                style={styles.section}
-              >
-                <Text style={[styles.sectionLabel, { color: secondaryTextColor }]}>
-                  SPLIT BETWEEN{splitBetween.length > 0 ? ` · ${splitBetween.length} ${splitBetween.length === 1 ? 'person' : 'people'}` : ''}
-                </Text>
-                <View style={[styles.splitList, { backgroundColor: cardBg }]}>
-                  {(group?.members || []).map((member, idx) => {
-                    const isSelected = splitBetween.includes(member.user_id);
-                    const splitAmount = splitAmounts[member.user_id];
-                    const isLast = idx === (group?.members.length ?? 0) - 1;
-                    return (
+                    <View style={[styles.descriptionCard, { backgroundColor: cardBg, borderColor }]}>
                       <Pressable
-                        key={member.user_id}
+                        onPress={() => openSheet('category')}
                         style={({ pressed }) => [
-                          styles.splitItem,
-                          !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: borderColor },
-                          { transform: [{ scale: pressed ? 0.98 : 1 }] },
+                          styles.categoryTile,
+                          { borderRightColor: borderColor },
+                          selectedCategory ? { backgroundColor: selectedCategory.color + '18' } : {},
+                          { opacity: pressed ? 0.7 : 1 },
                         ]}
-                        onPress={() => toggleMemberInSplit(member.user_id)}
                       >
-                        <Avatar user={member.user} size={34} style={{ marginRight: 12 }} />
-                        <Text style={[styles.splitName, { color: textColor }]}>
-                          {member.user_id === user?.id ? 'You' : member.user.name}
-                        </Text>
-                        <View style={styles.splitRight}>
-                          {isSelected && splitAmount > 0 && (
-                            <Text style={[styles.splitAmount, { color: secondaryTextColor }]}>
-                              {CURRENCIES[currency].symbol}{splitAmount.toFixed(2)}
-                            </Text>
-                          )}
-                          <Checkbox checked={isSelected} borderColor={borderColor} />
-                        </View>
+                        {selectedCategory ? (
+                          <Text style={styles.categoryTileEmoji}>{selectedCategory.icon}</Text>
+                        ) : (
+                          <Ionicons name="grid-outline" size={20} color={secondaryTextColor} />
+                        )}
                       </Pressable>
-                    );
-                  })}
-                </View>
-                {errors.split ? <Text style={styles.errorMessage}>{errors.split}</Text> : null}
-              </MotiView>
+                      <TextInput
+                        style={[styles.descriptionInput, { color: textColor }]}
+                        placeholder="What's this expense for?"
+                        placeholderTextColor={isDark ? colors.gray[600] : colors.gray[400]}
+                        value={description}
+                        onChangeText={setDescription}
+                        returnKeyType="done"
+                      />
+                    </View>
+                    {errors.description ? <Text style={styles.errorMessage}>{errors.description}</Text> : null}
+                  </MotiView>
 
-              {/* ── Notes ── */}
-              <MotiView
-                from={{ opacity: 0, translateY: 10 }}
-                animate={{ opacity: 1, translateY: 0 }}
-                transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 290 }}
-              >
-                <Input
-                  label="Notes (optional)"
-                  placeholder="Add any additional notes…"
-                  value={notes}
-                  onChangeText={setNotes}
-                  multiline
-                  numberOfLines={2}
-                  leftIcon={
-                    <Ionicons
-                      name="chatbubble-outline"
-                      size={20}
-                      color={isDark ? colors.gray[400] : colors.gray[500]}
+                  <MotiView
+                    from={{ opacity: 0, translateY: 10 }}
+                    animate={{ opacity: 1, translateY: 0 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 140 }}
+                    style={[styles.amountHero, { backgroundColor: colors.primary[500] + '0D' }]}
+                  >
+                    <View style={styles.amountRow}>
+                      <Pressable
+                        onPress={() => {
+                          Alert.alert(
+                            'Coming Soon',
+                            'Support for other currencies is on the way!',
+                            [{ text: 'OK' }]
+                          );
+                        }}
+                        style={({ pressed }) => [
+                          styles.currencyPill,
+                          { borderRightColor: borderColor, opacity: pressed ? 0.7 : 1 },
+                        ]}
+                      >
+                        <Text style={[styles.currencyPillSymbol, { color: colors.primary[500] }]}>
+                          {CURRENCIES[currency].symbol}
+                        </Text>
+                        <Text style={[styles.currencyPillCode, { color: secondaryTextColor }]}>
+                          {currency}
+                        </Text>
+                        <Ionicons name="chevron-down" size={12} color={secondaryTextColor} />
+                      </Pressable>
+                      <TextInput
+                        style={[styles.amountInput, { color: textColor }]}
+                        placeholder="0.00"
+                        placeholderTextColor={isDark ? colors.gray[600] : colors.gray[300]}
+                        value={amount}
+                        onChangeText={setAmount}
+                        keyboardType="decimal-pad"
+                        autoFocus={!isEditMode}
+                        returnKeyType="done"
+                        onSubmitEditing={Keyboard.dismiss}
+                        textAlign="center"
+                      />
+                    </View>
+                    {errors.amount ? <Text style={styles.amountError}>{errors.amount}</Text> : null}
+                  </MotiView>
+
+                  <MotiView
+                    from={{ opacity: 0, translateY: 10 }}
+                    animate={{ opacity: 1, translateY: 0 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 190 }}
+                    style={styles.section}
+                  >
+                    <Text style={[styles.sectionLabel, { color: secondaryTextColor }]}>PAID BY</Text>
+                    <Pressable
+                      onPress={() => openSheet('paidBy')}
+                      style={[styles.selectorRow, { backgroundColor: cardBg, borderColor }]}
+                    >
+                      {paidBy ? (
+                        <View style={styles.selectorLeft}>
+                          {getMember(paidBy) && (
+                            <Avatar user={getMember(paidBy)!.user} size={30} style={{ marginRight: 10 }} />
+                          )}
+                          <Text style={[styles.selectorValue, { color: textColor }]}>
+                            {paidBy === user?.id ? 'You' : getMember(paidBy)?.user.name || 'Unknown'}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={styles.selectorLeft}>
+                          <View style={[styles.selectorIconWrap, { backgroundColor: borderColor }]}>
+                            <Ionicons name="person-outline" size={16} color={secondaryTextColor} />
+                          </View>
+                          <Text style={[styles.selectorPlaceholder, { color: secondaryTextColor }]}>
+                            Who paid?
+                          </Text>
+                        </View>
+                      )}
+                      <Ionicons name="chevron-down" size={18} color={secondaryTextColor} />
+                    </Pressable>
+                    {errors.paidBy ? <Text style={styles.errorMessage}>{errors.paidBy}</Text> : null}
+                  </MotiView>
+
+                  <MotiView
+                    from={{ opacity: 0, translateY: 10 }}
+                    animate={{ opacity: 1, translateY: 0 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 240 }}
+                    style={styles.section}
+                  >
+                    {isFriendTarget && targetLabel && (
+                      <Text style={[styles.splitHint, { color: secondaryTextColor }]}>
+                        Split between you and {targetLabel}
+                      </Text>
+                    )}
+                    <Text style={[styles.sectionLabel, { color: secondaryTextColor }]}>
+                      SPLIT BETWEEN{splitBetween.length > 0 ? ` · ${splitBetween.length} ${splitBetween.length === 1 ? 'person' : 'people'}` : ''}
+                    </Text>
+                    <View style={[styles.splitList, { backgroundColor: cardBg }]}>
+                      {(group?.members || []).map((member, idx) => {
+                        const isSelected = splitBetween.includes(member.user_id);
+                        const splitAmount = splitAmounts[member.user_id];
+                        const isLast = idx === (group?.members.length ?? 0) - 1;
+                        return (
+                          <Pressable
+                            key={member.user_id}
+                            style={({ pressed }) => [
+                              styles.splitItem,
+                              !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: borderColor },
+                              { transform: [{ scale: pressed ? 0.98 : 1 }] },
+                            ]}
+                            onPress={() => toggleMemberInSplit(member.user_id)}
+                          >
+                            <Avatar user={member.user} size={34} style={{ marginRight: 12 }} />
+                            <Text style={[styles.splitName, { color: textColor }]}>
+                              {member.user_id === user?.id ? 'You' : member.user.name}
+                            </Text>
+                            <View style={styles.splitRight}>
+                              {isSelected && splitAmount > 0 && (
+                                <Text style={[styles.splitAmount, { color: secondaryTextColor }]}>
+                                  {CURRENCIES[currency].symbol}{splitAmount.toFixed(2)}
+                                </Text>
+                              )}
+                              <Checkbox checked={isSelected} borderColor={borderColor} />
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    {errors.split ? <Text style={styles.errorMessage}>{errors.split}</Text> : null}
+                  </MotiView>
+                </>
+              )}
+
+              {/* ── Grouped layout: group-level category + paid by, total band, Part 1 card, Add more, Part 2+ cards ── */}
+              {isGroupedLayout && (
+                <>
+                  <MotiView
+                    from={{ opacity: 0, translateY: 10 }}
+                    animate={{ opacity: 1, translateY: 0 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 90 }}
+                    style={styles.section}
+                  >
+                    <Text style={[styles.sectionLabel, { color: secondaryTextColor }]}>DESCRIPTION (GROUP)</Text>
+                    <TextInput
+                      style={[styles.extraLineInput, { color: textColor, borderColor, backgroundColor: cardBg }]}
+                      placeholder="What's this payment for? (e.g. Dinner at club)"
+                      placeholderTextColor={isDark ? colors.gray[600] : colors.gray[400]}
+                      value={groupDescription}
+                      onChangeText={setGroupDescription}
+                      returnKeyType="done"
                     />
-                  }
-                />
-              </MotiView>
+                    {errors.groupDescription ? <Text style={styles.errorMessage}>{errors.groupDescription}</Text> : null}
+                  </MotiView>
+
+                  <MotiView
+                    from={{ opacity: 0, translateY: 10 }}
+                    animate={{ opacity: 1, translateY: 0 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 95 }}
+                    style={styles.section}
+                  >
+                    <Text style={[styles.sectionLabel, { color: secondaryTextColor }]}>CATEGORY</Text>
+                    <Pressable
+                      onPress={() => openSheet('category')}
+                      style={[styles.selectorRow, { backgroundColor: cardBg, borderColor }]}
+                    >
+                      {selectedCategory ? (
+                        <View style={styles.selectorLeft}>
+                          <Text style={styles.categoryTileEmoji}>{selectedCategory.icon}</Text>
+                          <Text style={[styles.selectorValue, { color: textColor, marginLeft: 10 }]}>{selectedCategory.name}</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.selectorLeft}>
+                          <View style={[styles.selectorIconWrap, { backgroundColor: borderColor }]}>
+                            <Ionicons name="grid-outline" size={16} color={secondaryTextColor} />
+                          </View>
+                          <Text style={[styles.selectorPlaceholder, { color: secondaryTextColor }]}>
+                            Choose category
+                          </Text>
+                        </View>
+                      )}
+                      <Ionicons name="chevron-down" size={18} color={secondaryTextColor} />
+                    </Pressable>
+                  </MotiView>
+
+                  <MotiView
+                    from={{ opacity: 0, translateY: 10 }}
+                    animate={{ opacity: 1, translateY: 0 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 120 }}
+                    style={styles.section}
+                  >
+                    <Text style={[styles.sectionLabel, { color: secondaryTextColor }]}>PAID BY</Text>
+                    <Pressable
+                      onPress={() => openSheet('paidBy')}
+                      style={[styles.selectorRow, { backgroundColor: cardBg, borderColor }]}
+                    >
+                      {paidBy ? (
+                        <View style={styles.selectorLeft}>
+                          {getMember(paidBy) && (
+                            <Avatar user={getMember(paidBy)!.user} size={30} style={{ marginRight: 10 }} />
+                          )}
+                          <Text style={[styles.selectorValue, { color: textColor }]}>
+                            {paidBy === user?.id ? 'You' : getMember(paidBy)?.user.name || 'Unknown'}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={styles.selectorLeft}>
+                          <View style={[styles.selectorIconWrap, { backgroundColor: borderColor }]}>
+                            <Ionicons name="person-outline" size={16} color={secondaryTextColor} />
+                          </View>
+                          <Text style={[styles.selectorPlaceholder, { color: secondaryTextColor }]}>
+                            Who paid?
+                          </Text>
+                        </View>
+                      )}
+                      <Ionicons name="chevron-down" size={18} color={secondaryTextColor} />
+                    </Pressable>
+                    {errors.paidBy ? <Text style={styles.errorMessage}>{errors.paidBy}</Text> : null}
+                  </MotiView>
+
+                  {/* Total band (separate from Part 1) */}
+                  <MotiView
+                    from={{ opacity: 0, translateY: 10 }}
+                    animate={{ opacity: 1, translateY: 0 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 140 }}
+                    style={[styles.totalBand, { backgroundColor: colors.primary[500] + '0D', borderColor }]}
+                  >
+                    <Text style={[styles.totalLabel, { color: secondaryTextColor }]}>
+                      TOTAL · {CURRENCIES[currency].symbol}{totalAmount.toFixed(2)}
+                    </Text>
+                    <Pressable
+                      onPress={() => {
+                        Alert.alert('Coming Soon', 'Support for other currencies is on the way!', [{ text: 'OK' }]);
+                      }}
+                      style={({ pressed }) => [styles.currencyPillSmall, { borderColor, opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <Text style={[styles.currencyPillSymbol, { color: colors.primary[500] }]}>{CURRENCIES[currency].symbol}</Text>
+                      <Text style={[styles.currencyPillCode, { color: secondaryTextColor }]}>{currency}</Text>
+                      <Ionicons name="chevron-down" size={12} color={secondaryTextColor} />
+                    </Pressable>
+                  </MotiView>
+
+                  {/* Part 1 card (same structure as Part 2+) */}
+                  <MotiView
+                    from={{ opacity: 0, translateY: 10 }}
+                    animate={{ opacity: 1, translateY: 0 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 160 }}
+                    style={[styles.extraLineCard, { backgroundColor: cardBg, borderColor }]}
+                  >
+                    <View style={styles.extraLineCardHeader}>
+                      <Text style={[styles.extraLineTitle, { color: secondaryTextColor }]}>Part 1</Text>
+                      {extraLines.length >= 1 && (
+                        <Pressable onPress={removePartOne} hitSlop={8} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
+                          <Ionicons name="trash-outline" size={20} color={colors.error} />
+                        </Pressable>
+                      )}
+                    </View>
+                    <TextInput
+                      style={[styles.extraLineInput, { color: textColor, borderColor }]}
+                      placeholder="What's this part for? (required)"
+                      placeholderTextColor={isDark ? colors.gray[600] : colors.gray[400]}
+                      value={description}
+                      onChangeText={setDescription}
+                      returnKeyType="done"
+                    />
+                    {errors.description ? <Text style={styles.errorMessage}>{errors.description}</Text> : null}
+                    <View style={styles.extraLineAmountRow}>
+                      <Text style={[styles.extraLineCurrency, { color: secondaryTextColor }]}>{CURRENCIES[currency].symbol}</Text>
+                      <TextInput
+                        style={[styles.extraLineAmountInput, { color: textColor }]}
+                        placeholder="0.00"
+                        placeholderTextColor={isDark ? colors.gray[600] : colors.gray[300]}
+                        value={amount}
+                        onChangeText={setAmount}
+                        keyboardType="decimal-pad"
+                        returnKeyType="done"
+                      />
+                    </View>
+                    {errors.amount ? <Text style={styles.errorMessage}>{errors.amount}</Text> : null}
+                    <Text style={[styles.sectionLabel, { color: secondaryTextColor, marginTop: 12 }]}>
+                      SPLIT BETWEEN{splitBetween.length > 0 ? ` · ${splitBetween.length} ${splitBetween.length === 1 ? 'person' : 'people'}` : ''}
+                    </Text>
+                    {isFriendTarget && targetLabel && (
+                      <Text style={[styles.splitHint, { color: secondaryTextColor, marginBottom: 6 }]}>
+                        Split between you and {targetLabel}
+                      </Text>
+                    )}
+                    <View style={[styles.splitList, { backgroundColor: isDark ? colors.gray[800] : colors.gray[50] }]}>
+                      {(group?.members || []).map((member, idx) => {
+                        const isSelected = splitBetween.includes(member.user_id);
+                        const splitAmount = splitAmounts[member.user_id];
+                        const isLast = idx === (group?.members.length ?? 0) - 1;
+                        return (
+                          <Pressable
+                            key={member.user_id}
+                            style={({ pressed }) => [
+                              styles.splitItem,
+                              !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: borderColor },
+                              { transform: [{ scale: pressed ? 0.98 : 1 }] },
+                            ]}
+                            onPress={() => toggleMemberInSplit(member.user_id)}
+                          >
+                            <Avatar user={member.user} size={34} style={{ marginRight: 12 }} />
+                            <Text style={[styles.splitName, { color: textColor }]}>
+                              {member.user_id === user?.id ? 'You' : member.user.name}
+                            </Text>
+                            <View style={styles.splitRight}>
+                              {isSelected && splitAmount > 0 && (
+                                <Text style={[styles.splitAmount, { color: secondaryTextColor }]}>
+                                  {CURRENCIES[currency].symbol}{splitAmount.toFixed(2)}
+                                </Text>
+                              )}
+                              <Checkbox checked={isSelected} borderColor={borderColor} />
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    {errors.split ? <Text style={styles.errorMessage}>{errors.split}</Text> : null}
+                    <Text style={[styles.sectionLabel, { color: secondaryTextColor, marginTop: 12 }]}>NOTES (OPTIONAL)</Text>
+                    <Input
+                      value={notes}
+                      onChangeText={setNotes}
+                      placeholder="Add a note for this part…"
+                      placeholderTextColor={isDark ? colors.gray[500] : colors.gray[400]}
+                      multiline
+                      numberOfLines={2}
+                      leftIcon={
+                        <Ionicons name="chatbubble-outline" size={20} color={isDark ? colors.gray[400] : colors.gray[500]} />
+                      }
+                    />
+                  </MotiView>
+                </>
+              )}
+
+              {/* ── Extra lines (grouped expense: Part 2, Part 3, …) ── */}
+              {extraLines.length > 0 && extraLines.map((line, idx) => (
+                <MotiView
+                  key={idx}
+                  from={{ opacity: 0, translateY: 10 }}
+                  animate={{ opacity: 1, translateY: 0 }}
+                  transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+                  style={[styles.extraLineCard, { backgroundColor: cardBg, borderColor }]}
+                >
+                  <View style={styles.extraLineCardHeader}>
+                    <Text style={[styles.extraLineTitle, { color: secondaryTextColor }]}>
+                      Part {idx + 2}
+                    </Text>
+                    {extraLines.length >= 1 && (
+                      <Pressable
+                        onPress={() => removeExtraLine(idx)}
+                        hitSlop={8}
+                        style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
+                      >
+                        <Ionicons name="trash-outline" size={20} color={colors.error} />
+                      </Pressable>
+                    )}
+                  </View>
+                  <TextInput
+                    style={[styles.extraLineInput, { color: textColor, borderColor }]}
+                    placeholder="What's this part for?"
+                    placeholderTextColor={isDark ? colors.gray[600] : colors.gray[400]}
+                    value={line.description}
+                    onChangeText={(text) => updateExtraLine(idx, { description: text })}
+                    returnKeyType="done"
+                  />
+                  {errors[`extraDesc_${idx}`] ? <Text style={styles.errorMessage}>{errors[`extraDesc_${idx}`]}</Text> : null}
+                  <View style={styles.extraLineAmountRow}>
+                    <Text style={[styles.extraLineCurrency, { color: secondaryTextColor }]}>{CURRENCIES[currency].symbol}</Text>
+                    <TextInput
+                      style={[styles.extraLineAmountInput, { color: textColor }]}
+                      placeholder="0.00"
+                      placeholderTextColor={isDark ? colors.gray[600] : colors.gray[300]}
+                      value={line.amount}
+                      onChangeText={(text) => updateExtraLine(idx, { amount: text })}
+                      keyboardType="decimal-pad"
+                      returnKeyType="done"
+                    />
+                  </View>
+                  {errors[`extraAmount_${idx}`] ? <Text style={styles.errorMessage}>{errors[`extraAmount_${idx}`]}</Text> : null}
+                  <Text style={[styles.sectionLabel, { color: secondaryTextColor, marginTop: 12 }]}>
+                    SPLIT BETWEEN{line.splitBetween.length > 0 ? ` · ${line.splitBetween.length} ${line.splitBetween.length === 1 ? 'person' : 'people'}` : ''}
+                  </Text>
+                  <View style={[styles.splitList, { backgroundColor: isDark ? colors.gray[800] : colors.gray[50] }]}>
+                    {(group?.members || []).map((member, mi) => {
+                      const isSelected = line.splitBetween.includes(member.user_id);
+                      const lineAmt = line.splitBetween.length > 0 ? (parseFloat(line.amount) || 0) / line.splitBetween.length : 0;
+                      const splitAmount = isSelected ? Math.round(lineAmt * 100) / 100 : 0;
+                      const isLast = mi === (group?.members?.length ?? 0) - 1;
+                      return (
+                        <Pressable
+                          key={member.user_id}
+                          style={({ pressed }) => [
+                            styles.splitItem,
+                            !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: borderColor },
+                            { transform: [{ scale: pressed ? 0.98 : 1 }] },
+                          ]}
+                          onPress={() => toggleExtraLineSplit(idx, member.user_id)}
+                        >
+                          <Avatar user={member.user} size={34} style={{ marginRight: 12 }} />
+                          <Text style={[styles.splitName, { color: textColor }]}>
+                            {member.user_id === user?.id ? 'You' : member.user.name}
+                          </Text>
+                          <View style={styles.splitRight}>
+                            {isSelected && splitAmount > 0 && (
+                              <Text style={[styles.splitAmount, { color: secondaryTextColor }]}>
+                                {CURRENCIES[currency].symbol}{splitAmount.toFixed(2)}
+                              </Text>
+                            )}
+                            <Checkbox checked={isSelected} borderColor={borderColor} />
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  {errors[`extraSplit_${idx}`] ? <Text style={styles.errorMessage}>{errors[`extraSplit_${idx}`]}</Text> : null}
+                  <Text style={[styles.sectionLabel, { color: secondaryTextColor, marginTop: 12 }]}>NOTES (OPTIONAL)</Text>
+                  <Input
+                    value={line.notes}
+                    onChangeText={(text) => updateExtraLine(idx, { notes: text })}
+                    placeholder="Add a note for this part…"
+                    placeholderTextColor={isDark ? colors.gray[500] : colors.gray[400]}
+                    multiline
+                    numberOfLines={2}
+                    leftIcon={
+                      <Ionicons name="chatbubble-outline" size={20} color={isDark ? colors.gray[400] : colors.gray[500]} />
+                    }
+                  />
+                </MotiView>
+              ))}
+
+              {/* ── Add more expense at bottom of list (create or edit grouped) ── */}
+              {(!isEditMode || isEditModeGrouped) && (
+                <MotiView
+                  from={{ opacity: 0, translateY: 10 }}
+                  animate={{ opacity: 1, translateY: 0 }}
+                  transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 260 }}
+                  style={styles.section}
+                >
+                  <Pressable
+                    onPress={handleAddMoreExpense}
+                    style={({ pressed }) => [
+                      styles.addMoreButton,
+                      { backgroundColor: colors.primary[500] + '18', borderColor: colors.primary[500] + '40', opacity: pressed ? 0.8 : 1 },
+                    ]}
+                  >
+                    <Ionicons name="add-circle-outline" size={22} color={colors.primary[500]} />
+                    <Text style={[styles.addMoreButtonText, { color: colors.primary[500] }]}>Add more expense</Text>
+                  </Pressable>
+                </MotiView>
+              )}
+
+              {/* ── Notes (single expense only; grouped uses per-part notes above and in cards) ── */}
+              {extraLines.length === 0 && !isEditModeGrouped && (
+                <MotiView
+                  from={{ opacity: 0, translateY: 10 }}
+                  animate={{ opacity: 1, translateY: 0 }}
+                  transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 290 }}
+                >
+                  <Input
+                    label="Notes (optional)"
+                    placeholder="Add any additional notes…"
+                    value={notes}
+                    onChangeText={setNotes}
+                    multiline
+                    numberOfLines={2}
+                    leftIcon={
+                      <Ionicons
+                        name="chatbubble-outline"
+                        size={20}
+                        color={isDark ? colors.gray[400] : colors.gray[500]}
+                      />
+                    }
+                  />
+                </MotiView>
+              )}
 
               {/* ── Form error ── */}
               {errors.form ? (
@@ -770,7 +1306,7 @@ export default function AddExpenseScreen() {
               ) : null}
 
             </ScrollView>
-          )}
+          ) : null}
         </KeyboardAvoidingView>
 
         {/* Picker bottom sheet — currency / category / paid-by */}
@@ -978,6 +1514,14 @@ const styles = StyleSheet.create({
   },
   headerSaveButton: {
     borderRadius: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 4,
+  },
+  headerSaveText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   headerTitle: {
     fontSize: 18,
@@ -1064,16 +1608,105 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingBottom: 10,
   },
+  totalLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    textAlign: 'center',
+    paddingTop: 10,
+    paddingBottom: 4,
+  },
+  totalBand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  currencyPillSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
 
   // Sections
   section: {
     marginBottom: 20,
+  },
+  splitHint: {
+    fontSize: 13,
+    marginBottom: 6,
   },
   sectionLabel: {
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1.2,
     marginBottom: 10,
+  },
+  addMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+  },
+  addMoreButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  extraLineCard: {
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  extraLineCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  extraLineTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  extraLineInput: {
+    fontSize: 15,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    backgroundColor: 'transparent',
+  },
+  extraLineAmountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  extraLineCurrency: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginRight: 6,
+  },
+  extraLineAmountInput: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: '600',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
 
   // Description + category compound row

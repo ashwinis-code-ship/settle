@@ -14,23 +14,25 @@ import type { CurrencyCode, UserSummary } from '@/types';
 
 export interface ActivityItem {
   id: string;
-  type: 'expense' | 'settlement';
+  type: 'expense' | 'settlement' | 'expense_group';
   description: string;
   amount: number;
   currency: CurrencyCode;
-  /** Display date (expense_date for expenses, created_at for settlements) */
+  /** Display date (expense_date for expenses, created_at for settlements/groups) */
   date: string;
   /** Timestamp for sorting (created_at for both) */
   created_at: string;
   group_id: string | null;
   group_name: string | null;
   paid_by: UserSummary;
-  /** For expenses: your share amount. For settlements: null */
+  /** For expenses/expense_group: your share amount. For settlements: null */
   your_share?: number;
   /** For settlements: who received the payment */
   paid_to?: UserSummary;
-  /** Category icon for expenses */
+  /** Category icon for expenses / expense_group */
   category_icon?: string;
+  /** Number of parts (expense_group only) */
+  line_count?: number;
 }
 
 async function fetchRecentActivity(userId: string): Promise<ActivityItem[]> {
@@ -56,35 +58,7 @@ async function fetchRecentActivity(userId: string): Promise<ActivityItem[]> {
   const groupMap = new Map<string, string>();
   groupsData?.forEach(g => groupMap.set(g.id, g.name));
 
-  // Fetch recent expenses (last 10)
-  const { data: expensesData } = await supabase
-    .from('expenses')
-    .select(`
-      id,
-      description,
-      amount,
-      currency,
-      expense_date,
-      created_at,
-      group_id,
-      paid_by,
-      paid_by_user:paid_by (id, name, phone, avatar_url),
-      category:category_id (icon)
-    `)
-    .in('group_id', groupIds)
-    .order('created_at', { ascending: false })
-    .limit(10);
-
-  // Get user's splits for these expenses
-  const expenseIds = expensesData?.map(e => e.id) || [];
-  const { data: splitsData } = await supabase
-    .from('expense_splits')
-    .select('expense_id, amount')
-    .in('expense_id', expenseIds)
-    .eq('user_id', userId);
-
-  const splitMap = new Map<string, number>();
-  splitsData?.forEach(s => splitMap.set(s.expense_id, Number(s.amount)));
+  // Grouped-by-default: all expenses are expense_groups (no standalone fetch)
 
   // Fetch recent settlements (last 10)
   const { data: settlementsData } = await supabase
@@ -105,21 +79,71 @@ async function fetchRecentActivity(userId: string): Promise<ActivityItem[]> {
     .order('created_at', { ascending: false })
     .limit(10);
 
-  // Transform expenses to activity items
-  const expenseActivities: ActivityItem[] = (expensesData || []).map(e => ({
-    id: e.id,
-    type: 'expense' as const,
-    description: e.description,
-    amount: Number(e.amount),
-    currency: e.currency as CurrencyCode,
-    date: e.expense_date,
-    created_at: e.created_at,
-    group_id: e.group_id,
-    group_name: groupMap.get(e.group_id) || null,
-    paid_by: e.paid_by_user as unknown as UserSummary,
-    your_share: e.paid_by === userId ? 0 : (splitMap.get(e.id) || 0),
-    category_icon: (e.category as any)?.icon || undefined,
-  }));
+  // Fetch recent expense_groups (grouped-by-default: all expenses appear here, 1 line = single expense)
+  const { data: expenseGroupsData } = await supabase
+    .from('expense_groups')
+    .select(`
+      id,
+      description,
+      created_at,
+      group_id,
+      paid_by,
+      paid_by_user:paid_by (id, name, phone, avatar_url),
+      category:category_id (icon)
+    `)
+    .in('group_id', groupIds)
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  const egIds = expenseGroupsData?.map(eg => eg.id) || [];
+  let expenseGroupActivities: ActivityItem[] = [];
+
+  if (egIds.length > 0) {
+    const { data: childExpenses } = await supabase
+      .from('expenses')
+      .select('id, amount, currency, expense_group_id')
+      .in('expense_group_id', egIds);
+
+    const childByGroup = new Map<string, { id: string; amount: number; currency: string }[]>();
+    childExpenses?.forEach(ce => {
+      const list = childByGroup.get(ce.expense_group_id) || [];
+      list.push({ id: ce.id, amount: Number(ce.amount), currency: ce.currency });
+      childByGroup.set(ce.expense_group_id, list);
+    });
+
+    const allChildIds = childExpenses?.map(ce => ce.id) || [];
+    const { data: egSplits } = await supabase
+      .from('expense_splits')
+      .select('expense_id, amount')
+      .in('expense_id', allChildIds)
+      .eq('user_id', userId);
+
+    const egSplitMap = new Map<string, number>();
+    egSplits?.forEach(s => egSplitMap.set(s.expense_id, Number(s.amount)));
+
+    expenseGroupActivities = (expenseGroupsData || []).map(eg => {
+      const children = childByGroup.get(eg.id) || [];
+      const total = children.reduce((sum, c) => sum + c.amount, 0);
+      const your_share = children.reduce((sum, c) => sum + (egSplitMap.get(c.id) || 0), 0);
+      const currency = children[0]?.currency ?? 'INR';
+
+      return {
+        id: eg.id,
+        type: 'expense_group' as const,
+        description: eg.description,
+        amount: total,
+        currency: currency as CurrencyCode,
+        date: eg.created_at,
+        created_at: eg.created_at,
+        group_id: eg.group_id,
+        group_name: groupMap.get(eg.group_id) || null,
+        paid_by: eg.paid_by_user as unknown as UserSummary,
+        your_share: eg.paid_by === userId ? 0 : your_share,
+        category_icon: (eg.category as { icon?: string })?.icon || undefined,
+        line_count: children.length,
+      };
+    });
+  }
 
   // Transform settlements to activity items
   const settlementActivities: ActivityItem[] = (settlementsData || []).map(s => ({
@@ -137,7 +161,7 @@ async function fetchRecentActivity(userId: string): Promise<ActivityItem[]> {
   }));
 
   // Combine and sort by created_at (most recent first)
-  const allActivities = [...expenseActivities, ...settlementActivities];
+  const allActivities = [...expenseGroupActivities, ...settlementActivities];
   allActivities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   // Return top 10

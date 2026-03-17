@@ -2,6 +2,33 @@
 
 ---
 
+## v1.3.0 — 17 Mar 2026
+
+### Grouped Expenses (Grouped-by-Default)
+
+- **All expenses are now expense groups** — Single-line and multi-line expenses both create an `expense_group` with one or more child `expenses`. Enables consistent edit flow (e.g. "Add more expense" when editing any expense) and unified list/detail behaviour.
+- **Create flow** — Add-expense screen supports one or more parts; total and category are at group level; each part has description, amount, and split. Single-row expenses create a 1-line group via `create_grouped_expense` (RPC allows 1+ lines).
+- **Update flow** — Editing a grouped expense pre-fills all parts; reducing to one part updates in place via `update_grouped_expense` (no conversion to standalone). Create mutation validation fixed to allow 1 line so single-row expenses save successfully.
+- **Backfill** — Migration `20260320170000_backfill_expense_groups.sql` migrates existing standalone expenses into 1-line expense groups. Backup docs and optional export in `backup/`.
+
+### Group & Friend Lists — Grouped Expense UX
+
+- **Group activity list** — Shows "your share" for every grouped expense (including 1-part). For single-line groups, list row uses the part’s description when available (`first_line_description`) instead of the group description. Removed "1 part" / "2 parts" from the meta line; row shows payer and date (and optional "your share" below amount).
+- **Friend activity list** — Grouped expenses appear as one row per group; "x parts" removed from meta. Shared-group card **transaction count** now counts distinct expense groups (and settlements) per group, not each child expense row — e.g. one 2-part group + one single-row group show as "2 transactions" instead of "3".
+- **Expense group detail (receipt view)** — For 1-line groups, receipt uses the single line’s description as the title and one "Split between X people" block (no duplicate "Part 1" section). Multi-line groups keep group title + one block per line.
+
+### DB & Backend
+
+- **Schema** — `expense_groups` table; `expenses.expense_group_id` FK; RLS for `expense_groups`. RPCs: `create_grouped_expense`, `update_grouped_expense` (both allow 1+ lines); `get_friend_transactions` returns `expense_group` rows with aggregated impact and `line_count`.
+- **Friend detail group balance** — Fetches `expense_group_id` on expenses; transaction count per shared group = size of unique expense groups (by `expense_group_id` or expense id when null) + settlement count.
+
+### UI / Copy
+
+- Removed "1 part" / "2 parts" from group and friend list item meta lines.
+- Per-line notes supported in grouped expense form and RPCs; group description required when there are 2+ parts.
+
+---
+
 ## v1.2.0 — 9 Mar 2026
 
 ### Expense Screen Redesign

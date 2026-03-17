@@ -18,18 +18,19 @@ import { queryKeys } from '@/lib/query-client';
 import { supabase } from '@/lib/supabase';
 import type { GroupCheckpoint, GroupMemberBalance } from '@/types';
 
-import { useExpenses, type ExpenseListItemWithStatus } from './use-expenses';
+import { useExpenses, type ExpenseGroupListItemWithStatus, type ExpenseListItemWithStatus, type GroupTabExpenseItem } from './use-expenses';
 
 // ─── Public types ────────────────────────────────────────────────────────────
 
 export interface OlderPhase {
   checkpoint: GroupCheckpoint;
-  expenses: ExpenseListItemWithStatus[];
+  expenses: GroupTabExpenseItem[];
 }
 
 /** Discriminated union for the flat FlatList data array in the group detail screen */
 export type ActivityListItem =
   | { kind: 'expense'; data: ExpenseListItemWithStatus }
+  | { kind: 'group'; data: ExpenseGroupListItemWithStatus }
   | { kind: 'checkpoint'; data: GroupCheckpoint }
   | { kind: 'view_older' }
   /** Shown when current phase is empty but archived phases exist */
@@ -178,6 +179,7 @@ export function useGroupPhases(groupId: string | undefined): UseGroupPhasesResul
   });
 
   // ── Phase splitting ───────────────────────────────────────────────────────
+  // expenses is now GroupTabExpenseItem[] (expense | group with itemType)
   const { currentPhaseExpenses, allOlderPhases } = useMemo(() => {
     if (checkpoints.length === 0) {
       return { currentPhaseExpenses: expenses, allOlderPhases: [] };
@@ -189,7 +191,6 @@ export function useGroupPhases(groupId: string | undefined): UseGroupPhasesResul
       (e) => new Date(e.created_at).getTime() > latestTs
     );
 
-    // Build one OlderPhase per checkpoint (newest checkpoint = phase 0)
     const older: OlderPhase[] = checkpoints.map((checkpoint, i) => {
       const checkpointTs = new Date(checkpoint.created_at).getTime();
       const prevCheckpointTs = checkpoints[i + 1]
@@ -221,10 +222,11 @@ export function useGroupPhases(groupId: string | undefined): UseGroupPhasesResul
 
   // ── Flat activity list for FlatList ───────────────────────────────────────
   const activityData = useMemo((): ActivityListItem[] => {
-    const items: ActivityListItem[] = currentPhaseExpenses.map((e) => ({
-      kind: 'expense',
-      data: e,
-    }));
+    const items: ActivityListItem[] = currentPhaseExpenses.map((e) =>
+      e.itemType === 'group'
+        ? { kind: 'group' as const, data: e }
+        : { kind: 'expense' as const, data: e }
+    );
 
     // Empty current phase: show the "All archived" card instead of a blank list.
     // The card embeds a "View older expenses" link only before the user has opened
@@ -236,11 +238,11 @@ export function useGroupPhases(groupId: string | undefined): UseGroupPhasesResul
       });
     }
 
-    // Revealed older phases: checkpoint divider then its expenses
+    // Revealed older phases: checkpoint divider then its expenses (or groups)
     for (const phase of visibleOlderPhases) {
       items.push({ kind: 'checkpoint', data: phase.checkpoint });
       for (const e of phase.expenses) {
-        items.push({ kind: 'expense', data: e });
+        items.push(e.itemType === 'group' ? { kind: 'group' as const, data: e } : { kind: 'expense' as const, data: e });
       }
     }
 

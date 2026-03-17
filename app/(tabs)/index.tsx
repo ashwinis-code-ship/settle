@@ -275,6 +275,11 @@ export default function HomeScreen() {
     if (item.type === 'expense') {
       hapticLight();
       router.push(`/expense/${item.id}`);
+      return;
+    }
+    if (item.type === 'expense_group') {
+      hapticLight();
+      router.push(`/expense/group/${item.id}`);
     }
     // Settlements don't have a detail screen yet
   };
@@ -312,6 +317,7 @@ export default function HomeScreen() {
   const renderActivityItem = useCallback(({ item, index }: { item: ActivityItem; index: number }) => {
     const isSettlement = item.type === 'settlement';
     const isYouPaid = item.paid_by.id === user?.id;
+    const isGrouped = item.type === 'expense_group' && (item.line_count ?? 0) > 1;
 
     return (
       <MotiView
@@ -371,6 +377,14 @@ export default function HomeScreen() {
               <Text style={[styles.activityDate, { color: secondaryTextColor }]}>
                 {formatDate(item.date)}
               </Text>
+              {isGrouped && (
+                <>
+                  <Text style={[styles.activityDot, { color: secondaryTextColor }]}>•</Text>
+                  <Text style={[styles.activityDate, { color: secondaryTextColor }]}>
+                    {item.line_count} parts
+                  </Text>
+                </>
+              )}
               {item.group_name && (
                 <>
                   <Text style={[styles.activityDot, { color: secondaryTextColor }]}>•</Text>

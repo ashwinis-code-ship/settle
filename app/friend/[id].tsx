@@ -248,6 +248,11 @@ export default function FriendDetailScreen() {
     if (item.type === 'expense') {
       hapticLight();
       router.push(`/expense/${item.id}`);
+      return;
+    }
+    if (item.type === 'expense_group') {
+      hapticLight();
+      router.push(`/expense/group/${item.id}`);
     }
   };
 
@@ -336,7 +341,7 @@ export default function FriendDetailScreen() {
       );
     }
 
-    // Expense: card layout with colors
+    // Expense or expense_group: card layout with colors
     const amountColor = isPositive ? colors.success : colors.error;
     const amountLabel = isPositive ? 'you get' : 'you owe';
 

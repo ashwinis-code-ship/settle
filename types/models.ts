@@ -121,6 +121,54 @@ export interface ExpenseListItem {
 }
 
 /**
+ * Expense group with relations for display (list or header).
+ */
+export interface ExpenseGroup {
+  id: string;
+  group_id: string;
+  description: string;
+  category_id: string | null;
+  category: DbCategory | null;
+  paid_by: string;
+  paid_by_user: UserSummary;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  /** Total = sum of child expense amounts (convenience for list/detail). */
+  total: number;
+  /** Number of child expenses (lines). */
+  line_count: number;
+}
+
+/**
+ * One line in a grouped expense detail (child expense with splits).
+ */
+export interface GroupedExpenseLine {
+  id: string;
+  description: string;
+  amount: number;
+  currency: CurrencyCode;
+  splits: ExpenseSplitInfo[];
+  /** Optional notes for this line. */
+  notes?: string | null;
+}
+
+/**
+ * Full grouped expense for detail view: group header + lines (each with splits).
+ */
+export interface ExpenseGroupWithLines {
+  group: ExpenseGroup;
+  lines: GroupedExpenseLine[];
+}
+
+/**
+ * Unified list item for group/friends tab: one row per payment (standalone expense or expense_group).
+ */
+export type ListPaymentItem =
+  | { type: 'expense'; id: string; created_at: string; data: ExpenseListItem }
+  | { type: 'group'; id: string; created_at: string; data: ExpenseGroup };
+
+/**
  * A group phase checkpoint — marks the end of a phase.
  * Any group member can create or delete one.
  */
@@ -194,7 +242,7 @@ export interface Friend {
  */
 export interface FriendTransaction {
   id: string;
-  type: 'expense' | 'settlement';
+  type: 'expense' | 'settlement' | 'expense_group';
   description: string;
   /** Positive = they owe you from this, Negative = you owe them */
   amount: number;
@@ -212,6 +260,8 @@ export interface FriendTransaction {
   category_color?: string | null;
   /** True if the current user paid for this expense */
   paid_by_you?: boolean;
+  /** Number of parts (expense_group only) */
+  line_count?: number | null;
 }
 
 // ============================================
@@ -271,6 +321,32 @@ export interface ExpenseFormData {
   split_between: string[];
   notes: string;
   expense_date: Date;
+}
+
+/**
+ * One line in grouped expense form / API (sub-expense with amount and split_between).
+ * Distinct from display GroupedExpenseLine (id, currency, splits).
+ */
+export interface GroupedExpenseLineForm {
+  description: string;
+  amount: number;
+  /** User IDs to split this line between (equal split). */
+  split_between: string[];
+  /** Optional notes for this line. */
+  notes?: string;
+}
+
+/**
+ * Form data for creating/updating a grouped expense (expense_group + N child expenses).
+ */
+export interface GroupedExpenseFormData {
+  description: string;
+  category_id: string | null;
+  paid_by: string;
+  currency: CurrencyCode;
+  expense_date: Date;
+  /** At least 2 lines; each has description, amount, split_between. */
+  lines: GroupedExpenseLineForm[];
 }
 
 /**

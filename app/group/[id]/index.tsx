@@ -34,7 +34,7 @@ import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroup } from '@/hooks/use-group';
 import { useGroupPhases, type ActivityListItem } from '@/hooks/use-group-phases';
-import type { ExpenseListItemWithStatus } from '@/hooks/use-expenses';
+import type { ExpenseGroupListItemWithStatus, ExpenseListItemWithStatus } from '@/hooks/use-expenses';
 import type { GroupCheckpoint } from '@/types';
 import { hapticLight, hapticWarning } from '@/lib/haptics';
 
@@ -128,6 +128,11 @@ export default function GroupDetailScreen() {
   const handleExpensePress = useCallback((expenseId: string) => {
     hapticLight();
     router.push(`/expense/${expenseId}`);
+  }, []);
+
+  const handleGroupPress = useCallback((expenseGroupId: string) => {
+    hapticLight();
+    router.push(`/expense/group/${expenseGroupId}`);
   }, []);
 
   const handleRemoveCheckpoint = useCallback((checkpoint: GroupCheckpoint) => {
@@ -232,6 +237,74 @@ export default function GroupDetailScreen() {
       );
     },
     [cardBg, textColor, secondaryTextColor, isDark, handleExpensePress]
+  );
+
+  const renderGroupItem = useCallback(
+    ({ item: group, index }: { item: ExpenseGroupListItemWithStatus; index: number }) => {
+      const isYou = group.you_paid;
+      const notIncluded = group.your_share === 0;
+      const yourShareAmount = group.your_share;
+      const iconBg = notIncluded
+        ? (isDark ? colors.gray[700] : colors.gray[200])
+        : (group.category?.color ? group.category.color + '20' : colors.primary[100]);
+
+      return (
+        <MotiView
+          from={{ opacity: 0, translateX: -20, scale: 0.95 }}
+          animate={{ opacity: 1, translateX: 0, scale: 1 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 120, delay: Math.min(index * 50, 300) }}
+        >
+          <Pressable
+            onPress={() => handleGroupPress(group.id)}
+            style={({ pressed }) => [
+              styles.expenseItem,
+              { backgroundColor: cardBg, opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
+            ]}
+          >
+            <View style={[styles.expenseIcon, { backgroundColor: iconBg }]}>
+              {group.category && !notIncluded ? (
+                <Text style={styles.expenseIconEmoji}>{group.category.icon}</Text>
+              ) : (
+                <Ionicons
+                  name="receipt-outline"
+                  size={20}
+                  color={notIncluded ? (isDark ? colors.gray[500] : colors.gray[400]) : colors.primary[600]}
+                />
+              )}
+            </View>
+
+            <View style={styles.expenseDetails}>
+              <View style={styles.expenseDescriptionRow}>
+                <Text style={[styles.expenseDescription, { color: textColor }]} numberOfLines={1}>
+                  {group.line_count === 1 && group.first_line_description
+                    ? group.first_line_description
+                    : group.description}
+                </Text>
+              </View>
+              <Text style={[styles.expenseMeta, { color: secondaryTextColor }]}>
+                {isYou ? 'You paid' : `${group.paid_by.name} paid`} • {formatDate(group.expense_date)}
+              </Text>
+            </View>
+
+            <View style={styles.expenseAmountContainer}>
+              <Text style={[styles.expenseAmount, { color: textColor }]}>
+                {formatCurrency(group.amount, group.currency)}
+              </Text>
+              {notIncluded ? (
+                <Text style={[styles.expenseShare, { color: secondaryTextColor }]}>not involved</Text>
+              ) : (
+                <Text style={[styles.expenseShare, { color: secondaryTextColor }]}>
+                  your share {formatCurrency(yourShareAmount, group.currency)}
+                </Text>
+              )}
+            </View>
+
+            <Ionicons name="chevron-forward" size={16} color={secondaryTextColor} style={{ marginLeft: 4 }} />
+          </Pressable>
+        </MotiView>
+      );
+    },
+    [cardBg, textColor, secondaryTextColor, isDark, handleGroupPress]
   );
 
   const renderCheckpointDivider = useCallback(
@@ -351,9 +424,10 @@ export default function GroupDetailScreen() {
       if (item.kind === 'view_older') return renderViewOlderButton(index);
       if (item.kind === 'all_archived') return renderAllArchivedCard(item.showViewOlder, index);
       if (item.kind === 'load_more_expenses') return renderLoadMoreRow(item.isFetching, index);
+      if (item.kind === 'group') return renderGroupItem({ item: item.data, index });
       return renderExpenseItem({ item: item.data, index });
     },
-    [renderExpenseItem, renderCheckpointDivider, renderViewOlderButton, renderAllArchivedCard, renderLoadMoreRow]
+    [renderExpenseItem, renderGroupItem, renderCheckpointDivider, renderViewOlderButton, renderAllArchivedCard, renderLoadMoreRow]
   );
 
   const renderHeader = () => (

@@ -105,6 +105,8 @@ export interface DbCategory {
 export interface DbExpense {
   id: string;
   group_id: string;
+  /** When set, this expense is a line item under an expense_group (grouped expense). */
+  expense_group_id: string | null;
   paid_by: string;
   amount: number;
   currency: CurrencyCode;
@@ -112,6 +114,20 @@ export interface DbExpense {
   category_id: string | null;
   notes: string | null;
   expense_date: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Expense group (parent of 2+ child expenses — one "payment" with multiple split setups).
+ */
+export interface DbExpenseGroup {
+  id: string;
+  group_id: string;
+  description: string;
+  category_id: string | null;
+  paid_by: string;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -172,6 +188,8 @@ export type DbGroupMemberInsert = Omit<DbGroupMember, 'id' | 'joined_at'>;
 export type DbExpenseInsert = Omit<DbExpense, 'id' | 'created_at' | 'updated_at'>;
 
 export type DbExpenseSplitInsert = Omit<DbExpenseSplit, 'id' | 'created_at'>;
+
+export type DbExpenseGroupInsert = Omit<DbExpenseGroup, 'id' | 'created_at' | 'updated_at'>;
 
 export type DbSettlementInsert = Omit<DbSettlement, 'id' | 'created_at'>;
 
