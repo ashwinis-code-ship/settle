@@ -123,12 +123,14 @@ export default function AddExpenseScreen() {
   const hasSelectedTargetRef = useRef(hasPreselection || isEditMode);
   useEffect(() => { hasSelectedTargetRef.current = hasSelectedTarget; }, [hasSelectedTarget]);
 
+  // Expand search sheet when visible (initial open + after clearing selection).
+  // PeopleSearchSheet is only mounted while `!hasSelectedTarget` so a closed BottomSheet
+  // (index -1) never sits on top of the form on Android (touch-blocking bug).
   useEffect(() => {
-    if (isSearchMode) {
-      const timer = setTimeout(() => bottomSheetRef.current?.expand(), 150);
-      return () => clearTimeout(timer);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!isSearchMode || hasSelectedTarget) return;
+    const timer = setTimeout(() => bottomSheetRef.current?.expand(), 150);
+    return () => clearTimeout(timer);
+  }, [isSearchMode, hasSelectedTarget]);
 
   // Form state
   const [description, setDescription] = useState('');
@@ -149,9 +151,11 @@ export default function AddExpenseScreen() {
   // Grouped expense: additional lines (when length >= 1 we create a grouped expense)
   const [extraLines, setExtraLines] = useState<Array<{ description: string; amount: string; splitBetween: string[]; notes: string }>>([]);
 
-  // Picker sheet state
+  // Picker sheet state — mount BottomSheet only while open or opening; unmount when closed
+  // so index=-1 never blocks touches on Android (@gorhom/bottom-sheet).
   const pickerSheetRef = useRef<BottomSheet>(null);
   const [activeSheet, setActiveSheet] = useState<'currency' | 'category' | 'paidBy' | null>(null);
+  const [pickerSheetMounted, setPickerSheetMounted] = useState(false);
   const [currencySearch, setCurrencySearch] = useState('');
 
   // Theme
@@ -266,8 +270,8 @@ export default function AddExpenseScreen() {
     setSelectedFriendName(undefined);
     setSelectedFriendPhone(undefined);
     setSplitBetween([]);
-    if (isSearchMode) setTimeout(() => bottomSheetRef.current?.expand(), 100);
-  }, [isSearchMode]);
+    // PeopleSearchSheet remounts when hasSelectedTarget is false; expand is handled by useEffect([isSearchMode, hasSelectedTarget]).
+  }, []);
 
   // Find or create direct group for friend expenses
   useEffect(() => {
@@ -393,19 +397,34 @@ export default function AddExpenseScreen() {
     hapticSelection();
     activeSheetRef.current = type;
     setActiveSheet(type);
-    // Call directly (no RAF) so the sheet opens synchronously in the same
-    // JS frame. The ref above ensures content is correct even if React hasn't
-    // re-rendered yet.
-    if (type === 'currency') {
-      pickerSheetRef.current?.expand();
-    } else {
-      pickerSheetRef.current?.snapToIndex(0);
-    }
+    setPickerSheetMounted(true);
   }, []);
 
   const closeSheet = useCallback(() => {
     pickerSheetRef.current?.close();
   }, []);
+
+  // Open picker after mount so the BottomSheet ref exists (first open + remount after unmount).
+  useEffect(() => {
+    if (!pickerSheetMounted || activeSheet == null) return;
+    let cancelled = false;
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        const type = activeSheetRef.current;
+        if (!type) return;
+        if (type === 'currency') {
+          pickerSheetRef.current?.expand();
+        } else {
+          pickerSheetRef.current?.snapToIndex(0);
+        }
+      });
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+    };
+  }, [pickerSheetMounted, activeSheet]);
 
   const renderPickerBackdrop = useCallback(
     (props: React.ComponentProps<typeof BottomSheetBackdrop>) => (
@@ -742,7 +761,10 @@ export default function AddExpenseScreen() {
           </Pressable>
         </MotiView>
 
-        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           {isEditModeGrouped && isLoadingExpenseGroup ? (
             <View style={[styles.loadingContainer, { backgroundColor }]}>
               <ActivityIndicator size="large" color={colors.primary[500]} />
@@ -1309,20 +1331,20 @@ export default function AddExpenseScreen() {
           ) : null}
         </KeyboardAvoidingView>
 
-        {/* Picker bottom sheet — currency / category / paid-by */}
+        {/* Picker bottom sheet — only mounted while in use; unmounted when closed (Android touch fix). */}
+        {pickerSheetMounted && (
         <BottomSheet
           ref={pickerSheetRef}
           index={-1}
           snapPoints={['50%', '75%']}
           enablePanDownToClose
           onChange={(index) => {
-            // Only clear currency search when fully closed (index -1).
-            // activeSheet is intentionally NOT reset here — the async
-            // animation callback races with openSheet() on quick re-opens
-            // and would wipe out the newly set picker type.
-            // openSheet() always sets activeSheet before expanding, so
-            // stale state while the sheet is closed is harmless.
-            if (index === -1) setCurrencySearch('');
+            if (index === -1) {
+              setCurrencySearch('');
+              // Remove closed sheet from tree after close animation — avoids @gorhom/bottom-sheet
+              // Android bug where index=-1 still intercepts all touches.
+              setTimeout(() => setPickerSheetMounted(false), 400);
+            }
           }}
           backgroundStyle={{ backgroundColor: cardBg }}
           handleIndicatorStyle={{ backgroundColor: borderColor }}
@@ -1452,9 +1474,10 @@ export default function AddExpenseScreen() {
             ))}
           </BottomSheetScrollView>
         </BottomSheet>
+        )}
 
-        {/* People search sheet — search mode only */}
-        {isSearchMode && (
+        {/* People search sheet — only until a target is chosen (unmount avoids closed sheet blocking Android touches). */}
+        {isSearchMode && !hasSelectedTarget && (
           <PeopleSearchSheet
             ref={bottomSheetRef}
             title={contactsOnly ? 'Select Contact' : 'Add Expense'}
