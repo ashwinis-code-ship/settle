@@ -43,3 +43,6 @@ app-example
 /ios
 /android
 /supabase/.temp
+
+# graphify knowledge graph output
+graphify-out/

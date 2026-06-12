@@ -8,7 +8,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Alert,
   Pressable,
@@ -28,6 +28,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useExpense } from '@/hooks/use-expense';
 import { useGroup } from '@/hooks/use-group';
 import { hapticHeavy, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { Analytics } from '@/lib/analytics';
+import { EXPENSE_EVENTS } from '@/lib/analytics-events';
 import type { CurrencyCode } from '@/types';
 import { CURRENCIES } from '@/types/database';
 
@@ -41,6 +43,19 @@ export default function ExpenseDetailScreen() {
   const { group } = useGroup(expense?.group_id);
 
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Track expense viewed
+  useEffect(() => {
+    if (expense) {
+      Analytics.track(EXPENSE_EVENTS.EXPENSE_VIEWED, {
+        expense_id: id,
+        amount: expense.amount,
+        currency: expense.currency,
+        category: expense.category?.name,
+        split_count: expense.splits.length,
+      });
+    }
+  }, [expense?.id]);
 
   const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
   const secondaryTextColor = isDark ? colors.text.dark.secondary : colors.text.light.secondary;
@@ -61,6 +76,11 @@ export default function ExpenseDetailScreen() {
 
   const handleEdit = () => {
     if (!expense) return;
+    Analytics.track(EXPENSE_EVENTS.EXPENSE_EDITED, {
+      expense_id: id,
+      amount: expense.amount,
+      currency: expense.currency,
+    });
     router.push({
       pathname: '/add-expense',
       params: { expenseId: id, groupId: expense.group_id },
@@ -82,6 +102,11 @@ export default function ExpenseDetailScreen() {
             const success = await deleteExpense();
             setIsDeleting(false);
             if (success) {
+              Analytics.track(EXPENSE_EVENTS.EXPENSE_DELETED, {
+                expense_id: id,
+                amount: expense?.amount,
+                currency: expense?.currency,
+              });
               hapticSuccess();
               router.back();
             } else {

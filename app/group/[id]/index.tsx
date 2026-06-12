@@ -10,7 +10,7 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Avatar } from '@/components/ui/avatar';
 import { MotiView } from 'moti';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useEffect } from 'react';
 import { FlashList } from '@shopify/flash-list';
 import {
     Alert,
@@ -37,6 +37,8 @@ import { useGroupPhases, type ActivityListItem } from '@/hooks/use-group-phases'
 import type { ExpenseGroupListItemWithStatus, ExpenseListItemWithStatus } from '@/hooks/use-expenses';
 import type { GroupCheckpoint } from '@/types';
 import { hapticLight, hapticWarning } from '@/lib/haptics';
+import { Analytics } from '@/lib/analytics';
+import { GROUP_EVENTS } from '@/lib/analytics-events';
 
 const formatCurrency = (amount: number, currency: string = 'INR') => {
   const symbols: Record<string, string> = { INR: '₹', USD: '$', EUR: '€', GBP: '£' };
@@ -101,6 +103,11 @@ export default function GroupDetailScreen() {
   const handleRefresh = useCallback(async () => {
     await Promise.all([refreshGroup(), refreshPhases()]);
   }, [refreshGroup, refreshPhases]);
+
+  // Track group viewed on first mount
+  useEffect(() => {
+    Analytics.track(GROUP_EVENTS.GROUP_VIEWED, { group_id: id });
+  }, [id]);
 
   // Refetch immediately when returning from settings (e.g. after archiving)
   useFocusEffect(

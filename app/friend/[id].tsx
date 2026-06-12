@@ -12,7 +12,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { FlashList } from '@shopify/flash-list';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -33,6 +33,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFriendDetail, type GroupBalance } from '@/hooks/use-friend-detail';
 import { useSettlements } from '@/hooks/use-settlements';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { Analytics } from '@/lib/analytics';
+import { FRIEND_EVENTS } from '@/lib/analytics-events';
 import type { FriendTransaction } from '@/types';
 import { CURRENCIES } from '@/types/database';
 
@@ -68,6 +70,11 @@ export default function FriendDetailScreen() {
   const { updateSettlement } = useSettlements({ friendId: params.id });
   const [refreshing, setRefreshing] = useState(false);
   const [editingSettlement, setEditingSettlement] = useState<FriendTransaction | null>(null);
+
+  // Track friend viewed
+  useEffect(() => {
+    Analytics.track(FRIEND_EVENTS.FRIEND_VIEWED, { friend_id: params.id });
+  }, [params.id]);
   const [editAmount, setEditAmount] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);

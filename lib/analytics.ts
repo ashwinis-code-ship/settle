@@ -15,7 +15,7 @@ export { PostHogProvider, usePostHog };
 
 // Environment variables - exported for PostHogProvider configuration
 export const posthogApiKey = process.env.EXPO_PUBLIC_POSTHOG_API_KEY || '';
-export const posthogHost = process.env.EXPO_PUBLIC_POSTHOG_HOST || 'https://eu.i.posthog.com';
+export const posthogHost = process.env.EXPO_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
 
 // PostHog client instance (set via setPostHogClient from a component using usePostHog)
 let posthogClient: PostHog | null = null;

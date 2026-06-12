@@ -4,7 +4,7 @@
  * Enter phone number to receive OTP for password reset.
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -27,6 +27,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { colors } from '@/constants/colors';
 import { DEFAULT_COUNTRY, type Country } from '@/constants/countries';
 import { sendOtp } from '@/lib/otp-service';
+import { Analytics } from '@/lib/analytics';
+import { AUTH_EVENTS } from '@/lib/analytics-events';
 
 export default function ForgotPasswordScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -40,6 +42,12 @@ export default function ForgotPasswordScreen() {
 
   // Refs
   const phoneRef = useRef<TextInput>(null);
+
+  // Track screen view
+  useEffect(() => {
+    Analytics.trackScreen('forgot_password');
+    Analytics.track(AUTH_EVENTS.FORGOT_PASSWORD_STARTED);
+  }, []);
 
   const validateForm = (): boolean => {
     if (!phone.trim()) {
@@ -69,6 +77,11 @@ export default function ForgotPasswordScreen() {
         setError(result.message);
         return;
       }
+
+      // Track OTP requested for password reset
+      Analytics.track(AUTH_EVENTS.FORGOT_PASSWORD_OTP_REQUESTED, {
+        country_code: country.code,
+      });
 
       // Navigate to OTP verification screen
       router.push({
