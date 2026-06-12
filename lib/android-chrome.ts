@@ -2,7 +2,6 @@
  * Android system chrome — edge-to-edge navigation bar + root background.
  */
 
-import * as NavigationBar from 'expo-navigation-bar';
 import * as SystemUI from 'expo-system-ui';
 import { Platform } from 'react-native';
 
@@ -13,6 +12,7 @@ export async function configureAndroidChrome(isDark: boolean) {
 
   const { background } = getPlatformChrome(isDark);
 
+  // Navigation bar styling is configured via the expo-navigation-bar config plugin.
+  // Runtime color APIs are no-ops under mandatory edge-to-edge on SDK 55+.
   await SystemUI.setBackgroundColorAsync(background);
-  await NavigationBar.setButtonStyleAsync(isDark ? 'light' : 'dark');
 }

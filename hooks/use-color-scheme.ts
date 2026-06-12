@@ -31,5 +31,5 @@ export function useColorScheme(): 'light' | 'dark' {
     // Context not available (e.g., outside provider), fall back to system
   }
   
-  return systemTheme ?? 'light';
+  return systemTheme === 'dark' ? 'dark' : 'light';
 }

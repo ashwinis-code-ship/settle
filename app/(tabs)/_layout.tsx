@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useSegments } from 'expo-router';
-import { Icon, Label, NativeTabs, VectorIcon } from 'expo-router/unstable-native-tabs';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { AnimatePresence } from 'moti';
 import { useEffect, useRef } from 'react';
 import { Platform, View } from 'react-native';
@@ -52,9 +52,11 @@ export default function TabLayout() {
     <View style={{ flex: 1 }}>
       <TabAnalyticsListener />
 
-      <AnimatePresence>
-        {!isOnline && <OfflineBanner key="offline-banner" />}
-      </AnimatePresence>
+      {Platform.OS === 'android' && (
+        <AnimatePresence>
+          {!isOnline && <OfflineBanner key="offline-banner" placement="top" />}
+        </AnimatePresence>
+      )}
 
       {/*
         minimizeBehavior requires a native ScrollView as the screen's first child.
@@ -71,36 +73,50 @@ export default function TabLayout() {
         labelStyle={useExplicitNativeChrome ? { color: tabIconDefault } : undefined}
         blurEffect={iosTabBarBlurEffect}
       >
+        {Platform.OS === 'ios' && !isOnline && (
+          <NativeTabs.BottomAccessory>
+            <OfflineBanner placement="accessory" />
+          </NativeTabs.BottomAccessory>
+        )}
+
         <NativeTabs.Trigger name="index">
-          <Icon
+          <NativeTabs.Trigger.Icon
             sf={{ default: 'house', selected: 'house.fill' }}
-            androidSrc={<VectorIcon family={MaterialIcons} name="home" />}
+            src={
+              <NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="home" />
+            }
           />
-          <Label>Home</Label>
+          <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="friends">
-          <Icon
+          <NativeTabs.Trigger.Icon
             sf={{ default: 'person.2', selected: 'person.2.fill' }}
-            androidSrc={<VectorIcon family={MaterialIcons} name="people" />}
+            src={
+              <NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="people" />
+            }
           />
-          <Label>Friends</Label>
+          <NativeTabs.Trigger.Label>Friends</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="groups">
-          <Icon
+          <NativeTabs.Trigger.Icon
             sf={{ default: 'square.stack.3d.up', selected: 'square.stack.3d.up.fill' }}
-            androidSrc={<VectorIcon family={MaterialIcons} name="layers" />}
+            src={
+              <NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="layers" />
+            }
           />
-          <Label>Groups</Label>
+          <NativeTabs.Trigger.Label>Groups</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="profile">
-          <Icon
+          <NativeTabs.Trigger.Icon
             sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }}
-            androidSrc={<VectorIcon family={MaterialIcons} name="account-circle" />}
+            src={
+              <NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="account-circle" />
+            }
           />
-          <Label>Profile</Label>
+          <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
       </NativeTabs>
     </View>

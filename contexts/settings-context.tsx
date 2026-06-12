@@ -82,8 +82,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // Native chrome reads effectiveTheme via useColorScheme — we intentionally avoid
   // Appearance.setColorScheme() which can break iOS 26 liquid glass on inactive tabs.
   const effectiveTheme: 'light' | 'dark' =
-    themeMode === 'system' 
-      ? (systemColorScheme ?? 'light')
+    themeMode === 'system'
+      ? systemColorScheme === 'dark'
+        ? 'dark'
+        : 'light'
       : themeMode;
 
   // Theme setter with persistence

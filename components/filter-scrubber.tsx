@@ -25,6 +25,7 @@ import Animated, {
   withSequence,
   withSpring,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
@@ -89,8 +90,8 @@ function FilterDot({
 }: {
   color: string;
   isActive: boolean;
-  expanded: Animated.SharedValue<number>;
-  pulse: Animated.SharedValue<number>;
+  expanded: SharedValue<number>;
+  pulse: SharedValue<number>;
 }) {
   const dotSize  = isActive ? 13 : 8;
   const glowSize = dotSize + 10;
@@ -136,7 +137,7 @@ function FilterItem({
 }: {
   filter: FilterOption;
   isActive: boolean;
-  expanded: Animated.SharedValue<number>;
+  expanded: SharedValue<number>;
   itemW: number;
 }) {
   const animStyle = useAnimatedStyle(() => ({
@@ -172,8 +173,8 @@ function ActiveHighlight({
   itemW,
   isDark,
 }: {
-  expanded: Animated.SharedValue<number>;
-  highlightX: Animated.SharedValue<number>;
+  expanded: SharedValue<number>;
+  highlightX: SharedValue<number>;
   itemW: number;
   isDark: boolean;
 }) {

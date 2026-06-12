@@ -20,7 +20,7 @@ A modern expense splitting app for iOS and Android. Split bills with friends and
 
 | Layer | Technology |
 |---|---|
-| Framework | React Native 0.81 + Expo SDK 54 |
+| Framework | React Native 0.83 + Expo SDK 55 |
 | Routing | Expo Router (file-based) |
 | Backend | Supabase (PostgreSQL, Auth, Storage, Edge Functions, Realtime) |
 | Data Fetching | TanStack Query (React Query v5) |
@@ -33,10 +33,11 @@ A modern expense splitting app for iOS and Android. Split bills with friends and
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20+ (SDK 55 requires ^20.19.4, ^22.13.0, ^24.3.0, or ^25.0.0)
 - npm
 - Xcode (iOS) or Android Studio (Android)
-- Expo Go app for physical device testing
+- Xcode 26+ (iOS native builds)
+- Dev build required for native tabs and Liquid Glass (`npx expo run:ios` / `npx expo run:android`)
 
 ### Installation
 

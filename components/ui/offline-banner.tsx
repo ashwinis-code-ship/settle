@@ -12,7 +12,9 @@ import { MotiView } from 'moti';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export function OfflineBanner() {
+type OfflineBannerPlacement = 'top' | 'accessory';
+
+export function OfflineBanner({ placement = 'top' }: { placement?: OfflineBannerPlacement }) {
   const insets = useSafeAreaInsets();
   const { pendingCount, syncStatus, lastSyncTime } = useSync();
 
@@ -29,7 +31,9 @@ export function OfflineBanner() {
       transition={{ type: 'timing', duration: 200 }}
       style={[
         styles.container,
-        { paddingTop: insets.top + 10, paddingBottom: 10 },
+        placement === 'top'
+          ? { paddingTop: insets.top + 10, paddingBottom: 10 }
+          : styles.accessoryContainer,
       ]}
     >
       <View style={styles.content}>
@@ -160,6 +164,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  accessoryContainer: {
+    paddingTop: 10,
+    paddingBottom: 10,
   },
   content: {
     flexDirection: 'row',

@@ -2,8 +2,8 @@
 
 **Date:** June 12, 2026  
 **App:** Settle v1.3.0  
-**Stack:** Expo SDK 54 · React Native 0.81.5 · New Architecture · iOS + Android  
-**Status:** ✅ Migration complete · smoke tested on iOS + Android
+**Stack:** Expo SDK 55 · React Native 0.83.6 · New Architecture (mandatory) · iOS + Android  
+**Status:** ✅ Native-first migration complete · SDK 55 upgraded · smoke tested
 
 ---
 
@@ -55,7 +55,7 @@ Do **not** try to make iOS look like Android or vice versa. Let each platform re
 | Filter scrubber | Custom pill + `BlurView` | `FrostedSurface` — glass (iOS), elevated M3 pill (Android) |
 | Back navigation | Custom back `Pressable` | System back + swipe; predictive back on Android |
 | Theme | Flat `colors` palette | `brand` + `platform` tokens, `lib/platform-theme.ts`, native chrome hooks |
-| Offline banner | Overlapped status bar | Safe-area inset padding; sits below status bar |
+| Offline banner | Overlapped status bar | iOS: `NativeTabs.BottomAccessory` (iOS 26+); Android: top overlay with safe-area inset |
 | Android tab overlap | FilterScrubber overlapped tab bar | Fixed via `useTabBarOffset()` |
 
 **Auth screens** still use custom headers (intentional — content-focused flows, no stack push chrome).
@@ -230,21 +230,41 @@ These are **content**, not chrome. Keep one implementation:
 
 ---
 
-## SDK Considerations
+## SDK 55 Upgrade (Completed)
 
-You are on **SDK 54**. Native-first APIs are landing fast:
+Upgraded from SDK 54 → 55. Key changes applied:
 
-| API | SDK 54 | SDK 55+ |
-|-----|--------|---------|
-| `NativeTabs` | ✅ (alpha, `Icon`/`Label` imports) | Compound `NativeTabs.Trigger.*` |
-| `Stack.Toolbar` | ❌ | ✅ iOS + Android |
-| `Stack.SearchBar` | ❌ | ✅ |
-| `Color.ios.*` / `Color.android.dynamic.*` | ❌ | ✅ |
-| `GlassView` | ✅ via `expo-glass-effect` | ✅ |
-| `NativeTabs.BottomAccessory` | ❌ | ✅ (offline banner placement) |
-| Android selected tab icons (`md`) | Default only | Distinct selected (SDK 56+) |
+| Change | Action taken |
+|--------|--------------|
+| Package versions | All `expo-*` packages aligned to `~55.0.x` via `npx expo install expo@^55 --fix` |
+| `newArchEnabled` | Removed from `app.json` — New Architecture is mandatory on SDK 55 |
+| `edgeToEdgeEnabled` | Removed from `app.json` — edge-to-edge is mandatory on Android 16+ |
+| `androidNavigationBar` | Migrated to `expo-navigation-bar` config plugin |
+| Native tabs API | Migrated to compound `NativeTabs.Trigger.Icon/Label/VectorIcon` syntax |
+| Offline banner | iOS uses `NativeTabs.BottomAccessory`; Android keeps top overlay |
+| Android chrome | Removed deprecated `NavigationBar.setButtonStyleAsync` runtime calls |
+| React / RN | React 19.2.0, React Native 0.83.6, Reanimated 4.2.1, Screens 4.23 |
 
-**Next upgrade target:** SDK 55 for `Stack.Toolbar`, `Stack.SearchBar`, `Color` API, and `NativeTabs.BottomAccessory`.
+**Rebuild required:** `npx expo prebuild --clean && npx expo run:ios && npx expo run:android`
+
+---
+
+## SDK API Status
+
+You are on **SDK 55**. Available native-first APIs:
+
+| API | Status | Notes |
+|-----|--------|-------|
+| `NativeTabs` compound syntax | ✅ In use | `NativeTabs.Trigger.Icon/Label/VectorIcon` |
+| `NativeTabs.BottomAccessory` | ✅ In use (iOS) | Offline banner above tab bar on iOS 26+ |
+| `Stack.Toolbar` | Available | Not yet adopted — header actions still via `NativeScreenHeader` |
+| `Stack.SearchBar` | Available | Not needed yet |
+| `Color.ios.*` / `Color.android.dynamic.*` | Available | Could replace manual tokens in `platform-theme.ts` |
+| `GlassView` | ✅ In use | Via `FrostedSurface` / `SheetBackground` |
+| Android tab `md` Material Symbols | Available | Still using `VectorIcon` + MaterialIcons; can migrate to `md` prop |
+| Distinct selected tab icons (`md`) | SDK 56+ | Not yet available |
+
+**Next targets:** Adopt `Stack.Toolbar` for header actions, wire `Color` API into `platform-theme.ts`, migrate Android tab icons to `md` prop.
 
 ---
 
@@ -257,7 +277,7 @@ You are on **SDK 54**. Native-first APIs are landing fast:
 | Header | Native nav bar | Native nav bar | M3 App Bar | ✅ |
 | Sheet background | Glass | Blur | M3 surface | ✅ |
 | Dark mode | System adaptive | System adaptive | Material You dynamic | ✅ |
-| Offline banner | Below status bar | Below status bar | Below status bar | ✅ |
+| Offline banner | Tab accessory (iOS) / top overlay (Android) | Tab accessory (iOS) / top overlay (Android) | Top overlay | ✅ |
 | Filter scrubber | No tab overlap | No tab overlap | No tab overlap | ✅ |
 | Dev build required | Yes (for glass) | Yes (for native tabs) | Yes (for native tabs) | ✅ |
 
@@ -271,7 +291,7 @@ You are on **SDK 54**. Native-first APIs are landing fast:
 |-------|-------|-------------------------|
 | Tab bar not minimizing on scroll | FlashList doesn't support native tab minimize | Refactor tab lists to native `ScrollView` wrapper, or wait for FlashList support |
 | Liquid Glass only in dev builds | Not available in Expo Go | Use dev builds; iOS 26+ for full glass |
-| Stack header full liquid glass | `react-native-screens` gap | SDK 55+ / screens upgrade |
+| Stack header full liquid glass | `react-native-screens` gap | May improve on Screens 4.23 — verify on device |
 | PostHog red error toast offline | Analytics network failure | Separate from offline banner — suppress or queue flush |
 | Auth screens custom headers | Intentional per design | Migrate only if parity desired |
 | Content screens use flat `colors.*` | Incremental token rollout pending | Adopt `platform.*` / `usePlatformChrome()` over time |
@@ -296,9 +316,15 @@ You are on **SDK 54**. Native-first APIs are landing fast:
 ```
 Done:    Phases 1–8 (native shell, headers, materials, icons, pickers, Android, theme)
 Done:    Smoke test on iOS + Android
+Done:    SDK 55 upgrade + native tabs compound syntax + BottomAccessory
 
-Next:    SDK 55 upgrade
-         └── Stack.Toolbar, Stack.SearchBar, Color API, NativeTabs.BottomAccessory
+Next:    Rebuild native projects after SDK 55 upgrade
+         └── npx expo prebuild --clean && npx expo run:ios && npx expo run:android
+
+Then:    Adopt remaining SDK 55 APIs
+         └── Stack.Toolbar for header actions
+         └── Color.ios.* / Color.android.dynamic.* in platform-theme.ts
+         └── Android tab icons via md Material Symbols prop
 
 Optional polish:
          └── Content-screen token cleanup (platform.* tokens)
@@ -318,6 +344,6 @@ Optional polish:
 | Different look? | **Yes** — iOS gets glass/SF Symbols; Android gets M3/Material Icons |
 | Biggest change made? | Stopped building navigation chrome in React Native |
 | What stays in RN? | Lists, forms, charts, business logic |
-| Next lever? | SDK 55 upgrade for declarative toolbars and system color API |
+| Next lever? | Adopt `Stack.Toolbar` and `Color` API for remaining chrome polish |
 
 The architectural flip is complete: **chrome is native, content is shared**.
