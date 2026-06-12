@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView, MotiText } from 'moti';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 
 import { Button } from '@/components/ui/button';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -218,7 +218,7 @@ export default function VerifyOtpScreen() {
             transition={{ type: 'timing', duration: 300 }}
           >
             <Pressable onPress={handleBack} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={textColor} />
+              <IconSymbol name="chevron.left" size={24} color={textColor} />
             </Pressable>
           </MotiView>
 
@@ -235,7 +235,7 @@ export default function VerifyOtpScreen() {
               transition={{ type: 'spring', damping: 15, delay: 200 }}
               style={[styles.iconContainer, { backgroundColor: colors.primary[100] }]}
             >
-              <Ionicons name="chatbubble-outline" size={40} color={colors.primary[500]} />
+              <IconSymbol name="bubble.left" size={40} color={colors.primary[500]} />
             </MotiView>
             <MotiText
               from={{ opacity: 0 }}
@@ -324,7 +324,7 @@ export default function VerifyOtpScreen() {
                 animate={{ opacity: 1, scale: 1 }}
                 style={styles.errorContainer}
               >
-                <Ionicons name="alert-circle" size={18} color={colors.error} />
+                <IconSymbol name="exclamationmark.circle" size={18} color={colors.error} />
                 <Text style={styles.errorText}>{error}</Text>
               </MotiView>
             )}
@@ -363,7 +363,7 @@ export default function VerifyOtpScreen() {
               transition={{ type: 'timing', duration: 500, delay: 1000 }}
               style={[styles.devHint, { backgroundColor: colors.primary[50] }]}
             >
-              <Ionicons name="information-circle-outline" size={18} color={colors.primary[600]} />
+              <IconSymbol name="info.circle" size={18} color={colors.primary[600]} />
               <Text style={[styles.devHintText, { color: colors.primary[700] }]}>
                 Development mode: Use OTP 123456
               </Text>

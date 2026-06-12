@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { SheetBackground } from '@/components/ui/sheet-background';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -54,7 +55,6 @@ export const EditSettlementSheet = forwardRef<BottomSheet, EditSettlementSheetPr
     const snapPoints = useMemo(() => ['48%'], []);
     const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
     const secondaryTextColor = isDark ? colors.text.dark.secondary : colors.text.light.secondary;
-    const cardBg = isDark ? colors.gray[800] : colors.white;
     const inputBg = isDark ? colors.gray[700] : colors.gray[100];
 
     const [isOpen, setIsOpen] = useState(false);
@@ -85,7 +85,8 @@ export const EditSettlementSheet = forwardRef<BottomSheet, EditSettlementSheetPr
         style={sheetStyle}
         onChange={(index) => setIsOpen(index >= 0)}
         onClose={onCancel}
-        backgroundStyle={{ backgroundColor: cardBg }}
+        backgroundComponent={SheetBackground}
+        backgroundStyle={{ backgroundColor: 'transparent' }}
         handleIndicatorStyle={{ backgroundColor: colors.gray[400] }}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>

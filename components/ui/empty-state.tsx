@@ -5,16 +5,16 @@
  * Features animated entry and optional action button.
  */
 
-import { Ionicons } from '@expo/vector-icons';
 import { MotiView } from 'moti';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import type { IconSymbolName } from '@/components/ui/icon-symbol-mapping';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 interface EmptyStateProps {
-  /** Ionicons icon name */
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: IconSymbolName;
   /** Main title */
   title: string;
   /** Description text */
@@ -57,7 +57,7 @@ export function EmptyState({
           { backgroundColor: iconBgColor },
         ]}
       >
-        <Ionicons
+        <IconSymbol
           name={icon}
           size={compact ? 36 : 48}
           color={colors.primary[500]}
@@ -83,7 +83,7 @@ export function EmptyState({
             { backgroundColor: colors.primary[500], opacity: pressed ? 0.8 : 1 },
           ]}
         >
-          <Ionicons name="add" size={18} color={colors.white} />
+          <IconSymbol name="plus" size={18} color={colors.white} />
           <Text style={styles.actionButtonText}>{actionLabel}</Text>
         </Pressable>
       )}

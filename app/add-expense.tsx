@@ -9,14 +9,13 @@
  * - expenseGroupId + groupId:    Edit grouped expense — pre-fills all lines, updateGroupedExpense on submit
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -34,6 +33,7 @@ import { PeopleSearchSheet } from '@/components/people-search-sheet';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { SheetBackground } from '@/components/ui/sheet-background';
 import { Input } from '@/components/ui/input';
 import { colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/auth-context';
@@ -51,6 +51,8 @@ import { useGroup } from '@/hooks/use-group';
 import { Analytics } from '@/lib/analytics';
 import { EXPENSE_EVENTS } from '@/lib/analytics-events';
 import { hapticHeavy, hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { HeaderSaveButton, NativeScreenHeader } from '@/lib/native-header';
+import { showPlatformAlert } from '@/lib/platform-picker';
 import { supabase } from '@/lib/supabase';
 import type { CurrencyCode, DbCategory, ExpenseFormData, GroupMember, SplitType } from '@/types';
 import { CURRENCIES } from '@/types/database';
@@ -72,6 +74,7 @@ export default function AddExpenseScreen() {
   // Edit mode: single expense or grouped expense
   const isEditMode = !!params.expenseId || !!params.expenseGroupId;
   const isEditModeGrouped = !!params.expenseGroupId;
+  const screenTitle = isEditMode ? 'Edit Expense' : 'Add Expense';
   const { expense: existingExpense, updateExpense } = useExpense(params.expenseId);
   const { expenseGroup, isLoading: isLoadingExpenseGroup } = useExpenseGroup(params.expenseGroupId);
 
@@ -94,10 +97,11 @@ export default function AddExpenseScreen() {
   // Block offline in create mode
   useEffect(() => {
     if (!isOnline && !isEditMode) {
-      Alert.alert(
+      showPlatformAlert(
         'No Connection',
         'Adding expenses requires an internet connection.',
-        [{ text: 'OK', onPress: () => router.back() }]
+        'OK',
+        () => router.back(),
       );
     }
   }, [isOnline, isEditMode]);
@@ -688,9 +692,19 @@ export default function AddExpenseScreen() {
     || (selectedFriendId && !resolvedGroupId)
   );
 
+  const saveHeaderAction = (
+    <HeaderSaveButton
+      onPress={handleSubmit}
+      loading={isSubmitting}
+      disabled={isSubmitting}
+      label={isEditMode ? 'Save' : ''}
+    />
+  );
+
   if (isSettingUp && !isEditMode) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader title={screenTitle} headerRight={saveHeaderAction} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary[500]} />
           <Text style={[styles.loadingText, { color: secondaryTextColor }]}>Setting up…</Text>
@@ -701,17 +715,16 @@ export default function AddExpenseScreen() {
 
   if (hasPreselection && !group && !isDirectExpense && !isSearchMode && !isEditMode) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader title={screenTitle} />
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color={colors.error} />
+          <IconSymbol name="exclamationmark.circle" size={48} color={colors.error} />
           <Text style={[styles.errorText, { color: textColor }]}>Group not found</Text>
           <Button title="Go Back" onPress={() => router.back()} style={{ marginTop: 16 }} />
         </View>
       </SafeAreaView>
     );
   }
-
-  const screenTitle = isEditMode ? 'Edit Expense' : 'Add Expense';
 
   // Determine target label for the banner
   const targetLabel = selectedFriendName
@@ -724,42 +737,8 @@ export default function AddExpenseScreen() {
 
   return (
     <GestureHandlerRootView style={styles.flex}>
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-        {/* Header */}
-        <MotiView
-          from={{ opacity: 0, translateY: -16 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring', damping: 22, stiffness: 220 }}
-          style={[styles.header, { borderBottomColor: borderColor }]}
-        >
-          <Pressable
-            onPress={() => router.back()}
-            style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
-          >
-            <Ionicons name={isEditMode ? 'arrow-back' : 'close'} size={24} color={textColor} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: textColor }]}>{screenTitle}</Text>
-          <Pressable
-            onPress={handleSubmit}
-            disabled={isSubmitting}
-            style={({ pressed }) => [
-              styles.headerButton,
-              styles.headerSaveButton,
-              { opacity: pressed || isSubmitting ? 0.55 : 1 },
-            ]}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator size="small" color={colors.primary[500]} />
-            ) : isEditMode ? (
-              <>
-                <Ionicons name="checkmark" size={20} color={colors.primary[500]} />
-                <Text style={[styles.headerSaveText, { color: colors.primary[500] }]}>Save</Text>
-              </>
-            ) : (
-              <Ionicons name="checkmark" size={26} color={colors.primary[500]} />
-            )}
-          </Pressable>
-        </MotiView>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader title={screenTitle} headerRight={saveHeaderAction} />
 
         <KeyboardAvoidingView
           style={styles.flex}
@@ -788,8 +767,8 @@ export default function AddExpenseScreen() {
                     styles.targetIcon,
                     { backgroundColor: isFriendTarget ? colors.success + '20' : colors.primary[500] + '18' },
                   ]}>
-                    <Ionicons
-                      name={isFriendTarget ? 'person' : 'people'}
+                    <IconSymbol
+                      name={isFriendTarget ? 'person' : 'person.2.fill'}
                       size={20}
                       color={isFriendTarget ? colors.success : colors.primary[500]}
                     />
@@ -807,7 +786,7 @@ export default function AddExpenseScreen() {
                       onPress={handleClearSelection}
                       style={({ pressed }) => [styles.clearButton, { opacity: pressed ? 0.6 : 1 }]}
                     >
-                      <Ionicons name="close-circle" size={22} color={secondaryTextColor} />
+                      <IconSymbol name="xmark.circle" size={22} color={secondaryTextColor} />
                     </Pressable>
                   )}
                 </View>
@@ -835,7 +814,7 @@ export default function AddExpenseScreen() {
                         {selectedCategory ? (
                           <Text style={styles.categoryTileEmoji}>{selectedCategory.icon}</Text>
                         ) : (
-                          <Ionicons name="grid-outline" size={20} color={secondaryTextColor} />
+                          <IconSymbol name="square.grid.2x2" size={20} color={secondaryTextColor} />
                         )}
                       </Pressable>
                       <TextInput
@@ -859,11 +838,7 @@ export default function AddExpenseScreen() {
                     <View style={styles.amountRow}>
                       <Pressable
                         onPress={() => {
-                          Alert.alert(
-                            'Coming Soon',
-                            'Support for other currencies is on the way!',
-                            [{ text: 'OK' }]
-                          );
+                          showPlatformAlert('Coming Soon', 'Support for other currencies is on the way!');
                         }}
                         style={({ pressed }) => [
                           styles.currencyPill,
@@ -876,7 +851,7 @@ export default function AddExpenseScreen() {
                         <Text style={[styles.currencyPillCode, { color: secondaryTextColor }]}>
                           {currency}
                         </Text>
-                        <Ionicons name="chevron-down" size={12} color={secondaryTextColor} />
+                        <IconSymbol name="chevron.down" size={12} color={secondaryTextColor} />
                       </Pressable>
                       <TextInput
                         style={[styles.amountInput, { color: textColor }]}
@@ -917,14 +892,14 @@ export default function AddExpenseScreen() {
                       ) : (
                         <View style={styles.selectorLeft}>
                           <View style={[styles.selectorIconWrap, { backgroundColor: borderColor }]}>
-                            <Ionicons name="person-outline" size={16} color={secondaryTextColor} />
+                            <IconSymbol name="person" size={16} color={secondaryTextColor} />
                           </View>
                           <Text style={[styles.selectorPlaceholder, { color: secondaryTextColor }]}>
                             Who paid?
                           </Text>
                         </View>
                       )}
-                      <Ionicons name="chevron-down" size={18} color={secondaryTextColor} />
+                      <IconSymbol name="chevron.down" size={18} color={secondaryTextColor} />
                     </Pressable>
                     {errors.paidBy ? <Text style={styles.errorMessage}>{errors.paidBy}</Text> : null}
                   </MotiView>
@@ -1019,14 +994,14 @@ export default function AddExpenseScreen() {
                       ) : (
                         <View style={styles.selectorLeft}>
                           <View style={[styles.selectorIconWrap, { backgroundColor: borderColor }]}>
-                            <Ionicons name="grid-outline" size={16} color={secondaryTextColor} />
+                            <IconSymbol name="square.grid.2x2" size={16} color={secondaryTextColor} />
                           </View>
                           <Text style={[styles.selectorPlaceholder, { color: secondaryTextColor }]}>
                             Choose category
                           </Text>
                         </View>
                       )}
-                      <Ionicons name="chevron-down" size={18} color={secondaryTextColor} />
+                      <IconSymbol name="chevron.down" size={18} color={secondaryTextColor} />
                     </Pressable>
                   </MotiView>
 
@@ -1053,14 +1028,14 @@ export default function AddExpenseScreen() {
                       ) : (
                         <View style={styles.selectorLeft}>
                           <View style={[styles.selectorIconWrap, { backgroundColor: borderColor }]}>
-                            <Ionicons name="person-outline" size={16} color={secondaryTextColor} />
+                            <IconSymbol name="person" size={16} color={secondaryTextColor} />
                           </View>
                           <Text style={[styles.selectorPlaceholder, { color: secondaryTextColor }]}>
                             Who paid?
                           </Text>
                         </View>
                       )}
-                      <Ionicons name="chevron-down" size={18} color={secondaryTextColor} />
+                      <IconSymbol name="chevron.down" size={18} color={secondaryTextColor} />
                     </Pressable>
                     {errors.paidBy ? <Text style={styles.errorMessage}>{errors.paidBy}</Text> : null}
                   </MotiView>
@@ -1077,13 +1052,13 @@ export default function AddExpenseScreen() {
                     </Text>
                     <Pressable
                       onPress={() => {
-                        Alert.alert('Coming Soon', 'Support for other currencies is on the way!', [{ text: 'OK' }]);
+                        showPlatformAlert('Coming Soon', 'Support for other currencies is on the way!');
                       }}
                       style={({ pressed }) => [styles.currencyPillSmall, { borderColor, opacity: pressed ? 0.7 : 1 }]}
                     >
                       <Text style={[styles.currencyPillSymbol, { color: colors.primary[500] }]}>{CURRENCIES[currency].symbol}</Text>
                       <Text style={[styles.currencyPillCode, { color: secondaryTextColor }]}>{currency}</Text>
-                      <Ionicons name="chevron-down" size={12} color={secondaryTextColor} />
+                      <IconSymbol name="chevron.down" size={12} color={secondaryTextColor} />
                     </Pressable>
                   </MotiView>
 
@@ -1098,7 +1073,7 @@ export default function AddExpenseScreen() {
                       <Text style={[styles.extraLineTitle, { color: secondaryTextColor }]}>Part 1</Text>
                       {extraLines.length >= 1 && (
                         <Pressable onPress={removePartOne} hitSlop={8} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
-                          <Ionicons name="trash-outline" size={20} color={colors.error} />
+                          <IconSymbol name="trash.fill" size={20} color={colors.error} />
                         </Pressable>
                       )}
                     </View>
@@ -1173,7 +1148,7 @@ export default function AddExpenseScreen() {
                       multiline
                       numberOfLines={2}
                       leftIcon={
-                        <Ionicons name="chatbubble-outline" size={20} color={isDark ? colors.gray[400] : colors.gray[500]} />
+                        <IconSymbol name="bubble.left" size={20} color={isDark ? colors.gray[400] : colors.gray[500]} />
                       }
                     />
                   </MotiView>
@@ -1199,7 +1174,7 @@ export default function AddExpenseScreen() {
                         hitSlop={8}
                         style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
                       >
-                        <Ionicons name="trash-outline" size={20} color={colors.error} />
+                        <IconSymbol name="trash.fill" size={20} color={colors.error} />
                       </Pressable>
                     )}
                   </View>
@@ -1270,7 +1245,7 @@ export default function AddExpenseScreen() {
                     multiline
                     numberOfLines={2}
                     leftIcon={
-                      <Ionicons name="chatbubble-outline" size={20} color={isDark ? colors.gray[400] : colors.gray[500]} />
+                      <IconSymbol name="bubble.left" size={20} color={isDark ? colors.gray[400] : colors.gray[500]} />
                     }
                   />
                 </MotiView>
@@ -1291,7 +1266,7 @@ export default function AddExpenseScreen() {
                       { backgroundColor: colors.primary[500] + '18', borderColor: colors.primary[500] + '40', opacity: pressed ? 0.8 : 1 },
                     ]}
                   >
-                    <Ionicons name="add-circle-outline" size={22} color={colors.primary[500]} />
+                    <IconSymbol name="plus.circle" size={22} color={colors.primary[500]} />
                     <Text style={[styles.addMoreButtonText, { color: colors.primary[500] }]}>Add more expense</Text>
                   </Pressable>
                 </MotiView>
@@ -1312,8 +1287,8 @@ export default function AddExpenseScreen() {
                     multiline
                     numberOfLines={2}
                     leftIcon={
-                      <Ionicons
-                        name="chatbubble-outline"
+                      <IconSymbol
+                        name="bubble.left"
                         size={20}
                         color={isDark ? colors.gray[400] : colors.gray[500]}
                       />
@@ -1346,7 +1321,8 @@ export default function AddExpenseScreen() {
               setTimeout(() => setPickerSheetMounted(false), 400);
             }
           }}
-          backgroundStyle={{ backgroundColor: cardBg }}
+          backgroundComponent={SheetBackground}
+          backgroundStyle={{ backgroundColor: 'transparent' }}
           handleIndicatorStyle={{ backgroundColor: borderColor }}
           backdropComponent={renderPickerBackdrop}
           keyboardBehavior="interactive"
@@ -1401,7 +1377,7 @@ export default function AddExpenseScreen() {
                         <Text style={[styles.sheetItemSubtitle, { color: secondaryTextColor }]}>{name}</Text>
                       </View>
                     </View>
-                    {currency === code && <Ionicons name="checkmark" size={18} color={colors.primary[500]} />}
+                    {currency === code && <IconSymbol name="checkmark" size={18} color={colors.primary[500]} />}
                   </Pressable>
                 ))}
               </>
@@ -1469,7 +1445,7 @@ export default function AddExpenseScreen() {
                     {member.user_id === user?.id ? 'You' : member.user.name}
                   </Text>
                 </View>
-                {paidBy === member.user_id && <Ionicons name="checkmark" size={18} color={colors.primary[500]} />}
+                {paidBy === member.user_id && <IconSymbol name="checkmark" size={18} color={colors.primary[500]} />}
               </Pressable>
             ))}
           </BottomSheetScrollView>

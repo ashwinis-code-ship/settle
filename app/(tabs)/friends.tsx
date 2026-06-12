@@ -5,15 +5,14 @@
  * Shows aggregated balance across all shared groups.
  */
 
-import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
-import { router } from 'expo-router';
 import { Avatar } from '@/components/ui/avatar';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useFocusEffect } from '@react-navigation/native';
 import { FlashList } from '@shopify/flash-list';
+import { router } from 'expo-router';
 import { AnimatePresence, MotiView } from 'moti';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-    Alert,
     NativeScrollEvent,
     NativeSyntheticEvent,
     Pressable,
@@ -22,16 +21,19 @@ import {
     Text,
     View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FilterScrubber, FRIEND_FILTERS, type FilterType } from '@/components/filter-scrubber';
 import { EmptyState } from '@/components/ui/empty-state';
+import type { IconSymbolName } from '@/components/ui/icon-symbol-mapping';
 import { SkeletonList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
 import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFriends } from '@/hooks/use-friends';
+import { useTabBarOffset } from '@/hooks/use-tab-bar-offset';
 import { hapticLight, hapticWarning } from '@/lib/haptics';
+import { showOfflineAlert } from '@/lib/platform-picker';
 import type { Friend } from '@/types';
 import { CURRENCIES } from '@/types/database';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -41,7 +43,7 @@ export default function FriendsScreen() {
   const isDark = colorScheme === 'dark';
   const { friends, isLoading, error, refresh } = useFriends();
   const { isOnline } = useSync();
-  const insets = useSafeAreaInsets();
+  const { scrubberBottom, listPaddingBottom } = useTabBarOffset();
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterType>('outstanding');
   const [scrubberVisible, setScrubberVisible] = useState(true);
@@ -99,11 +101,7 @@ export default function FriendsScreen() {
     // Block ALL offline - view-only mode
     if (!isOnline) {
       hapticWarning();
-      Alert.alert(
-        'No Connection',
-        'Adding expenses requires an internet connection.',
-        [{ text: 'OK' }]
-      );
+      showOfflineAlert('Adding expenses requires an internet connection.');
       return;
     }
     hapticLight();
@@ -116,11 +114,7 @@ export default function FriendsScreen() {
   const handleAddExpenseFromHeader = () => {
     if (!isOnline) {
       hapticWarning();
-      Alert.alert(
-        'No Connection',
-        'Adding expenses requires an internet connection.',
-        [{ text: 'OK' }]
-      );
+      showOfflineAlert('Adding expenses requires an internet connection.');
       return;
     }
     hapticLight();
@@ -200,7 +194,7 @@ export default function FriendsScreen() {
               </>
             ) : (
               <View style={[styles.settledBadge, { backgroundColor: colors.gray[100] }]}>
-                <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                <IconSymbol name="checkmark.circle.fill" size={14} color={colors.success} />
                 <Text style={[styles.settledText, { color: colors.success }]}>
                   Settled
                 </Text>
@@ -217,18 +211,18 @@ export default function FriendsScreen() {
               { opacity: pressed ? 0.6 : 1 },
             ]}
           >
-            <Ionicons name="add-circle" size={28} color={colors.primary[500]} />
+            <IconSymbol name="plus.circle.fill" size={28} color={colors.primary[500]} />
           </Pressable>
         </Pressable>
       </MotiView>
     );
   };
 
-  const FILTER_EMPTY_MESSAGES: Record<FilterType, { title: string; description: string; icon: string }> = {
-    all:         { title: 'No friends yet',     description: 'Add an expense with someone to see them here', icon: 'people-outline' },
-    outstanding: { title: 'All balanced',       description: 'No outstanding balances right now — nice!',    icon: 'checkmark-circle-outline' },
-    i_owe:       { title: 'Nothing to pay',     description: "You don't owe anyone right now.",               icon: 'arrow-up-circle-outline'  },
-    they_owe:    { title: 'Nothing to collect', description: 'No one owes you right now.',                    icon: 'arrow-down-circle-outline' },
+  const FILTER_EMPTY_MESSAGES: Record<FilterType, { title: string; description: string; icon: IconSymbolName }> = {
+    all:         { title: 'No friends yet',     description: 'Add an expense with someone to see them here', icon: 'person.2' },
+    outstanding: { title: 'All balanced',       description: 'No outstanding balances right now — nice!',    icon: 'checkmark.circle' },
+    i_owe:       { title: 'Nothing to pay',     description: "You don't owe anyone right now.",               icon: 'arrow.up.circle'  },
+    they_owe:    { title: 'Nothing to collect', description: 'No one owes you right now.',                    icon: 'arrow.down.circle' },
   };
 
   const renderEmptyState = () => {
@@ -247,7 +241,7 @@ export default function FriendsScreen() {
           transition={{ type: 'spring', damping: 20, stiffness: 200 }}
         >
           <EmptyState
-            icon={msg.icon as 'people-outline'}
+            icon={msg.icon}
             title={msg.title}
             description={msg.description}
             {...(hasNoFriendsAtAll ? {
@@ -283,7 +277,7 @@ export default function FriendsScreen() {
             { backgroundColor: colors.primary[500], opacity: pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.92 : 1 }] },
           ]}
         >
-          <Ionicons name="add" size={24} color={colors.white} />
+          <IconSymbol name="plus" size={24} color={colors.white} />
         </Pressable>
       )}
     </MotiView>
@@ -298,7 +292,7 @@ export default function FriendsScreen() {
           transition={{ type: 'spring', damping: 20, stiffness: 200 }}
           style={styles.errorContainer}
         >
-          <Ionicons name="alert-circle" size={48} color={colors.error} />
+          <IconSymbol name="exclamationmark.circle" size={48} color={colors.error} />
           <Text style={[styles.errorText, { color: textColor }]}>{error}</Text>
           <Pressable
             onPress={refresh}
@@ -320,15 +314,13 @@ export default function FriendsScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
         {renderHeader()}
         <EmptyState
-          icon="cloud-offline-outline"
+          icon="icloud.slash"
           title="No cached data"
           description="Connect to the internet to load your friends"
         />
       </SafeAreaView>
     );
   }
-
-  const scrubberBottom = insets.bottom + 61;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -339,7 +331,7 @@ export default function FriendsScreen() {
         keyExtractor={(item) => item.user.id}
         contentContainerStyle={{
           ...styles.listContent,
-          paddingBottom: scrubberBottom + 80,
+          paddingBottom: listPaddingBottom,
         }}
         ListHeaderComponent={renderHeader()}
         ListEmptyComponent={

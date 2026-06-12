@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView, MotiText } from 'moti';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -146,7 +146,7 @@ export default function ResetPasswordScreen() {
               transition={{ type: 'spring', damping: 15, delay: 200 }}
               style={[styles.iconContainer, { backgroundColor: colors.success + '20' }]}
             >
-              <Ionicons name="shield-checkmark-outline" size={40} color={colors.success} />
+              <IconSymbol name="checkmark.shield" size={40} color={colors.success} />
             </MotiView>
             <MotiText
               from={{ opacity: 0 }}
@@ -180,7 +180,7 @@ export default function ResetPasswordScreen() {
                 animate={{ opacity: 1, scale: 1 }}
                 style={styles.formError}
               >
-                <Ionicons name="alert-circle" size={20} color={colors.error} />
+                <IconSymbol name="exclamationmark.circle" size={20} color={colors.error} />
                 <Text style={styles.formErrorText}>{errors.form}</Text>
               </MotiView>
             )}
@@ -197,16 +197,16 @@ export default function ResetPasswordScreen() {
               returnKeyType="next"
               onSubmitEditing={() => confirmPasswordRef.current?.focus()}
               leftIcon={
-                <Ionicons
-                  name="lock-closed-outline"
+                <IconSymbol
+                  name="lock"
                   size={20}
                   color={isDark ? colors.gray[400] : colors.gray[500]}
                 />
               }
               rightIcon={
                 <Pressable onPress={() => setShowPassword(!showPassword)}>
-                  <Ionicons
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  <IconSymbol
+                    name={showPassword ? 'eye.slash' : 'eye'}
                     size={20}
                     color={isDark ? colors.gray[400] : colors.gray[500]}
                   />
@@ -258,15 +258,15 @@ export default function ResetPasswordScreen() {
               returnKeyType="done"
               onSubmitEditing={handleResetPassword}
               leftIcon={
-                <Ionicons
-                  name="lock-closed-outline"
+                <IconSymbol
+                  name="lock"
                   size={20}
                   color={isDark ? colors.gray[400] : colors.gray[500]}
                 />
               }
               rightIcon={
                 confirmPassword && password === confirmPassword ? (
-                  <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                  <IconSymbol name="checkmark.circle.fill" size={20} color={colors.success} />
                 ) : null
               }
             />

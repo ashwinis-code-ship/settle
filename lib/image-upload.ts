@@ -6,7 +6,7 @@
 
 import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
-import { Alert } from 'react-native';
+import { showPlatformAlert } from './platform-picker';
 import { supabase } from './supabase';
 
 export type ImageBucket = 'avatars' | 'group-images';
@@ -23,11 +23,7 @@ interface UploadResult {
 export async function requestCameraPermission(): Promise<boolean> {
   const { status } = await ImagePicker.requestCameraPermissionsAsync();
   if (status !== 'granted') {
-    Alert.alert(
-      'Permission Required',
-      'Please allow camera access to take photos.',
-      [{ text: 'OK' }]
-    );
+    showPlatformAlert('Permission Required', 'Please allow camera access to take photos.');
     return false;
   }
   return true;
@@ -39,11 +35,7 @@ export async function requestCameraPermission(): Promise<boolean> {
 export async function requestMediaLibraryPermission(): Promise<boolean> {
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (status !== 'granted') {
-    Alert.alert(
-      'Permission Required',
-      'Please allow photo library access to choose photos.',
-      [{ text: 'OK' }]
-    );
+    showPlatformAlert('Permission Required', 'Please allow photo library access to choose photos.');
     return false;
   }
   return true;

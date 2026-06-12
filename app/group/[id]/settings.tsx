@@ -4,7 +4,7 @@
  * Manage group members and settings
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Avatar } from '@/components/ui/avatar';
@@ -12,8 +12,6 @@ import { MotiView } from 'moti';
 import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
-    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -32,11 +30,18 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroup } from '@/hooks/use-group';
 import { useGroupPhases } from '@/hooks/use-group-phases';
 import { hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { NativeScreenHeader } from '@/lib/native-header';
 import {
     pickImageFromCamera,
     pickImageFromLibrary,
     uploadGroupImage,
 } from '@/lib/image-upload';
+import {
+    showOfflineAlert,
+    showPhotoSourcePicker,
+    showPlatformAlert,
+    showPlatformConfirm,
+} from '@/lib/platform-picker';
 import { formatPhoneNumber } from '@/lib/utils';
 import type { EnrichedContact } from '@/hooks/use-enriched-contacts';
 
@@ -87,10 +92,6 @@ export default function GroupSettingsScreen() {
         }
     }, [isOnline]);
 
-    const handleBack = () => {
-        router.back();
-    };
-
     const handleEditNamePress = () => {
         setNameValue(group?.name || '');
         setEditingName(true);
@@ -103,7 +104,7 @@ export default function GroupSettingsScreen() {
             return;
         }
         if (trimmed.length < 2) {
-            Alert.alert('Invalid Name', 'Group name must be at least 2 characters.');
+            showPlatformAlert('Invalid Name', 'Group name must be at least 2 characters.');
             return;
         }
         setIsSavingName(true);
@@ -113,7 +114,7 @@ export default function GroupSettingsScreen() {
             hapticSuccess();
             setEditingName(false);
         } else {
-            Alert.alert('Error', 'Failed to update group name.');
+            showPlatformAlert('Error', 'Failed to update group name.');
         }
     };
 
@@ -127,9 +128,9 @@ export default function GroupSettingsScreen() {
                 if (result.success && result.url) {
                     const success = await updateGroup({ image_url: result.url });
                     if (success) hapticSuccess();
-                    else Alert.alert('Error', 'Failed to save photo.');
+                    else showPlatformAlert('Error', 'Failed to save photo.');
                 } else {
-                    Alert.alert('Error', 'Failed to upload photo.');
+                    showPlatformAlert('Error', 'Failed to upload photo.');
                 }
             } finally {
                 setIsUploadingImage(false);
@@ -151,36 +152,22 @@ export default function GroupSettingsScreen() {
             const success = await updateGroup({ image_url: null });
             setIsUploadingImage(false);
             if (success) hapticSuccess();
-            else Alert.alert('Error', 'Failed to remove photo.');
+            else showPlatformAlert('Error', 'Failed to remove photo.');
         };
 
-        if (Platform.OS === 'ios') {
-            const options = ['Cancel', 'Take Photo', 'Choose from Library'];
-            if (hasImage) options.push('Remove Photo');
-            Alert.alert('Group Photo', 'Choose an option', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Take Photo', onPress: handleTakePhoto },
-                { text: 'Choose from Library', onPress: handleChooseFromLibrary },
-                ...(hasImage ? [{ text: 'Remove Photo', style: 'destructive' as const, onPress: handleRemovePhoto }] : []),
-            ]);
-        } else {
-            const opts: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [
-                { text: 'Take Photo', onPress: handleTakePhoto },
-                { text: 'Choose from Library', onPress: handleChooseFromLibrary },
-            ];
-            if (hasImage) opts.push({ text: 'Remove Photo', style: 'destructive', onPress: handleRemovePhoto });
-            Alert.alert('Group Photo', 'Choose an option', [{ text: 'Cancel', style: 'cancel' }, ...opts]);
-        }
+        showPhotoSourcePicker({
+            title: 'Group Photo',
+            hasExistingPhoto: hasImage,
+            onTakePhoto: handleTakePhoto,
+            onChooseFromLibrary: handleChooseFromLibrary,
+            onRemovePhoto: hasImage ? handleRemovePhoto : undefined,
+        });
     };
 
     const handleAddMemberPress = () => {
         if (!isOnline) {
             hapticWarning();
-            Alert.alert(
-                'No Connection',
-                'Adding members requires an internet connection.',
-                [{ text: 'OK' }]
-            );
+            showOfflineAlert('Adding members requires an internet connection.');
             return;
         }
         bottomSheetRef.current?.expand();
@@ -201,11 +188,7 @@ export default function GroupSettingsScreen() {
         // Block if offline
         if (!isOnline) {
             hapticWarning();
-            Alert.alert(
-                'No Connection',
-                'Adding members requires an internet connection.',
-                [{ text: 'OK' }]
-            );
+            showOfflineAlert('Adding members requires an internet connection.');
             bottomSheetRef.current?.close();
             return;
         }
@@ -242,9 +225,9 @@ export default function GroupSettingsScreen() {
         setSelectedContacts([]); // Clear selection
 
         if (failCount > 0) {
-            Alert.alert(
+            showPlatformAlert(
                 'Add Members',
-                `Added ${successCount} members. Failed to add ${failCount} members (they might already be in the group or have invalid numbers).`
+                `Added ${successCount} members. Failed to add ${failCount} members (they might already be in the group or have invalid numbers).`,
             );
         } else {
             // All success
@@ -257,166 +240,122 @@ export default function GroupSettingsScreen() {
         // Pre-check: fast exit before showing the confirmation dialog
         if (!isOnline) {
             hapticWarning();
-            Alert.alert(
-                'No Connection',
-                'Removing members requires an internet connection.',
-                [{ text: 'OK' }]
-            );
+            showOfflineAlert('Removing members requires an internet connection.');
             return;
         }
-        Alert.alert(
-            'Remove Member',
-            `Are you sure you want to remove ${memberName} from the group?`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Remove',
-                    style: 'destructive',
-                    onPress: async () => {
-                        // Re-check: user may have gone offline while the dialog was open
-                        if (!isOnline) {
-                            hapticWarning();
-                            Alert.alert(
-                                'No Connection',
-                                'Removing members requires an internet connection.',
-                                [{ text: 'OK' }]
-                            );
-                            return;
-                        }
-                        setIsSubmitting(true);
-                        const success = await removeMember(memberId);
-                        setIsSubmitting(false);
-                        if (!success) {
-                            Alert.alert('Error', 'Failed to remove member');
-                        }
-                    },
-                },
-            ]
-        );
+        showPlatformConfirm({
+            title: 'Remove Member',
+            message: `Are you sure you want to remove ${memberName} from the group?`,
+            confirmLabel: 'Remove',
+            destructive: true,
+            onConfirm: async () => {
+                if (!isOnline) {
+                    hapticWarning();
+                    showOfflineAlert('Removing members requires an internet connection.');
+                    return;
+                }
+                setIsSubmitting(true);
+                const success = await removeMember(memberId);
+                setIsSubmitting(false);
+                if (!success) {
+                    showPlatformAlert('Error', 'Failed to remove member');
+                }
+            },
+        });
     };
 
     const handleLeaveGroup = () => {
         // Pre-check: fast exit before showing the confirmation dialog
         if (!isOnline) {
             hapticWarning();
-            Alert.alert(
-                'No Connection',
-                'Leaving groups requires an internet connection.',
-                [{ text: 'OK' }]
-            );
+            showOfflineAlert('Leaving groups requires an internet connection.');
             return;
         }
-        Alert.alert(
-            'Leave Group',
-            'Are you sure you want to leave this group?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Leave',
-                    style: 'destructive',
-                    onPress: async () => {
-                        // Re-check: user may have gone offline while the dialog was open
-                        if (!isOnline) {
-                            hapticWarning();
-                            Alert.alert(
-                                'No Connection',
-                                'Leaving groups requires an internet connection.',
-                                [{ text: 'OK' }]
-                            );
-                            return;
-                        }
-                        setIsSubmitting(true);
-                        const success = await leaveGroup();
-                        setIsSubmitting(false);
-                        if (success) {
-                            router.dismissAll();
-                            router.replace('/(tabs)/groups');
-                        } else {
-                            Alert.alert('Error', 'Failed to leave group');
-                        }
-                    },
-                },
-            ]
-        );
+        showPlatformConfirm({
+            title: 'Leave Group',
+            message: 'Are you sure you want to leave this group?',
+            confirmLabel: 'Leave',
+            destructive: true,
+            onConfirm: async () => {
+                if (!isOnline) {
+                    hapticWarning();
+                    showOfflineAlert('Leaving groups requires an internet connection.');
+                    return;
+                }
+                setIsSubmitting(true);
+                const success = await leaveGroup();
+                setIsSubmitting(false);
+                if (success) {
+                    router.dismissAll();
+                    router.replace('/(tabs)/groups');
+                } else {
+                    showPlatformAlert('Error', 'Failed to leave group');
+                }
+            },
+        });
     };
 
     const handleMarkPhaseDone = () => {
         if (!isOnline) {
             hapticWarning();
-            Alert.alert('No Connection', 'Archiving requires an internet connection.', [{ text: 'OK' }]);
+            showOfflineAlert('Archiving requires an internet connection.');
             return;
         }
-        Alert.alert(
-            'Archive current expenses?',
-            'Current expenses will be archived. The contributions and balance spectrum will reset for the next phase. You can still view older expenses anytime.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Archive',
-                    onPress: async () => {
-                        setIsSubmitting(true);
-                        const ok = await addCheckpoint();
-                        setIsSubmitting(false);
-                        if (ok) {
-                            hapticSuccess();
-                            router.back();
-                        } else {
-                            Alert.alert('Error', 'Failed to archive. Try again.');
-                        }
-                    },
-                },
-            ]
-        );
+        showPlatformConfirm({
+            title: 'Archive current expenses?',
+            message:
+                'Current expenses will be archived. The contributions and balance spectrum will reset for the next phase. You can still view older expenses anytime.',
+            confirmLabel: 'Archive',
+            onConfirm: async () => {
+                setIsSubmitting(true);
+                const ok = await addCheckpoint();
+                setIsSubmitting(false);
+                if (ok) {
+                    hapticSuccess();
+                    router.back();
+                } else {
+                    showPlatformAlert('Error', 'Failed to archive. Try again.');
+                }
+            },
+        });
     };
 
     const handleDeleteGroup = () => {
         // Pre-check: fast exit before showing the confirmation dialog
         if (!isOnline) {
             hapticWarning();
-            Alert.alert(
-                'No Connection',
-                'Deleting groups requires an internet connection.',
-                [{ text: 'OK' }]
-            );
+            showOfflineAlert('Deleting groups requires an internet connection.');
             return;
         }
-        Alert.alert(
-            'Delete Group',
-            'Are you sure you want to delete this group? The group will be hidden but can be restored later if needed.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                        // Re-check: user may have gone offline while the dialog was open
-                        if (!isOnline) {
-                            hapticWarning();
-                            Alert.alert(
-                                'No Connection',
-                                'Deleting groups requires an internet connection.',
-                                [{ text: 'OK' }]
-                            );
-                            return;
-                        }
-                        setIsSubmitting(true);
-                        const success = await deleteGroup();
-                        setIsSubmitting(false);
-                        if (success) {
-                            router.dismissAll();
-                            router.replace('/(tabs)/groups');
-                        } else {
-                            Alert.alert('Error', 'Failed to delete group');
-                        }
-                    },
-                },
-            ]
-        );
+        showPlatformConfirm({
+            title: 'Delete Group',
+            message:
+                'Are you sure you want to delete this group? The group will be hidden but can be restored later if needed.',
+            confirmLabel: 'Delete',
+            destructive: true,
+            onConfirm: async () => {
+                if (!isOnline) {
+                    hapticWarning();
+                    showOfflineAlert('Deleting groups requires an internet connection.');
+                    return;
+                }
+                setIsSubmitting(true);
+                const success = await deleteGroup();
+                setIsSubmitting(false);
+                if (success) {
+                    router.dismissAll();
+                    router.replace('/(tabs)/groups');
+                } else {
+                    showPlatformAlert('Error', 'Failed to delete group');
+                }
+            },
+        });
     };
 
     if (isLoading && !group) {
         return (
-            <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+            <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+                <NativeScreenHeader title="Group Settings" />
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={colors.primary[500]} />
                 </View>
@@ -426,20 +365,8 @@ export default function GroupSettingsScreen() {
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
-            <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-                {/* Header */}
-                <MotiView
-                    from={{ opacity: 0, translateY: -20 }}
-                    animate={{ opacity: 1, translateY: 0 }}
-                    transition={{ type: 'timing', duration: 400 }}
-                    style={[styles.header, { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] }]}
-                >
-                    <Pressable onPress={handleBack} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color={textColor} />
-                    </Pressable>
-                    <Text style={[styles.headerTitle, { color: textColor }]}>Group Settings</Text>
-                    <View style={styles.headerRight} />
-                </MotiView>
+            <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+                <NativeScreenHeader title="Group Settings" />
 
                 <ScrollView contentContainerStyle={styles.content}>
                     {/* Group Info Section */}
@@ -486,18 +413,18 @@ export default function GroupSettingsScreen() {
                                             {editingName ? (
                                                 <View style={styles.nameEditActions}>
                                                     <Pressable onPress={() => setEditingName(false)} style={styles.nameActionBtn}>
-                                                        <Ionicons name="close" size={22} color={secondaryTextColor} />
+                                                        <IconSymbol name="xmark" size={22} color={secondaryTextColor} />
                                                     </Pressable>
                                                     <Pressable onPress={handleSaveName} disabled={isSavingName} style={styles.nameActionBtn}>
                                                         {isSavingName
                                                             ? <ActivityIndicator size="small" color={colors.primary[500]} />
-                                                            : <Ionicons name="checkmark" size={22} color={colors.primary[500]} />
+                                                            : <IconSymbol name="checkmark" size={22} color={colors.primary[500]} />
                                                         }
                                                     </Pressable>
                                                 </View>
                                             ) : (
                                                 <Pressable onPress={handleEditNamePress} style={styles.nameActionBtn}>
-                                                    <Ionicons name="pencil-outline" size={18} color={secondaryTextColor} />
+                                                    <IconSymbol name="pencil" size={18} color={secondaryTextColor} />
                                                 </Pressable>
                                             )}
                                         </>
@@ -554,7 +481,7 @@ export default function GroupSettingsScreen() {
                                                 style={[styles.removeButton, { opacity: (!isOnline || isSubmitting) ? 0.5 : 1 }]}
                                                 disabled={isSubmitting || !isOnline}
                                             >
-                                                <Ionicons name="trash-outline" size={20} color={dangerColor} />
+                                                <IconSymbol name="trash.fill" size={20} color={dangerColor} />
                                             </Pressable>
                                         )}
                                     </MotiView>
@@ -570,7 +497,7 @@ export default function GroupSettingsScreen() {
                                     onPress={handleAddMemberPress}
                                     disabled={!isOnline}
                                 >
-                                    <Ionicons name="add" size={20} color={colors.primary[500]} />
+                                    <IconSymbol name="plus" size={20} color={colors.primary[500]} />
                                     <Text style={[styles.addMemberText, { color: colors.primary[500] }]}>Add Member</Text>
                                 </Pressable>
                             )}
@@ -594,7 +521,7 @@ export default function GroupSettingsScreen() {
                                 disabled={!isOnline || isSubmitting || isCurrentPhaseEmpty}
                             >
                                 <View style={[styles.phaseIconWrap, { backgroundColor: colors.primary[100] }]}>
-                                    <Ionicons name="archive-outline" size={22} color={colors.primary[600]} />
+                                    <IconSymbol name="archivebox" size={22} color={colors.primary[600]} />
                                 </View>
                                 <View style={styles.phaseActionContent}>
                                     <Text style={[styles.phaseActionTitle, { color: textColor }]}>Archive current expenses</Text>
@@ -604,7 +531,7 @@ export default function GroupSettingsScreen() {
                                             : 'Resets contributions and balance · older expenses stay in history'}
                                     </Text>
                                 </View>
-                                <Ionicons name="chevron-forward" size={18} color={secondaryTextColor} />
+                                <IconSymbol name="chevron.right" size={18} color={secondaryTextColor} />
                             </Pressable>
                         </View>
                     </MotiView>
@@ -620,7 +547,7 @@ export default function GroupSettingsScreen() {
                             onPress={handleLeaveGroup}
                             disabled={isSubmitting || !isOnline}
                         >
-                            <Ionicons name="exit-outline" size={20} color={dangerColor} />
+                            <IconSymbol name="rectangle.portrait.and.arrow.right" size={20} color={dangerColor} />
                             <Text style={[styles.dangerText, { color: dangerColor }]}>Leave Group</Text>
                         </Pressable>
 
@@ -635,7 +562,7 @@ export default function GroupSettingsScreen() {
                                     onPress={handleDeleteGroup}
                                     disabled={isSubmitting || !isOnline}
                                 >
-                                    <Ionicons name="trash" size={20} color={dangerColor} />
+                                    <IconSymbol name="trash.fill" size={20} color={dangerColor} />
                                     <Text style={[styles.dangerText, { color: dangerColor }]}>Delete Group</Text>
                                 </Pressable>
                             </>

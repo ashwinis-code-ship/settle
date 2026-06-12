@@ -5,11 +5,11 @@
  * plus one block per line (line description, amount, split between X people).
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -21,6 +21,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useExpenseGroup } from '@/hooks/use-expense-group';
 import { useGroup } from '@/hooks/use-group';
 import { hapticHeavy, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { showPlatformAlert, showPlatformConfirm } from '@/lib/platform-picker';
+import { HeaderIconButton, NativeScreenHeader } from '@/lib/native-header';
 import type { CurrencyCode } from '@/types';
 import { CURRENCIES } from '@/types/database';
 
@@ -61,42 +63,36 @@ export default function ExpenseGroupDetailScreen() {
 
   const handleDelete = () => {
     hapticHeavy();
-    Alert.alert(
-      'Delete Grouped Expense',
-      'Are you sure? This will remove the entire grouped expense and all its parts. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setIsDeleting(true);
-            const success = await deleteExpenseGroup();
-            setIsDeleting(false);
-            if (success) {
-              hapticSuccess();
-              router.back();
-            } else {
-              hapticWarning();
-              Alert.alert('Error', 'Failed to delete. Please try again.');
-            }
-          },
-        },
-      ]
-    );
+    showPlatformConfirm({
+      title: 'Delete Grouped Expense',
+      message:
+        'Are you sure? This will remove the entire grouped expense and all its parts. This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        setIsDeleting(true);
+        const success = await deleteExpenseGroup();
+        setIsDeleting(false);
+        if (success) {
+          hapticSuccess();
+          router.back();
+        } else {
+          hapticWarning();
+          showPlatformAlert('Error', 'Failed to delete. Please try again.');
+        }
+      },
+    });
   };
+
+  const headerRight = canEdit && !isLoading && expenseGroup ? (
+    <HeaderIconButton icon="pencil" onPress={handleEdit} color={colors.primary[500]} />
+  ) : undefined;
 
   // Loading
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-        <View style={[styles.navBar, { borderBottomColor: separatorColor }]}>
-          <Pressable onPress={() => router.back()} style={styles.navButton}>
-            <Ionicons name="arrow-back" size={24} color={textColor} />
-          </Pressable>
-          <Text style={[styles.navTitle, { color: textColor }]}>Expense Details</Text>
-          <View style={styles.navButton} />
-        </View>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader title="Expense Details" />
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={[styles.receiptCard, { backgroundColor: cardBg, borderColor: cardBorderColor }]}>
             <View style={[styles.receiptTop, { backgroundColor: colors.primary[500] + '0E' }]}>
@@ -135,16 +131,10 @@ export default function ExpenseGroupDetailScreen() {
   // Error
   if (error || !expenseGroup) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-        <View style={[styles.navBar, { borderBottomColor: separatorColor }]}>
-          <Pressable onPress={() => router.back()} style={styles.navButton}>
-            <Ionicons name="arrow-back" size={24} color={textColor} />
-          </Pressable>
-          <Text style={[styles.navTitle, { color: textColor }]}>Expense Details</Text>
-          <View style={styles.navButton} />
-        </View>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader title="Expense Details" />
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color={colors.error} />
+          <IconSymbol name="exclamationmark.circle" size={48} color={colors.error} />
           <Text style={[styles.errorText, { color: textColor }]}>
             {error || 'Grouped expense not found'}
           </Text>
@@ -161,20 +151,8 @@ export default function ExpenseGroupDetailScreen() {
   const singleLine = isSingleLine ? lines[0] : null;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-      <View style={[styles.navBar, { borderBottomColor: separatorColor }]}>
-        <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.navButton, { opacity: pressed ? 0.6 : 1 }]}>
-          <Ionicons name="arrow-back" size={24} color={textColor} />
-        </Pressable>
-        <Text style={[styles.navTitle, { color: textColor }]}>Expense Details</Text>
-        {canEdit ? (
-          <Pressable onPress={handleEdit} style={({ pressed }) => [styles.navButton, { opacity: pressed ? 0.6 : 1 }]}>
-            <Ionicons name="pencil" size={20} color={colors.primary[500]} />
-          </Pressable>
-        ) : (
-          <View style={styles.navButton} />
-        )}
-      </View>
+    <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+      <NativeScreenHeader title="Expense Details" headerRight={headerRight} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <MotiView
@@ -195,7 +173,7 @@ export default function ExpenseGroupDetailScreen() {
                 </View>
               ) : (
                 <View style={styles.categoryPill}>
-                  <Ionicons name="receipt-outline" size={12} color={secondaryTextColor} />
+                  <IconSymbol name="doc.text" size={12} color={secondaryTextColor} />
                   <Text style={[styles.categoryPillName, { color: secondaryTextColor }]}>
                     Expense
                   </Text>
@@ -318,7 +296,7 @@ export default function ExpenseGroupDetailScreen() {
                 { opacity: pressed || isDeleting ? 0.6 : 1 },
               ]}
             >
-              <Ionicons name="trash-outline" size={16} color={colors.error} />
+              <IconSymbol name="trash.fill" size={16} color={colors.error} />
               <Text style={styles.deleteButtonText}>
                 {isDeleting ? 'Deleting…' : 'Delete Grouped Expense'}
               </Text>

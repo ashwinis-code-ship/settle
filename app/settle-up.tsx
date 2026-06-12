@@ -5,14 +5,13 @@
  * Supports pre-filled amount from friend detail or search mode from home.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Avatar } from '@/components/ui/avatar';
 import { FlashList } from '@shopify/flash-list';
 import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     Keyboard,
     KeyboardAvoidingView,
     Platform,
@@ -32,6 +31,8 @@ import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSettlements } from '@/hooks/use-settlements';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { HeaderIconButton, NativeScreenHeader } from '@/lib/native-header';
+import { showPlatformAlert } from '@/lib/platform-picker';
 import { supabase } from '@/lib/supabase';
 import { Analytics } from '@/lib/analytics';
 import { SETTLEMENT_EVENTS } from '@/lib/analytics-events';
@@ -62,10 +63,11 @@ export default function SettleUpScreen() {
   // Block if offline
   useEffect(() => {
     if (!isOnline) {
-      Alert.alert(
+      showPlatformAlert(
         'No Connection',
         'Settling up requires an internet connection.',
-        [{ text: 'OK', onPress: () => router.back() }]
+        'OK',
+        () => router.back(),
       );
     }
   }, [isOnline]);
@@ -97,8 +99,6 @@ export default function SettleUpScreen() {
   const backgroundColor = isDark ? colors.background.dark : colors.background.light;
   const cardBg = isDark ? colors.gray[800] : colors.white;
   const inputBg = isDark ? colors.gray[700] : colors.gray[100];
-  const borderColor = isDark ? colors.gray[600] : colors.gray[300];
-
   // Load friend details if coming from friend detail screen
   useEffect(() => {
     if (params.friendId && user) {
@@ -277,7 +277,7 @@ export default function SettleUpScreen() {
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       hapticWarning();
-      Alert.alert('Invalid Amount', 'Please enter a valid amount greater than 0');
+      showPlatformAlert('Invalid Amount', 'Please enter a valid amount greater than 0');
       return;
     }
 
@@ -324,19 +324,20 @@ export default function SettleUpScreen() {
         });
         
         hapticSuccess();
-        Alert.alert(
+        showPlatformAlert(
           'Settlement Recorded',
           `₹${parsedAmount.toFixed(2)} payment has been recorded.`,
-          [{ text: 'OK', onPress: () => router.back() }]
+          'OK',
+          () => router.back(),
         );
       } else {
         Analytics.track(SETTLEMENT_EVENTS.SETTLE_UP_FAILED);
         console.error('[SettleUp] Settlement failed - no result returned');
-        Alert.alert('Error', 'Failed to record settlement. Please try again.');
+        showPlatformAlert('Error', 'Failed to record settlement. Please try again.');
       }
     } catch (err) {
       console.error('[SettleUp] Settlement error:', err);
-      Alert.alert('Error', 'Failed to record settlement. Please try again.');
+      showPlatformAlert('Error', 'Failed to record settlement. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -359,7 +360,7 @@ export default function SettleUpScreen() {
     <View style={styles.searchSection}>
       {/* Search Input */}
       <View style={[styles.searchInputContainer, { backgroundColor: inputBg }]}>
-        <Ionicons name="search" size={20} color={secondaryTextColor} />
+        <IconSymbol name="magnifyingglass" size={20} color={secondaryTextColor} />
         <TextInput
           style={[styles.searchInput, { color: textColor }]}
           placeholder="Search friends..."
@@ -370,7 +371,7 @@ export default function SettleUpScreen() {
         />
         {searchQuery.length > 0 && (
           <Pressable onPress={() => setSearchQuery('')}>
-            <Ionicons name="close-circle" size={20} color={secondaryTextColor} />
+            <IconSymbol name="xmark.circle" size={20} color={secondaryTextColor} />
           </Pressable>
         )}
       </View>
@@ -396,7 +397,7 @@ export default function SettleUpScreen() {
                 {getBalanceText(result.balance)} {formatBalance(result.balance)}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+            <IconSymbol name="chevron.right" size={20} color={secondaryTextColor} />
           </Pressable>
         )}
         ListEmptyComponent={
@@ -409,7 +410,7 @@ export default function SettleUpScreen() {
             </View>
           ) : (
             <View style={styles.emptyContainer}>
-              <Ionicons name="checkmark-circle" size={48} color={colors.success} />
+              <IconSymbol name="checkmark.circle.fill" size={48} color={colors.success} />
               <Text style={[styles.emptyTitle, { color: textColor }]}>All Settled Up!</Text>
               <Text style={[styles.emptyText, { color: secondaryTextColor }]}>
                 You don't have any pending balances with friends.
@@ -436,7 +437,7 @@ export default function SettleUpScreen() {
       return (
         <View style={styles.settledContainer}>
           <View style={[styles.settledIcon, { backgroundColor: colors.success + '20' }]}>
-            <Ionicons name="checkmark-circle" size={64} color={colors.success} />
+            <IconSymbol name="checkmark.circle.fill" size={64} color={colors.success} />
           </View>
           <Text style={[styles.settledTitle, { color: textColor }]}>
             Already Settled Up!
@@ -482,8 +483,8 @@ export default function SettleUpScreen() {
           <View style={[styles.directionCard, { backgroundColor: cardBg }]}>
             <View style={styles.directionRow}>
               <View style={[styles.directionIcon, { backgroundColor: colors.primary[100] }]}>
-                <Ionicons 
-                  name={theyOweYou ? "arrow-down" : "arrow-up"} 
+                <IconSymbol 
+                  name={theyOweYou ? 'arrow.down' : 'arrow.up'} 
                   size={20} 
                   color={colors.primary[500]} 
                 />
@@ -542,7 +543,7 @@ export default function SettleUpScreen() {
               <ActivityIndicator size="small" color={colors.white} />
             ) : (
               <>
-                <Ionicons name="checkmark-circle" size={20} color={colors.white} />
+                <IconSymbol name="checkmark.circle.fill" size={20} color={colors.white} />
                 <Text style={styles.submitButtonText}>Record Payment</Text>
               </>
             )}
@@ -554,7 +555,12 @@ export default function SettleUpScreen() {
 
   if (balanceLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader
+          title="Settle Up"
+          headerBackVisible={false}
+          headerLeft={<HeaderIconButton icon="chevron.left" onPress={handleBack} />}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary[500]} />
         </View>
@@ -563,21 +569,16 @@ export default function SettleUpScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+      <NativeScreenHeader
+        title="Settle Up"
+        headerBackVisible={false}
+        headerLeft={<HeaderIconButton icon="chevron.left" onPress={handleBack} />}
+      />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        {/* Header */}
-        <View style={[styles.header, { borderBottomColor: borderColor }]}>
-          <Pressable onPress={handleBack} hitSlop={8} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={textColor} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: textColor }]}>Settle Up</Text>
-          <View style={styles.headerRight} />
-        </View>
-
-        {/* Content */}
         {isSearchMode ? renderSearchResults() : renderSettlementForm()}
       </KeyboardAvoidingView>
     </SafeAreaView>

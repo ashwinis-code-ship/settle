@@ -11,8 +11,9 @@
  */
 
 import { Stack } from 'expo-router';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+
 import { colors } from '@/constants/colors';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function AuthLayout() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -22,6 +23,7 @@ export default function AuthLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
+        gestureEnabled: true,
         contentStyle: {
           backgroundColor: isDark ? colors.background.dark : colors.background.light,
         },

@@ -9,10 +9,11 @@
  * "Settle" button on the right → /settle-up pre-filled with that friend
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { router } from 'expo-router';
 import { Avatar } from '@/components/ui/avatar';
+import { SheetBackground } from '@/components/ui/sheet-background';
 import { forwardRef, useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,7 +45,6 @@ export const GroupSettleSheet = forwardRef<BottomSheet, GroupSettleSheetProps>(
 
     const textColor = isDark ? colors.text.dark.primary : colors.text.light.primary;
     const secondaryTextColor = isDark ? colors.text.dark.secondary : colors.text.light.secondary;
-    const cardBg = isDark ? colors.gray[800] : colors.white;
     const dividerColor = isDark ? colors.gray[700] : colors.gray[200];
 
     const [balances, setBalances] = useState<MemberBalance[]>([]);
@@ -197,7 +197,7 @@ export const GroupSettleSheet = forwardRef<BottomSheet, GroupSettleSheetProps>(
         return (
           <View style={styles.centered}>
             <View style={[styles.allSettledIcon, { backgroundColor: colors.success + '20' }]}>
-              <Ionicons name="checkmark-circle" size={48} color={colors.success} />
+              <IconSymbol name="checkmark.circle.fill" size={48} color={colors.success} />
             </View>
             <Text style={[styles.allSettledTitle, { color: textColor }]}>All settled up!</Text>
             <Text style={[styles.allSettledSub, { color: secondaryTextColor }]}>
@@ -241,7 +241,8 @@ export const GroupSettleSheet = forwardRef<BottomSheet, GroupSettleSheetProps>(
         enableDynamicSizing={false}
         style={sheetStyle}
         onChange={handleSheetChange}
-        backgroundStyle={{ backgroundColor: cardBg }}
+        backgroundComponent={SheetBackground}
+        backgroundStyle={{ backgroundColor: 'transparent' }}
         handleIndicatorStyle={{ backgroundColor: colors.gray[400] }}
       >
         <BottomSheetScrollView

@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView, MotiText } from 'moti';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -145,7 +145,7 @@ export default function SignUpScreen() {
                 transition={{ type: 'spring', damping: 15 }}
                 style={[styles.logo, { backgroundColor: colors.primary[500] }]}
               >
-                <Ionicons name="wallet-outline" size={40} color={colors.white} />
+                <IconSymbol name="creditcard" size={40} color={colors.white} />
               </MotiView>
             </View>
             <MotiText
@@ -197,7 +197,7 @@ export default function SignUpScreen() {
                 animate={{ opacity: 1, scale: 1 }}
                 style={styles.formError}
               >
-                <Ionicons name="alert-circle" size={20} color={colors.error} />
+                <IconSymbol name="exclamationmark.circle" size={20} color={colors.error} />
                 <Text style={styles.formErrorText}>{errors.form}</Text>
               </MotiView>
             )}
@@ -214,8 +214,8 @@ export default function SignUpScreen() {
               returnKeyType="next"
               onSubmitEditing={() => phoneRef.current?.focus()}
               leftIcon={
-                <Ionicons
-                  name="person-outline"
+                <IconSymbol
+                  name="person"
                   size={20}
                   color={isDark ? colors.gray[400] : colors.gray[500]}
                 />

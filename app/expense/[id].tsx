@@ -5,12 +5,11 @@
  * Tap "Edit" to navigate to add-expense (pre-filled) for editing.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
 import { useState, useEffect } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -28,6 +27,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useExpense } from '@/hooks/use-expense';
 import { useGroup } from '@/hooks/use-group';
 import { hapticHeavy, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { showPlatformAlert, showPlatformConfirm } from '@/lib/platform-picker';
+import { HeaderIconButton, NativeScreenHeader } from '@/lib/native-header';
 import { Analytics } from '@/lib/analytics';
 import { EXPENSE_EVENTS } from '@/lib/analytics-events';
 import type { CurrencyCode } from '@/types';
@@ -89,72 +90,42 @@ export default function ExpenseDetailScreen() {
 
   const handleDelete = () => {
     hapticHeavy();
-    Alert.alert(
-      'Delete Expense',
-      'Are you sure you want to delete this expense? This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setIsDeleting(true);
-            const success = await deleteExpense();
-            setIsDeleting(false);
-            if (success) {
-              Analytics.track(EXPENSE_EVENTS.EXPENSE_DELETED, {
-                expense_id: id,
-                amount: expense?.amount,
-                currency: expense?.currency,
-              });
-              hapticSuccess();
-              router.back();
-            } else {
-              hapticWarning();
-              Alert.alert('Error', 'Failed to delete expense. Please try again.');
-            }
-          },
-        },
-      ]
-    );
+    showPlatformConfirm({
+      title: 'Delete Expense',
+      message: 'Are you sure you want to delete this expense? This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        setIsDeleting(true);
+        const success = await deleteExpense();
+        setIsDeleting(false);
+        if (success) {
+          Analytics.track(EXPENSE_EVENTS.EXPENSE_DELETED, {
+            expense_id: id,
+            amount: expense?.amount,
+            currency: expense?.currency,
+          });
+          hapticSuccess();
+          router.back();
+        } else {
+          hapticWarning();
+          showPlatformAlert('Error', 'Failed to delete expense. Please try again.');
+        }
+      },
+    });
   };
 
   const showMetaSection = (group && group.type !== 'direct') || !!expense?.notes;
 
-  // Plain function (not a React component) — safe to call inside any return branch
-  // without React treating it as a new component type and unmounting the tree.
-  const renderNavBar = (showEdit: boolean) => (
-    <MotiView
-      from={{ opacity: 0, translateY: -16 }}
-      animate={{ opacity: 1, translateY: 0 }}
-      transition={{ type: 'spring', damping: 22, stiffness: 220 }}
-      style={[styles.navBar, { borderBottomColor: separatorColor }]}
-    >
-      <Pressable
-        onPress={() => router.back()}
-        style={({ pressed }) => [styles.navButton, { opacity: pressed ? 0.6 : 1 }]}
-      >
-        <Ionicons name="arrow-back" size={24} color={textColor} />
-      </Pressable>
-      <Text style={[styles.navTitle, { color: textColor }]}>Expense Details</Text>
-      {showEdit ? (
-        <Pressable
-          onPress={handleEdit}
-          style={({ pressed }) => [styles.navButton, { opacity: pressed ? 0.6 : 1 }]}
-        >
-          <Ionicons name="pencil" size={20} color={colors.primary[500]} />
-        </Pressable>
-      ) : (
-        <View style={styles.navButton} />
-      )}
-    </MotiView>
-  );
+  const headerRight = canEdit && !isLoading && expense ? (
+    <HeaderIconButton icon="pencil" onPress={handleEdit} color={colors.primary[500]} />
+  ) : undefined;
 
   // --- Loading skeleton ---
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-        {renderNavBar(false)}
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader title="Expense Details" />
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -196,10 +167,10 @@ export default function ExpenseDetailScreen() {
   // --- Error state ---
   if (error || !expense) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-        {renderNavBar(false)}
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader title="Expense Details" />
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color={colors.error} />
+          <IconSymbol name="exclamationmark.circle" size={48} color={colors.error} />
           <Text style={[styles.errorText, { color: textColor }]}>
             {error || 'Expense not found'}
           </Text>
@@ -211,8 +182,8 @@ export default function ExpenseDetailScreen() {
 
   // --- Main receipt view ---
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-      {renderNavBar(canEdit)}
+    <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+      <NativeScreenHeader title="Expense Details" headerRight={headerRight} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -237,7 +208,7 @@ export default function ExpenseDetailScreen() {
                 </View>
               ) : (
                 <View style={styles.categoryPill}>
-                  <Ionicons name="receipt-outline" size={12} color={secondaryTextColor} />
+                  <IconSymbol name="doc.text" size={12} color={secondaryTextColor} />
                   <Text style={[styles.categoryPillName, { color: secondaryTextColor }]}>
                     Expense
                   </Text>
@@ -338,7 +309,7 @@ export default function ExpenseDetailScreen() {
                 { opacity: pressed || isDeleting ? 0.6 : 1 },
               ]}
             >
-              <Ionicons name="trash-outline" size={16} color={colors.error} />
+              <IconSymbol name="trash.fill" size={16} color={colors.error} />
               <Text style={styles.deleteButtonText}>
                 {isDeleting ? 'Deleting…' : 'Delete Expense'}
               </Text>

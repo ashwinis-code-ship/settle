@@ -1,8 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ViewStyle } from 'react-native';
 
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors } from '@/constants/colors';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -119,7 +119,7 @@ export function Avatar(props: AvatarProps) {
       ) : initialsText ? (
         <Text style={[styles.initials, { fontSize }]}>{initialsText}</Text>
       ) : (
-        <Ionicons name="people" size={Math.round(size * 0.5)} color={colors.white} />
+        <IconSymbol name="person.2.fill" size={Math.round(size * 0.5)} color={colors.white} />
       )}
     </View>
   );
@@ -143,7 +143,7 @@ export function Avatar(props: AvatarProps) {
             },
           ]}
         >
-          <Ionicons name="camera" size={Math.round(badgeSize * 0.5)} color={colors.white} />
+          <IconSymbol name="camera.fill" size={Math.round(badgeSize * 0.5)} color={colors.white} />
         </View>
       )}
     </View>

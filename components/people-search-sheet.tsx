@@ -11,7 +11,7 @@
  *                  single tap calls onGroupSelect or onContactSelect
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import BottomSheet, { BottomSheetFlashList, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { MotiView } from 'moti';
 import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
@@ -26,6 +26,7 @@ import {
 } from 'react-native';
 
 import { Avatar } from '@/components/ui/avatar';
+import { SheetBackground } from '@/components/ui/sheet-background';
 import { Checkbox } from '@/components/ui/checkbox';
 import { SkeletonContactList } from '@/components/ui/skeleton';
 import { colors } from '@/constants/colors';
@@ -171,7 +172,7 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
               {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+          <IconSymbol name="chevron.right" size={20} color={secondaryTextColor} />
         </Pressable>
       ),
       [onGroupSelect, textColor, secondaryTextColor]
@@ -252,7 +253,8 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
         enablePanDownToClose
         enableOverDrag={false}
         enableDynamicSizing={false}
-        backgroundStyle={{ backgroundColor: sheetBg }}
+        backgroundComponent={SheetBackground}
+        backgroundStyle={{ backgroundColor: 'transparent' }}
         handleIndicatorStyle={{ backgroundColor: colors.gray[400] }}
         onClose={handleSheetClose}
         onAnimate={(fromIndex, toIndex) => {
@@ -287,7 +289,7 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
               { backgroundColor: isDark ? colors.gray[800] : colors.gray[100] },
             ]}
           >
-            <Ionicons name="search-outline" size={20} color={colors.gray[400]} />
+            <IconSymbol name="magnifyingglass" size={20} color={colors.gray[400]} />
             <BottomSheetTextInput
               placeholder="Search by name or number..."
               placeholderTextColor={colors.gray[400]}
@@ -300,7 +302,7 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
                 onPress={() => setSearchQuery('')}
                 style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] })}
               >
-                <Ionicons name="close-circle" size={20} color={colors.gray[400]} />
+                <IconSymbol name="xmark.circle" size={20} color={colors.gray[400]} />
               </Pressable>
             )}
           </View>
@@ -318,7 +320,7 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
         {/* Permission denied */}
         {hasContactPermission === false && (
           <View style={styles.stateContainer}>
-            <Ionicons name="lock-closed-outline" size={48} color={colors.gray[400]} />
+            <IconSymbol name="lock" size={48} color={colors.gray[400]} />
             <Text style={[styles.stateTitle, { color: textColor }]}>
               Contact Access Required
             </Text>
@@ -351,7 +353,7 @@ export const PeopleSearchSheet = forwardRef<BottomSheet, PeopleSearchSheetProps>
             getItemType={(item: ListItem) => item._type}
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Ionicons name="person-add-outline" size={48} color={colors.gray[400]} />
+                <IconSymbol name="person.badge.plus" size={48} color={colors.gray[400]} />
                 <Text style={[styles.emptyStateText, { color: secondaryTextColor }]}>
                   {searchQuery ? 'No results found' : 'No contacts available'}
                 </Text>

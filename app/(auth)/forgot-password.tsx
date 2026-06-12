@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView, MotiText } from 'moti';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -125,7 +125,7 @@ export default function ForgotPasswordScreen() {
             transition={{ type: 'timing', duration: 300 }}
           >
             <Pressable onPress={handleBack} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={textColor} />
+              <IconSymbol name="chevron.left" size={24} color={textColor} />
             </Pressable>
           </MotiView>
 
@@ -142,7 +142,7 @@ export default function ForgotPasswordScreen() {
               transition={{ type: 'spring', damping: 15, delay: 200 }}
               style={[styles.iconContainer, { backgroundColor: colors.warning + '20' }]}
             >
-              <Ionicons name="key-outline" size={40} color={colors.warning} />
+              <IconSymbol name="key" size={40} color={colors.warning} />
             </MotiView>
             <MotiText
               from={{ opacity: 0 }}
@@ -176,7 +176,7 @@ export default function ForgotPasswordScreen() {
                 animate={{ opacity: 1, scale: 1 }}
                 style={styles.errorContainer}
               >
-                <Ionicons name="alert-circle" size={20} color={colors.error} />
+                <IconSymbol name="exclamationmark.circle" size={20} color={colors.error} />
                 <Text style={styles.errorText}>{error}</Text>
               </MotiView>
             )}

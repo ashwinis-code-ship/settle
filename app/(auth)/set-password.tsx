@@ -4,7 +4,7 @@
  * Create password after OTP verification.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MotiText, MotiView } from 'moti';
 import { useRef, useState, useEffect } from 'react';
@@ -217,7 +217,7 @@ export default function SetPasswordScreen() {
             transition={{ type: 'timing', duration: 300 }}
           >
             <Pressable onPress={handleBack} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={textColor} />
+              <IconSymbol name="chevron.left" size={24} color={textColor} />
             </Pressable>
           </MotiView>
 
@@ -234,7 +234,7 @@ export default function SetPasswordScreen() {
               transition={{ type: 'spring', damping: 15, delay: 200 }}
               style={[styles.iconContainer, { backgroundColor: colors.primary[100] }]}
             >
-              <Ionicons name="lock-closed-outline" size={40} color={colors.primary[500]} />
+              <IconSymbol name="lock" size={40} color={colors.primary[500]} />
             </MotiView>
             <MotiText
               from={{ opacity: 0 }}
@@ -285,7 +285,7 @@ export default function SetPasswordScreen() {
                 animate={{ opacity: 1, scale: 1 }}
                 style={styles.formError}
               >
-                <Ionicons name="alert-circle" size={20} color={colors.error} />
+                <IconSymbol name="exclamationmark.circle" size={20} color={colors.error} />
                 <Text style={styles.formErrorText}>{errors.form}</Text>
               </MotiView>
             )}
@@ -302,16 +302,16 @@ export default function SetPasswordScreen() {
               returnKeyType="next"
               onSubmitEditing={() => confirmPasswordRef.current?.focus()}
               leftIcon={
-                <Ionicons
-                  name="lock-closed-outline"
+                <IconSymbol
+                  name="lock"
                   size={20}
                   color={isDark ? colors.gray[400] : colors.gray[500]}
                 />
               }
               rightIcon={
                 <Pressable onPress={() => setShowPassword(!showPassword)}>
-                  <Ionicons
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  <IconSymbol
+                    name={showPassword ? 'eye.slash' : 'eye'}
                     size={20}
                     color={isDark ? colors.gray[400] : colors.gray[500]}
                   />
@@ -363,15 +363,15 @@ export default function SetPasswordScreen() {
               returnKeyType="done"
               onSubmitEditing={handleCreateAccount}
               leftIcon={
-                <Ionicons
-                  name="lock-closed-outline"
+                <IconSymbol
+                  name="lock"
                   size={20}
                   color={isDark ? colors.gray[400] : colors.gray[500]}
                 />
               }
               rightIcon={
                 confirmPassword && password === confirmPassword ? (
-                  <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                  <IconSymbol name="checkmark.circle.fill" size={20} color={colors.success} />
                 ) : null
               }
             />
@@ -382,8 +382,8 @@ export default function SetPasswordScreen() {
                 Password must have:
               </Text>
               <View style={styles.requirementItem}>
-                <Ionicons
-                  name={password.length >= 6 ? 'checkmark-circle' : 'ellipse-outline'}
+                <IconSymbol
+                  name={password.length >= 6 ? 'checkmark.circle.fill' : 'circle'}
                   size={16}
                   color={password.length >= 6 ? colors.success : secondaryTextColor}
                 />
@@ -397,8 +397,8 @@ export default function SetPasswordScreen() {
                 </Text>
               </View>
               <View style={styles.requirementItem}>
-                <Ionicons
-                  name={/[A-Za-z]/.test(password) ? 'checkmark-circle' : 'ellipse-outline'}
+                <IconSymbol
+                  name={/[A-Za-z]/.test(password) ? 'checkmark.circle.fill' : 'circle'}
                   size={16}
                   color={/[A-Za-z]/.test(password) ? colors.success : secondaryTextColor}
                 />
@@ -412,8 +412,8 @@ export default function SetPasswordScreen() {
                 </Text>
               </View>
               <View style={styles.requirementItem}>
-                <Ionicons
-                  name={/[0-9]/.test(password) ? 'checkmark-circle' : 'ellipse-outline'}
+                <IconSymbol
+                  name={/[0-9]/.test(password) ? 'checkmark.circle.fill' : 'circle'}
                   size={16}
                   color={/[0-9]/.test(password) ? colors.success : secondaryTextColor}
                 />

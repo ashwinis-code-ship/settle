@@ -1,16 +1,17 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { ThemeProvider } from '@react-navigation/native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { useEffect, useMemo } from 'react';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { colors } from '@/constants/colors';
+import { brand, platform } from '@/constants/colors';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { SettingsProvider } from '@/contexts/settings-context';
 import { SyncProvider } from '@/contexts/sync-context';
+import { useAndroidChrome } from '@/hooks/use-android-chrome';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRealtimeSync } from '@/hooks/use-realtime-sync';
 import {
@@ -20,6 +21,7 @@ import {
   setPostHogClient,
   usePostHog
 } from '@/lib/analytics';
+import { getNavigationTheme } from '@/lib/platform-theme';
 import { queryClient } from '@/lib/query-client';
 
 /**
@@ -40,6 +42,8 @@ function AnalyticsSetup({ children }: { children: React.ReactNode }) {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme() ?? 'light';
+  const navigationTheme = useMemo(() => getNavigationTheme(colorScheme), [colorScheme]);
+  useAndroidChrome();
   const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
@@ -64,20 +68,26 @@ function RootLayoutNav() {
   // Show loading screen while checking auth
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme === 'dark' ? colors.background.dark : colors.background.light }}>
-        <ActivityIndicator size="large" color={colors.primary[500]} />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme === 'dark' ? platform.background.dark : platform.background.light }}>
+        <ActivityIndicator size="large" color={brand.primary[500]} />
       </View>
     );
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
+    <ThemeProvider value={navigationTheme}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          gestureEnabled: true,
+          fullScreenGestureEnabled: Platform.OS === 'ios',
+        }}
+      >
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal', headerShown: true }} />
       </Stack>
-      <StatusBar style="auto" />
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>
   );
 }

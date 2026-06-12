@@ -4,14 +4,16 @@
  * Shows when the user is offline with optional pending count.
  */
 
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors } from '@/constants/colors';
 import { useSync } from '@/contexts/sync-context';
 import { formatDistanceToNow } from '@/lib/utils';
-import { Ionicons } from '@expo/vector-icons';
 import { MotiView } from 'moti';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export function OfflineBanner() {
+  const insets = useSafeAreaInsets();
   const { pendingCount, syncStatus, lastSyncTime } = useSync();
 
   // Format last sync text
@@ -25,21 +27,26 @@ export function OfflineBanner() {
       animate={{ opacity: 1, translateY: 0 }}
       exit={{ opacity: 0, translateY: -20 }}
       transition={{ type: 'timing', duration: 200 }}
-      style={styles.container}
+      style={[
+        styles.container,
+        { paddingTop: insets.top + 10, paddingBottom: 10 },
+      ]}
     >
       <View style={styles.content}>
         <View style={styles.iconContainer}>
-          <Ionicons name="eye-outline" size={18} color={colors.white} />
+          <IconSymbol name="eye" size={18} color={colors.white} />
         </View>
         <View style={styles.textContainer}>
           <Text style={styles.title}>View-only mode</Text>
-          <Text style={styles.subtitle}>{lastSyncText}</Text>
+          <Text style={styles.subtitle} numberOfLines={1} ellipsizeMode="tail">
+            {lastSyncText}
+          </Text>
         </View>
       </View>
 
       {syncStatus === 'syncing' && (
         <View style={styles.syncingIndicator}>
-          <Ionicons name="sync" size={16} color={colors.white} />
+          <IconSymbol name="arrow.triangle.2.circlepath" size={16} color={colors.white} />
         </View>
       )}
     </MotiView>
@@ -60,7 +67,7 @@ export function OfflineIndicator() {
     <View style={styles.indicator}>
       {!isOnline && (
         <View style={styles.offlineDot}>
-          <Ionicons name="cloud-offline" size={14} color={colors.warning[500]} />
+          <IconSymbol name="icloud.slash" size={14} color={colors.warning[500]} />
         </View>
       )}
       {pendingCount > 0 && (
@@ -81,14 +88,14 @@ export function PendingBadge({ compact = false }: { compact?: boolean }) {
   if (compact) {
     return (
       <View style={styles.pendingBadgeCompact}>
-        <Ionicons name="time-outline" size={12} color={colors.warning[600]} />
+        <IconSymbol name="clock" size={12} color={colors.warning[600]} />
       </View>
     );
   }
 
   return (
     <View style={styles.pendingTag}>
-      <Ionicons name="time-outline" size={12} color={colors.warning[700]} />
+      <IconSymbol name="clock" size={12} color={colors.warning[700]} />
       <Text style={styles.pendingTagText}>Pending</Text>
     </View>
   );
@@ -114,8 +121,8 @@ export function SyncStatusButton() {
       onPress={sync}
       disabled={syncStatus === 'syncing'}
     >
-      <Ionicons
-        name={syncStatus === 'syncing' ? 'sync' : 'cloud-upload-outline'}
+      <IconSymbol
+        name={syncStatus === 'syncing' ? 'arrow.triangle.2.circlepath' : 'icloud.and.arrow.up'}
         size={16}
         color={colors.white}
       />
@@ -140,7 +147,7 @@ export function StaleDataNotice({ style }: { style?: object }) {
 
   return (
     <View style={[styles.staleNotice, style]}>
-      <Ionicons name="information-circle-outline" size={14} color={colors.gray[500]} />
+      <IconSymbol name="info.circle" size={14} color={colors.gray[500]} />
       <Text style={styles.staleNoticeText}>Showing cached data</Text>
     </View>
   );
@@ -149,7 +156,6 @@ export function StaleDataNotice({ style }: { style?: object }) {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.gray[700],
-    paddingVertical: 10,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -171,6 +177,7 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     flex: 1,
+    minWidth: 0,
   },
   title: {
     fontSize: 14,

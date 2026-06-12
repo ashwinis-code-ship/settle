@@ -4,13 +4,11 @@
  * App information, version, and support links.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
-import { router } from 'expo-router';
 import { MotiView } from 'moti';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -22,6 +20,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { hapticLight } from '@/lib/haptics';
+import { NativeScreenHeader } from '@/lib/native-header';
+import { showPlatformAlert } from '@/lib/platform-picker';
 
 export default function AboutScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -35,10 +35,6 @@ export default function AboutScreen() {
   const appVersion = Constants.expoConfig?.version || '1.0.0';
   const buildVersion = Constants.expoConfig?.ios?.buildNumber || Constants.expoConfig?.android?.versionCode?.toString() || '1';
 
-  const handleBack = () => {
-    router.back();
-  };
-
   const handleLink = (url: string) => {
     hapticLight();
     Linking.openURL(url);
@@ -50,15 +46,8 @@ export default function AboutScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable onPress={handleBack} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={textColor} />
-        </Pressable>
-        <Text style={[styles.headerTitle, { color: textColor }]}>About</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+    <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+      <NativeScreenHeader title="About" />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -72,7 +61,7 @@ export default function AboutScreen() {
           style={styles.logoSection}
         >
           <View style={[styles.logoContainer, { backgroundColor: colors.primary[500] }]}>
-            <Ionicons name="wallet" size={48} color={colors.white} />
+            <IconSymbol name="creditcard.fill" size={48} color={colors.white} />
           </View>
           <Text style={[styles.appName, { color: textColor }]}>Settle</Text>
           <Text style={[styles.tagline, { color: secondaryTextColor }]}>
@@ -97,7 +86,7 @@ export default function AboutScreen() {
             onPress={handleEmail}
           >
             <View style={[styles.linkIcon, { backgroundColor: colors.primary[100] }]}>
-              <Ionicons name="mail-outline" size={20} color={colors.primary[500]} />
+              <IconSymbol name="envelope" size={20} color={colors.primary[500]} />
             </View>
             <View style={styles.linkContent}>
               <Text style={[styles.linkTitle, { color: textColor }]}>Contact Support</Text>
@@ -105,18 +94,18 @@ export default function AboutScreen() {
                 singhsandhusatnam@icloud.com
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+            <IconSymbol name="chevron.right" size={20} color={secondaryTextColor} />
           </Pressable>
 
           <Pressable
             style={[styles.linkItem, styles.linkItemLast]}
             onPress={() => {
               hapticLight();
-              Alert.alert('Coming Soon', 'FAQ is on the way!', [{ text: 'OK' }]);
+              showPlatformAlert('Coming Soon', 'FAQ is on the way!');
             }}
           >
             <View style={[styles.linkIcon, { backgroundColor: colors.info + '20' }]}>
-              <Ionicons name="help-circle-outline" size={20} color={colors.info} />
+              <IconSymbol name="questionmark.circle" size={20} color={colors.info} />
             </View>
             <View style={styles.linkContent}>
               <Text style={[styles.linkTitle, { color: textColor }]}>FAQ</Text>
@@ -124,7 +113,7 @@ export default function AboutScreen() {
                 Frequently asked questions
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+            <IconSymbol name="chevron.right" size={20} color={secondaryTextColor} />
           </Pressable>
         </MotiView>
 
@@ -142,12 +131,12 @@ export default function AboutScreen() {
             onPress={() => handleLink('https://raw.githubusercontent.com/satnam-sandhu/settle/main/docs/privacy-policy.txt')}
           >
             <View style={[styles.linkIcon, { backgroundColor: colors.gray[200] }]}>
-              <Ionicons name="shield-outline" size={20} color={colors.gray[600]} />
+              <IconSymbol name="shield" size={20} color={colors.gray[600]} />
             </View>
             <View style={styles.linkContent}>
               <Text style={[styles.linkTitle, { color: textColor }]}>Privacy Policy</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+            <IconSymbol name="chevron.right" size={20} color={secondaryTextColor} />
           </Pressable>
 
           <Pressable
@@ -155,12 +144,12 @@ export default function AboutScreen() {
             onPress={() => handleLink('https://raw.githubusercontent.com/satnam-sandhu/settle/main/docs/terms-of-service.txt')}
           >
             <View style={[styles.linkIcon, { backgroundColor: colors.gray[200] }]}>
-              <Ionicons name="document-text-outline" size={20} color={colors.gray[600]} />
+              <IconSymbol name="doc.text" size={20} color={colors.gray[600]} />
             </View>
             <View style={styles.linkContent}>
               <Text style={[styles.linkTitle, { color: textColor }]}>Terms of Service</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+            <IconSymbol name="chevron.right" size={20} color={secondaryTextColor} />
           </Pressable>
         </MotiView>
 

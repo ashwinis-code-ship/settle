@@ -78,8 +78,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     loadSettings();
   }, []);
 
-  // Calculate effective theme based on mode and system preference
-  const effectiveTheme: 'light' | 'dark' = 
+  // Calculate effective theme based on mode and system preference.
+  // Native chrome reads effectiveTheme via useColorScheme — we intentionally avoid
+  // Appearance.setColorScheme() which can break iOS 26 liquid glass on inactive tabs.
+  const effectiveTheme: 'light' | 'dark' =
     themeMode === 'system' 
       ? (systemColorScheme ?? 'light')
       : themeMode;

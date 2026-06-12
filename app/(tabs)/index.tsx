@@ -4,13 +4,13 @@
  * Main dashboard showing user summary and quick actions.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useFocusEffect } from '@react-navigation/native';
-import { router } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
+import { router } from 'expo-router';
 import { MotiView } from 'moti';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -24,6 +24,7 @@ import { useFriends } from '@/hooks/use-friends';
 import { useRecentActivity, type ActivityItem } from '@/hooks/use-recent-activity';
 import { useUser } from '@/hooks/use-user';
 import { hapticLight, hapticWarning } from '@/lib/haptics';
+import { showOfflineAlert } from '@/lib/platform-picker';
 import { formatCurrency } from '@/lib/utils';
 
 /**
@@ -64,7 +65,7 @@ function HomeHeader() {
   const handleAddExpense = useCallback(() => {
     if (!isOnline) {
       hapticWarning();
-      Alert.alert('No Connection', 'Adding expenses requires an internet connection.', [{ text: 'OK' }]);
+      showOfflineAlert('Adding expenses requires an internet connection.');
       return;
     }
     hapticLight();
@@ -79,7 +80,7 @@ function HomeHeader() {
   const handleSettleUp = useCallback(() => {
     if (!isOnline) {
       hapticWarning();
-      Alert.alert('No Connection', 'Settling up requires an internet connection.', [{ text: 'OK' }]);
+      showOfflineAlert('Settling up requires an internet connection.');
       return;
     }
     hapticLight();
@@ -146,7 +147,7 @@ function HomeHeader() {
             </Text>
             <View style={styles.balanceRow}>
               <View style={styles.balanceItem}>
-                <Ionicons name="arrow-up-circle" size={20} color={colors.white} />
+                <IconSymbol name="arrow.up.circle" size={20} color={colors.white} />
                 <View>
                   <Text style={styles.balanceItemLabel}>You get back</Text>
                   <Text style={styles.balanceItemValue}>
@@ -156,7 +157,7 @@ function HomeHeader() {
               </View>
               <View style={styles.balanceDivider} />
               <View style={styles.balanceItem}>
-                <Ionicons name="arrow-down-circle" size={20} color={colors.white} />
+                <IconSymbol name="arrow.down.circle" size={20} color={colors.white} />
                 <View>
                   <Text style={styles.balanceItemLabel}>You owe</Text>
                   <Text style={styles.balanceItemValue}>
@@ -189,7 +190,7 @@ function HomeHeader() {
             ]}
           >
             <View style={[styles.actionIcon, { backgroundColor: colors.primary[100] }]}>
-              <Ionicons name="add" size={28} color={colors.primary[500]} />
+              <IconSymbol name="plus" size={28} color={colors.primary[500]} />
             </View>
             <Text style={[styles.actionLabel, { color: textColor }]}>Add Expense</Text>
           </Pressable>
@@ -205,7 +206,7 @@ function HomeHeader() {
             ]}
           >
             <View style={[styles.actionIcon, { backgroundColor: colors.primary[100] }]}>
-              <Ionicons name="people" size={28} color={colors.primary[500]} />
+              <IconSymbol name="person.2.fill" size={28} color={colors.primary[500]} />
             </View>
             <Text style={[styles.actionLabel, { color: textColor }]}>Create Group</Text>
           </Pressable>
@@ -221,7 +222,7 @@ function HomeHeader() {
             ]}
           >
             <View style={[styles.actionIcon, { backgroundColor: colors.warning + '20' }]}>
-              <Ionicons name="wallet-outline" size={28} color={colors.warning} />
+              <IconSymbol name="creditcard" size={28} color={colors.warning} />
             </View>
             <Text style={[styles.actionLabel, { color: textColor }]}>Settle Up</Text>
           </Pressable>
@@ -305,7 +306,7 @@ export default function HomeScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
         <View style={styles.offlineEmptyState}>
           <EmptyState
-            icon="cloud-offline-outline"
+            icon="icloud.slash"
             title="No cached data"
             description="Connect to the internet to load your dashboard"
           />
@@ -355,8 +356,8 @@ export default function HomeScreen() {
             {item.category_icon ? (
               <Text style={styles.activityEmoji}>{item.category_icon}</Text>
             ) : (
-              <Ionicons
-                name={isSettlement ? 'swap-horizontal' : 'receipt-outline'}
+              <IconSymbol
+                name={isSettlement ? 'arrow.left.arrow.right' : 'doc.text'}
                 size={18}
                 color={isSettlement ? colors.success : colors.gray[600]}
               />
@@ -423,7 +424,7 @@ export default function HomeScreen() {
 
           {/* Chevron for expenses */}
           {!isSettlement && (
-            <Ionicons name="chevron-forward" size={16} color={secondaryTextColor} />
+            <IconSymbol name="chevron.right" size={16} color={secondaryTextColor} />
           )}
         </Pressable>
       </MotiView>
@@ -443,7 +444,7 @@ export default function HomeScreen() {
           ) : (
             <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
               <EmptyState
-                icon="time-outline"
+                icon="clock"
                 title="No recent activity"
                 description="Your expenses and settlements will appear here"
                 compact

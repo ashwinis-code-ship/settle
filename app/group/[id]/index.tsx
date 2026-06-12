@@ -5,7 +5,7 @@
  * phase-split activity list. Checkpoint dividers mark phase boundaries inline.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Avatar } from '@/components/ui/avatar';
@@ -13,7 +13,6 @@ import { MotiView } from 'moti';
 import { useCallback, useMemo, useRef, useEffect } from 'react';
 import { FlashList } from '@shopify/flash-list';
 import {
-    Alert,
     Pressable,
     RefreshControl,
     StyleSheet,
@@ -39,6 +38,8 @@ import type { GroupCheckpoint } from '@/types';
 import { hapticLight, hapticWarning } from '@/lib/haptics';
 import { Analytics } from '@/lib/analytics';
 import { GROUP_EVENTS } from '@/lib/analytics-events';
+import { HeaderIconButton, NativeScreenHeader } from '@/lib/native-header';
+import { showOfflineAlert, showPlatformAlert, showPlatformConfirm } from '@/lib/platform-picker';
 
 const formatCurrency = (amount: number, currency: string = 'INR') => {
   const symbols: Record<string, string> = { INR: '₹', USD: '$', EUR: '€', GBP: '£' };
@@ -98,8 +99,6 @@ export default function GroupDetailScreen() {
 
   const isLoading = isLoadingGroup || isLoadingPhases;
 
-  const handleBack = useCallback(() => router.back(), []);
-
   const handleRefresh = useCallback(async () => {
     await Promise.all([refreshGroup(), refreshPhases()]);
   }, [refreshGroup, refreshPhases]);
@@ -120,7 +119,7 @@ export default function GroupDetailScreen() {
   const handleAddExpense = useCallback(() => {
     if (!isOnline) {
       hapticWarning();
-      Alert.alert('No Connection', 'Adding expenses requires an internet connection.', [{ text: 'OK' }]);
+      showOfflineAlert('Adding expenses requires an internet connection.');
       return;
     }
     hapticLight();
@@ -144,21 +143,16 @@ export default function GroupDetailScreen() {
 
   const handleRemoveCheckpoint = useCallback((checkpoint: GroupCheckpoint) => {
     hapticLight();
-    Alert.alert(
-      'Remove checkpoint?',
-      `This will merge the phase marked on ${formatCheckpointDate(checkpoint.created_at)} back into the current phase.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            const ok = await removeCheckpoint(checkpoint.id);
-            if (!ok) Alert.alert('Error', 'Failed to remove checkpoint. Try again.');
-          },
-        },
-      ]
-    );
+    showPlatformConfirm({
+      title: 'Remove checkpoint?',
+      message: `This will merge the phase marked on ${formatCheckpointDate(checkpoint.created_at)} back into the current phase.`,
+      confirmLabel: 'Remove',
+      destructive: true,
+      onConfirm: async () => {
+        const ok = await removeCheckpoint(checkpoint.id);
+        if (!ok) showPlatformAlert('Error', 'Failed to remove checkpoint. Try again.');
+      },
+    });
   }, [removeCheckpoint]);
 
   const settleSheetRef = useRef<BottomSheet>(null);
@@ -205,8 +199,8 @@ export default function GroupDetailScreen() {
               {expense.category && !notIncluded ? (
                 <Text style={styles.expenseIconEmoji}>{expense.category.icon}</Text>
               ) : (
-                <Ionicons
-                  name="receipt-outline"
+                <IconSymbol
+                  name="doc.text"
                   size={20}
                   color={notIncluded ? (isDark ? colors.gray[500] : colors.gray[400]) : colors.primary[600]}
                 />
@@ -238,7 +232,7 @@ export default function GroupDetailScreen() {
               ) : null}
             </View>
 
-            <Ionicons name="chevron-forward" size={16} color={secondaryTextColor} style={{ marginLeft: 4 }} />
+            <IconSymbol name="chevron.right" size={16} color={secondaryTextColor} style={{ marginLeft: 4 }} />
           </Pressable>
         </MotiView>
       );
@@ -272,8 +266,8 @@ export default function GroupDetailScreen() {
               {group.category && !notIncluded ? (
                 <Text style={styles.expenseIconEmoji}>{group.category.icon}</Text>
               ) : (
-                <Ionicons
-                  name="receipt-outline"
+                <IconSymbol
+                  name="doc.text"
                   size={20}
                   color={notIncluded ? (isDark ? colors.gray[500] : colors.gray[400]) : colors.primary[600]}
                 />
@@ -306,7 +300,7 @@ export default function GroupDetailScreen() {
               )}
             </View>
 
-            <Ionicons name="chevron-forward" size={16} color={secondaryTextColor} style={{ marginLeft: 4 }} />
+            <IconSymbol name="chevron.right" size={16} color={secondaryTextColor} style={{ marginLeft: 4 }} />
           </Pressable>
         </MotiView>
       );
@@ -374,7 +368,7 @@ export default function GroupDetailScreen() {
       >
         <View style={[styles.archivedCard, { backgroundColor: cardBg }]}>
           <View style={[styles.archivedIconWrap, { backgroundColor: colors.primary[500] + '20' }]}>
-            <Ionicons name="archive-outline" size={40} color={colors.primary[500]} />
+            <IconSymbol name="archivebox" size={40} color={colors.primary[500]} />
           </View>
           <Text style={[styles.archivedTitle, { color: textColor }]}>All archived</Text>
           <Text style={[styles.archivedSubtitle, { color: secondaryTextColor }]}>
@@ -463,7 +457,7 @@ export default function GroupDetailScreen() {
               { borderColor: colors.primary[500], opacity: pressed ? 0.7 : 1 },
             ]}
           >
-            <Ionicons name="swap-horizontal" size={15} color={colors.primary[500]} />
+            <IconSymbol name="arrow.left.arrow.right" size={15} color={colors.primary[500]} />
             <Text style={[styles.settleButtonText, { color: colors.primary[500] }]}>Settle</Text>
           </Pressable>
         )}
@@ -506,7 +500,7 @@ export default function GroupDetailScreen() {
             { backgroundColor: colors.primary[500], opacity: pressed ? 0.8 : 1 },
           ]}
         >
-          <Ionicons name="add" size={18} color={colors.white} />
+          <IconSymbol name="plus" size={18} color={colors.white} />
           <Text style={styles.addExpenseText}>Add</Text>
         </Pressable>
       </MotiView>
@@ -517,7 +511,7 @@ export default function GroupDetailScreen() {
     () => (
       <View style={styles.emptyExpenses}>
         <EmptyState
-          icon="receipt-outline"
+          icon="doc.text"
           title="No activity yet"
           description="Add your first expense to start tracking spending with this group"
           actionLabel="Add Expense"
@@ -528,17 +522,18 @@ export default function GroupDetailScreen() {
     [handleAddExpense]
   );
 
+  const groupTitle = group?.name || 'Group';
+  const settingsHeaderAction = (
+    <HeaderIconButton icon="gearshape" onPress={handleSettings} />
+  );
+
   // ─── Loading / offline states ──────────────────────────────────────────────
 
   if (isLoading && !group) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader title="Group" />
         <View style={styles.loadingContainer}>
-          <View style={[styles.header, { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] }]}>
-            <View style={{ width: 40 }} />
-            <Skeleton width={120} height={20} borderRadius={6} />
-            <View style={{ width: 40 }} />
-          </View>
           <View style={[styles.groupInfoCard, { backgroundColor: cardBg, marginHorizontal: 16, marginTop: 16 }]}>
             <Skeleton width={64} height={64} circle />
             <View style={{ marginLeft: 16, flex: 1 }}>
@@ -559,17 +554,11 @@ export default function GroupDetailScreen() {
 
   if (!isOnline && !isLoading && !group) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-        <View style={[styles.header, { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] }]}>
-          <Pressable onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={textColor} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: textColor }]}>Group</Text>
-          <View style={{ width: 40 }} />
-        </View>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader title="Group" />
         <View style={styles.emptyExpenses}>
           <EmptyState
-            icon="cloud-offline-outline"
+            icon="icloud.slash"
             title="No cached data"
             description="Connect to the internet to view this group's details"
           />
@@ -582,30 +571,8 @@ export default function GroupDetailScreen() {
 
   return (
     <GestureHandlerRootView style={styles.flex}>
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-        {/* Top navigation bar */}
-        <MotiView
-          from={{ opacity: 0, translateY: -20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'spring', damping: 18, stiffness: 100 }}
-          style={[styles.header, { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] }]}
-        >
-          <Pressable
-            onPress={handleBack}
-            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
-          >
-            <Ionicons name="arrow-back" size={24} color={textColor} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: textColor }]} numberOfLines={1}>
-            {group?.name || 'Group'}
-          </Text>
-          <Pressable
-            onPress={handleSettings}
-            style={({ pressed }) => [styles.settingsButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
-          >
-            <Ionicons name="settings-outline" size={22} color={textColor} />
-          </Pressable>
-        </MotiView>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader title={groupTitle} headerRight={settingsHeaderAction} />
 
         {/*
           Passing renderHeader() (pre-rendered JSX element) instead of renderHeader

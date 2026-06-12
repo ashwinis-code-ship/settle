@@ -5,15 +5,14 @@
  * Shows balance summary per group.
  */
 
-import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
-import { router } from 'expo-router';
 import { Avatar } from '@/components/ui/avatar';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useFocusEffect } from '@react-navigation/native';
 import { FlashList } from '@shopify/flash-list';
+import { router } from 'expo-router';
 import { MotiView } from 'moti';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-    Alert,
     NativeScrollEvent,
     NativeSyntheticEvent,
     Pressable,
@@ -23,7 +22,7 @@ import {
     View,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FilterScrubber, GROUP_FILTERS } from '@/components/filter-scrubber';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -32,7 +31,9 @@ import { colors } from '@/constants/colors';
 import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroups } from '@/hooks/use-groups';
+import { useTabBarOffset } from '@/hooks/use-tab-bar-offset';
 import { hapticLight, hapticWarning } from '@/lib/haptics';
+import { showOfflineAlert } from '@/lib/platform-picker';
 import type { GroupListItem } from '@/types';
 
 // ─── Activity colour interpolation ───────────────────────────────────────────
@@ -78,7 +79,7 @@ export default function GroupsScreen() {
   const isDark = colorScheme === 'dark';
   const { groups, isLoading, error, refresh } = useGroups();
   const { isOnline } = useSync();
-  const insets = useSafeAreaInsets();
+  const { scrubberBottom, listPaddingBottom } = useTabBarOffset();
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState('active');
   const [scrubberVisible, setScrubberVisible] = useState(true);
@@ -124,11 +125,7 @@ export default function GroupsScreen() {
   const handleCreateGroup = () => {
     if (!isOnline) {
       hapticWarning();
-      Alert.alert(
-        'No Connection',
-        'Creating groups requires an internet connection.',
-        [{ text: 'OK' }]
-      );
+      showOfflineAlert('Creating groups requires an internet connection.');
       return;
     }
     hapticLight();
@@ -193,7 +190,7 @@ export default function GroupsScreen() {
             {item.name}
           </Text>
           <View style={styles.groupMeta}>
-            <Ionicons name="people-outline" size={14} color={secondaryTextColor} />
+            <IconSymbol name="person.2" size={14} color={secondaryTextColor} />
             <Text style={[styles.groupMetaText, { color: secondaryTextColor }]}>
               {item.member_count} {item.member_count === 1 ? 'member' : 'members'}
             </Text>
@@ -213,7 +210,7 @@ export default function GroupsScreen() {
             </>
           ) : (
             <>
-              <Ionicons name="archive-outline" size={12} color="#EA580C" />
+              <IconSymbol name="archivebox" size={12} color="#EA580C" />
               <Text style={[styles.lastActivityValue, { color: '#EA580C', marginTop: 2 }]}>
                 All archived
               </Text>
@@ -227,25 +224,25 @@ export default function GroupsScreen() {
   const renderEmptyState = () => {
     const content = !isOnline ? (
       <EmptyState
-        icon="cloud-offline-outline"
+        icon="icloud.slash"
         title="No cached data"
         description="Connect to the internet to load your groups"
       />
     ) : activeFilter === 'archived' ? (
       <EmptyState
-        icon="archive-outline"
+        icon="archivebox"
         title="No archived groups"
         description="Groups you archive will appear here"
       />
     ) : activeFilter === 'active' ? (
       <EmptyState
-        icon="flash-outline"
+        icon="bolt"
         title="No active groups"
         description="All your groups have been archived"
       />
     ) : (
       <EmptyState
-        icon="people-outline"
+        icon="person.2"
         title="No groups yet"
         description="Create a group to start splitting expenses with your friends and family"
         actionLabel="Create Group"
@@ -281,13 +278,11 @@ export default function GroupsScreen() {
             { backgroundColor: colors.primary[500], opacity: pressed ? 0.8 : 1 },
           ]}
         >
-          <Ionicons name="add" size={24} color={colors.white} />
+          <IconSymbol name="plus" size={24} color={colors.white} />
         </Pressable>
       )}
     </MotiView>
   );
-
-  const scrubberBottom = insets.bottom + 61;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -305,7 +300,7 @@ export default function GroupsScreen() {
                 animate={{ opacity: 1 }}
                 style={styles.errorContainer}
               >
-                <Ionicons name="alert-circle" size={18} color={colors.error} />
+                <IconSymbol name="exclamationmark.circle" size={18} color={colors.error} />
                 <Text style={styles.errorText}>{error}</Text>
               </MotiView>
             )}
@@ -313,7 +308,7 @@ export default function GroupsScreen() {
         }
         contentContainerStyle={{
           ...styles.listContent,
-          paddingBottom: scrubberBottom + 80,
+          paddingBottom: listPaddingBottom,
         }}
         ListEmptyComponent={
           isLoading ? (

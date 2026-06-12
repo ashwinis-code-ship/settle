@@ -4,7 +4,7 @@
  * Form to create a new group with name and members from contacts.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { router } from 'expo-router';
 import { MotiView } from 'moti';
@@ -12,8 +12,6 @@ import { Avatar } from '@/components/ui/avatar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
-  ActionSheetIOS,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -33,6 +31,8 @@ import { useSync } from '@/contexts/sync-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGroups } from '@/hooks/use-groups';
 import { hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { NativeScreenHeader } from '@/lib/native-header';
+import { showOfflineAlert, showPhotoSourcePicker, showPlatformAlert } from '@/lib/platform-picker';
 import { pickImageFromCamera, pickImageFromLibrary } from '@/lib/image-upload';
 import { Analytics } from '@/lib/analytics';
 import { GROUP_EVENTS } from '@/lib/analytics-events';
@@ -54,10 +54,11 @@ export default function CreateGroupScreen() {
   // Block if offline
   useEffect(() => {
     if (!isOnline) {
-      Alert.alert(
+      showPlatformAlert(
         'No Connection',
         'Creating groups requires an internet connection.',
-        [{ text: 'OK', onPress: () => router.back() }]
+        'OK',
+        () => router.back(),
       );
     }
   }, [isOnline]);
@@ -98,10 +99,6 @@ export default function CreateGroupScreen() {
     hasAnimated.current = true;
   }, []);
 
-  const handleClose = () => {
-    router.back();
-  };
-
   const handleOpenBottomSheet = () => {
     bottomSheetRef.current?.expand();
   };
@@ -140,44 +137,13 @@ export default function CreateGroupScreen() {
   };
 
   const handleGroupImagePress = () => {
-    const hasImage = !!groupImageUri;
-    
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: hasImage 
-            ? ['Cancel', 'Take Photo', 'Choose from Library', 'Remove Photo']
-            : ['Cancel', 'Take Photo', 'Choose from Library'],
-          cancelButtonIndex: 0,
-          destructiveButtonIndex: hasImage ? 3 : undefined,
-        },
-        (buttonIndex) => {
-          if (buttonIndex === 1) {
-            handleTakePhoto();
-          } else if (buttonIndex === 2) {
-            handleChooseFromLibrary();
-          } else if (buttonIndex === 3 && hasImage) {
-            handleRemovePhoto();
-          }
-        }
-      );
-    } else {
-      const options: any[] = [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Take Photo', onPress: handleTakePhoto },
-        { text: 'Choose from Library', onPress: handleChooseFromLibrary },
-      ];
-      
-      if (hasImage) {
-        options.push({ 
-          text: 'Remove Photo', 
-          style: 'destructive',
-          onPress: handleRemovePhoto,
-        });
-      }
-      
-      Alert.alert('Group Photo', 'Choose an option', options);
-    }
+    showPhotoSourcePicker({
+      title: 'Group Photo',
+      hasExistingPhoto: !!groupImageUri,
+      onTakePhoto: handleTakePhoto,
+      onChooseFromLibrary: handleChooseFromLibrary,
+      onRemovePhoto: groupImageUri ? handleRemovePhoto : undefined,
+    });
   };
 
   const handleSubmit = async () => {
@@ -246,25 +212,12 @@ export default function CreateGroupScreen() {
 
   return (
     <GestureHandlerRootView style={styles.flex}>
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader title="Create Group" />
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          {/* Header */}
-          <MotiView
-            from={{ opacity: 0, translateY: -20 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 400 }}
-            style={[styles.header, { borderBottomColor: isDark ? colors.gray[700] : colors.gray[200] }]}
-          >
-            <Pressable onPress={handleClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={textColor} />
-            </Pressable>
-            <Text style={[styles.headerTitle, { color: textColor }]}>Create Group</Text>
-            <View style={styles.headerRight} />
-          </MotiView>
-
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
@@ -277,7 +230,7 @@ export default function CreateGroupScreen() {
                 animate={{ opacity: 1, scale: 1 }}
                 style={styles.errorContainer}
               >
-                <Ionicons name="alert-circle" size={18} color={errors.form ? colors.error : 'transparent'} />
+                <IconSymbol name="exclamationmark.circle" size={18} color={errors.form ? colors.error : 'transparent'} />
                 <Text style={styles.errorText}>{errors.form}</Text>
               </MotiView>
             )}
@@ -314,8 +267,8 @@ export default function CreateGroupScreen() {
                 error={errors.name}
                 autoCapitalize="words"
                 leftIcon={
-                  <Ionicons
-                    name="people-outline"
+                  <IconSymbol
+                    name="person.2"
                     size={20}
                     color={isDark ? colors.gray[400] : colors.gray[500]}
                   />
@@ -344,7 +297,7 @@ export default function CreateGroupScreen() {
                     },
                   ]}
                 >
-                  <Ionicons name="add" size={20} color={colors.white} />
+                  <IconSymbol name="plus" size={20} color={colors.white} />
                 </Pressable>
               </View>
 
@@ -353,7 +306,7 @@ export default function CreateGroupScreen() {
                   onPress={handleOpenBottomSheet}
                   style={[styles.emptyMembersCard, { backgroundColor: cardBg }]}
                 >
-                  <Ionicons name="person-add-outline" size={24} color={colors.gray[400]} />
+                  <IconSymbol name="person.badge.plus" size={24} color={colors.gray[400]} />
                   <Text style={[styles.emptyMembersText, { color: secondaryTextColor }]}>
                     Tap + to add members
                   </Text>
@@ -378,7 +331,7 @@ export default function CreateGroupScreen() {
                         </Text>
                       </View>
                       <Pressable onPress={() => handleToggleContact(contact)} style={styles.removeMemberButton}>
-                        <Ionicons name="close-circle" size={22} color={colors.gray[400]} />
+                        <IconSymbol name="xmark.circle" size={22} color={colors.gray[400]} />
                       </Pressable>
                     </View>
                   ))}

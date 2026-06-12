@@ -4,9 +4,9 @@
  * Checkmark color is theme-aware: white in dark mode, black in light mode for visibility on the green highlight.
  */
 
-import { Ionicons } from '@expo/vector-icons';
 import { MotiView } from 'moti';
 
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -41,7 +41,7 @@ export function Checkbox({ checked, borderColor = colors.gray[400], size = 22 }:
         animate={{ scale: checked ? 1 : 0, opacity: checked ? 1 : 0 }}
         transition={{ type: 'spring', damping: 28, stiffness: 500 }}
       >
-        <Ionicons name="checkmark" size={Math.round(size * 0.64)} color={checkmarkColor} />
+        <IconSymbol name="checkmark" size={Math.round(size * 0.64)} color={checkmarkColor} />
       </MotiView>
     </MotiView>
   );

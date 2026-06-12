@@ -4,21 +4,19 @@
  * View and edit user profile information.
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { router } from 'expo-router';
 import { MotiView } from 'moti';
 import { useEffect, useRef, useState } from 'react';
 import {
-    ActionSheetIOS,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -31,7 +29,14 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useUser } from '@/hooks/use-user';
 import { hapticLight, hapticSelection, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { deleteImage, getPathFromUrl, pickImageFromCamera, pickImageFromLibrary, uploadAvatar } from '@/lib/image-upload';
-import { CURRENCIES, type CurrencyCode } from '@/types/database';
+import {
+  showOfflineAlert,
+  showPhotoSourcePicker,
+  showPlatformAlert,
+  showPlatformConfirm,
+  showPlatformPicker,
+} from '@/lib/platform-picker';
+import { CURRENCIES } from '@/types/database';
 
 export default function ProfileScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -77,11 +82,7 @@ export default function ProfileScreen() {
   const handleEditName = () => {
     if (!isOnline) {
       hapticWarning();
-      Alert.alert(
-        'No Connection',
-        'Editing your profile requires an internet connection.',
-        [{ text: 'OK' }]
-      );
+      showOfflineAlert('Editing your profile requires an internet connection.');
       return;
     }
     setIsEditingName(true);
@@ -100,11 +101,7 @@ export default function ProfileScreen() {
   const handleSaveName = async () => {
     if (!isOnline) {
       hapticWarning();
-      Alert.alert(
-        'No Connection',
-        'Updating your profile requires an internet connection.',
-        [{ text: 'OK' }]
-      );
+      showOfflineAlert('Updating your profile requires an internet connection.');
       return;
     }
 
@@ -155,16 +152,16 @@ export default function ProfileScreen() {
           await refresh();
         } else {
           hapticWarning();
-          Alert.alert('Error', 'Failed to update profile. Please try again.');
+          showPlatformAlert('Error', 'Failed to update profile. Please try again.');
         }
       } else {
         hapticWarning();
-        Alert.alert('Error', result.error || 'Failed to upload photo. Please try again.');
+        showPlatformAlert('Error', result.error || 'Failed to upload photo. Please try again.');
       }
     } catch (err) {
       console.error('[Profile] Photo upload error:', err);
       hapticWarning();
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      showPlatformAlert('Error', 'Something went wrong. Please try again.');
     } finally {
       setIsUploadingPhoto(false);
     }
@@ -174,11 +171,7 @@ export default function ProfileScreen() {
     // Double-check offline status (user might have gone offline while action sheet was open)
     if (!isOnline) {
       hapticWarning();
-      Alert.alert(
-        'No Connection',
-        'Changing your photo requires an internet connection.',
-        [{ text: 'OK' }]
-      );
+      showOfflineAlert('Changing your photo requires an internet connection.');
       return;
     }
     hapticSelection();
@@ -192,11 +185,7 @@ export default function ProfileScreen() {
     // Double-check offline status (user might have gone offline while action sheet was open)
     if (!isOnline) {
       hapticWarning();
-      Alert.alert(
-        'No Connection',
-        'Changing your photo requires an internet connection.',
-        [{ text: 'OK' }]
-      );
+      showOfflineAlert('Changing your photo requires an internet connection.');
       return;
     }
     hapticSelection();
@@ -211,11 +200,7 @@ export default function ProfileScreen() {
     
     if (!isOnline) {
       hapticWarning();
-      Alert.alert(
-        'No Connection',
-        'Removing your photo requires an internet connection.',
-        [{ text: 'OK' }]
-      );
+      showOfflineAlert('Removing your photo requires an internet connection.');
       return;
     }
     
@@ -236,168 +221,76 @@ export default function ProfileScreen() {
         await refresh();
       } else {
         hapticWarning();
-        Alert.alert('Error', 'Failed to remove photo. Please try again.');
+        showPlatformAlert('Error', 'Failed to remove photo. Please try again.');
       }
     } catch (err) {
       console.error('[Profile] Remove photo error:', err);
       hapticWarning();
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      showPlatformAlert('Error', 'Something went wrong. Please try again.');
     } finally {
       setIsUploadingPhoto(false);
     }
   };
 
-  const handleChangePhoto = () => {
-    if (isUploadingPhoto) return;
-    
+  const guardOnlineForPhotoChange = () => {
     if (!isOnline) {
       hapticWarning();
-      Alert.alert(
-        'No Connection',
-        'Changing your photo requires an internet connection.',
-        [{ text: 'OK' }]
-      );
-      return;
+      showOfflineAlert('Changing your photo requires an internet connection.');
+      return false;
     }
-    
-    const hasPhoto = !!user?.avatar_url;
-    
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: hasPhoto 
-            ? ['Cancel', 'Take Photo', 'Choose from Library', 'Remove Photo']
-            : ['Cancel', 'Take Photo', 'Choose from Library'],
-          cancelButtonIndex: 0,
-          destructiveButtonIndex: hasPhoto ? 3 : undefined,
-        },
-        (buttonIndex) => {
-          // Double-check offline status before executing (user might have gone offline while sheet was open)
-          if (!isOnline && buttonIndex > 0 && buttonIndex !== 3) {
-            hapticWarning();
-            Alert.alert(
-              'No Connection',
-              'Changing your photo requires an internet connection.',
-              [{ text: 'OK' }]
-            );
-            return;
-          }
-          if (buttonIndex === 1) {
-            handleTakePhoto();
-          } else if (buttonIndex === 2) {
-            handleChooseFromLibrary();
-          } else if (buttonIndex === 3 && hasPhoto) {
-            handleRemovePhoto();
-          }
-        }
-      );
-    } else {
-      // Android - use Alert as a simple alternative
-      const options: any[] = [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Take Photo', 
-          onPress: () => {
-            // Double-check offline status (user might have gone offline while dialog was open)
-            if (!isOnline) {
-              hapticWarning();
-              Alert.alert(
-                'No Connection',
-                'Changing your photo requires an internet connection.',
-                [{ text: 'OK' }]
-              );
-              return;
-            }
-            handleTakePhoto();
-          }
-        },
-        { 
-          text: 'Choose from Library', 
-          onPress: () => {
-            // Double-check offline status (user might have gone offline while dialog was open)
-            if (!isOnline) {
-              hapticWarning();
-              Alert.alert(
-                'No Connection',
-                'Changing your photo requires an internet connection.',
-                [{ text: 'OK' }]
-              );
-              return;
-            }
-            handleChooseFromLibrary();
-          }
-        },
-      ];
-      
-      if (hasPhoto) {
-        options.push({ 
-          text: 'Remove Photo', 
-          style: 'destructive',
-          onPress: handleRemovePhoto, // Already has offline check
-        });
-      }
-      
-      Alert.alert('Change Profile Photo', 'Choose an option', options);
-    }
+    return true;
+  };
+
+  const handleChangePhoto = () => {
+    if (isUploadingPhoto) return;
+    if (!guardOnlineForPhotoChange()) return;
+
+    showPhotoSourcePicker({
+      title: 'Change Profile Photo',
+      hasExistingPhoto: !!user?.avatar_url,
+      onTakePhoto: () => {
+        if (!guardOnlineForPhotoChange()) return;
+        void handleTakePhoto();
+      },
+      onChooseFromLibrary: () => {
+        if (!guardOnlineForPhotoChange()) return;
+        void handleChooseFromLibrary();
+      },
+      onRemovePhoto: handleRemovePhoto,
+    });
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Sign Out', 
-          style: 'destructive',
-          onPress: async () => {
-            await signOut();
-          },
-        },
-      ]
-    );
+    showPlatformConfirm({
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out?',
+      confirmLabel: 'Sign Out',
+      destructive: true,
+      onConfirm: signOut,
+    });
   };
 
   const handleThemeChange = () => {
     hapticSelection();
     const options: ThemeMode[] = ['system', 'light', 'dark'];
     const labels = ['System Default', 'Light', 'Dark'];
-    const currentIndex = options.indexOf(themeMode);
 
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['Cancel', ...labels],
-          cancelButtonIndex: 0,
-          title: 'Choose Theme',
-        },
-        (buttonIndex) => {
-          if (buttonIndex > 0) {
-            setThemeMode(options[buttonIndex - 1]);
-          }
-        }
-      );
-    } else {
-      Alert.alert(
-        'Choose Theme',
-        undefined,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          ...labels.map((label, index) => ({
-            text: label + (index === currentIndex ? ' ✓' : ''),
-            onPress: () => setThemeMode(options[index]),
-          })),
-        ]
-      );
-    }
+    showPlatformPicker({
+      title: 'Choose Theme',
+      options: options.map((mode, index) => ({
+        label: labels[index],
+        selected: themeMode === mode,
+        onPress: () => setThemeMode(mode),
+      })),
+    });
   };
 
   const handleCurrencyChange = () => {
     hapticLight();
-    Alert.alert(
+    showPlatformAlert(
       'Coming Soon',
       'Multi-currency support is on the way. For now, expenses use your group\'s default currency.',
-      [{ text: 'Got it' }]
+      'Got it',
     );
     // --- Future implementation ---
     // Full currency picker will be re-enabled here once backend supports
@@ -502,7 +395,7 @@ export default function ProfileScreen() {
                 animate={{ opacity: 1, scale: 1 }}
                 style={styles.errorContainer}
               >
-                <Ionicons name="alert-circle" size={18} color={colors.error} />
+                <IconSymbol name="exclamationmark.circle" size={18} color={colors.error} />
                 <Text style={styles.errorText}>{error}</Text>
               </MotiView>
             )}
@@ -514,8 +407,8 @@ export default function ProfileScreen() {
               </Text>
               {isEditingName ? (
                 <View style={[styles.fieldValue, styles.fieldValueEditing, { backgroundColor: inputBg, borderColor: colors.primary[500] }]}>
-                  <Ionicons
-                    name="person-outline"
+                  <IconSymbol
+                    name="person"
                     size={20}
                     color={colors.primary[500]}
                   />
@@ -559,16 +452,16 @@ export default function ProfileScreen() {
                   style={{ opacity: !isOnline ? 0.5 : 1 }}
                 >
                   <View style={[styles.fieldValue, { backgroundColor: inputBg }]}>
-                    <Ionicons
-                      name="person-outline"
+                    <IconSymbol
+                      name="person"
                       size={20}
                       color={isDark ? colors.gray[400] : colors.gray[500]}
                     />
                     <Text style={[styles.fieldValueText, { color: textColor }]}>
                       {userName}
                     </Text>
-                    <Ionicons
-                      name="pencil-outline"
+                    <IconSymbol
+                      name="pencil"
                       size={18}
                       color={colors.primary[500]}
                     />
@@ -583,8 +476,8 @@ export default function ProfileScreen() {
                 Phone Number
               </Text>
               <View style={[styles.fieldValue, { backgroundColor: inputBg }]}>
-                <Ionicons
-                  name="call-outline"
+                <IconSymbol
+                  name="phone"
                   size={20}
                   color={isDark ? colors.gray[400] : colors.gray[500]}
                 />
@@ -592,7 +485,7 @@ export default function ProfileScreen() {
                   {formatPhone(userPhone)}
                 </Text>
                 <View style={styles.verifiedBadge}>
-                  <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                  <IconSymbol name="checkmark.circle.fill" size={16} color={colors.success} />
                   <Text style={styles.verifiedText}>Verified</Text>
                 </View>
               </View>
@@ -618,8 +511,8 @@ export default function ProfileScreen() {
             >
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: colors.primary[100] }]}>
-                  <Ionicons 
-                    name={isDark ? 'moon' : 'sunny-outline'} 
+                  <IconSymbol 
+                    name={isDark ? 'moon.fill' : 'sun.max'} 
                     size={20} 
                     color={colors.primary[500]} 
                   />
@@ -632,7 +525,7 @@ export default function ProfileScreen() {
                 <Text style={[styles.settingValue, { color: secondaryTextColor }]}>
                   {getThemeLabel()}
                 </Text>
-                <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+                <IconSymbol name="chevron.right" size={20} color={secondaryTextColor} />
               </View>
             </Pressable>
 
@@ -648,7 +541,7 @@ export default function ProfileScreen() {
             >
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: colors.success + '20' }]}>
-                  <Ionicons name="cash-outline" size={20} color={colors.success} />
+                  <IconSymbol name="dollarsign.circle" size={20} color={colors.success} />
                 </View>
                 <Text style={[styles.settingLabel, { color: textColor }]}>
                   Default Currency
@@ -658,7 +551,7 @@ export default function ProfileScreen() {
                 <Text style={[styles.settingValue, { color: secondaryTextColor }]}>
                   {getCurrencyLabel()}
                 </Text>
-                <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+                <IconSymbol name="chevron.right" size={20} color={secondaryTextColor} />
               </View>
             </Pressable>
 
@@ -666,7 +559,7 @@ export default function ProfileScreen() {
             {/* <View style={[styles.settingItem, styles.settingItemLast]}>
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: colors.warning + '20' }]}>
-                  <Ionicons name="notifications-outline" size={20} color={colors.warning} />
+                  <IconSymbol name="bell" size={20} color={colors.warning} />
                 </View>
                 <Text style={[styles.settingLabel, { color: textColor }]}>
                   Notifications
@@ -699,13 +592,13 @@ export default function ProfileScreen() {
             >
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: colors.info + '20' }]}>
-                  <Ionicons name="help-circle-outline" size={20} color={colors.info} />
+                  <IconSymbol name="questionmark.circle" size={20} color={colors.info} />
                 </View>
                 <Text style={[styles.settingLabel, { color: textColor }]}>
                   Help & Support
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+              <IconSymbol name="chevron.right" size={20} color={secondaryTextColor} />
             </Pressable>
 
             {/* Privacy Policy */}
@@ -715,13 +608,13 @@ export default function ProfileScreen() {
             >
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: colors.gray[200] }]}>
-                  <Ionicons name="document-text-outline" size={20} color={colors.gray[600]} />
+                  <IconSymbol name="doc.text" size={20} color={colors.gray[600]} />
                 </View>
                 <Text style={[styles.settingLabel, { color: textColor }]}>
                   Privacy Policy
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+              <IconSymbol name="chevron.right" size={20} color={secondaryTextColor} />
             </Pressable>
 
             {/* Terms of Service */}
@@ -731,13 +624,13 @@ export default function ProfileScreen() {
             >
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: colors.gray[200] }]}>
-                  <Ionicons name="shield-checkmark-outline" size={20} color={colors.gray[600]} />
+                  <IconSymbol name="checkmark.shield" size={20} color={colors.gray[600]} />
                 </View>
                 <Text style={[styles.settingLabel, { color: textColor }]}>
                   Terms of Service
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+              <IconSymbol name="chevron.right" size={20} color={secondaryTextColor} />
             </Pressable>
           </MotiView>
 
@@ -758,7 +651,7 @@ export default function ProfileScreen() {
                 },
               ]}
             >
-              <Ionicons name="log-out-outline" size={20} color={colors.error} />
+              <IconSymbol name="rectangle.portrait.and.arrow.right" size={20} color={colors.error} />
               <Text style={styles.signOutText}>Sign Out</Text>
             </Pressable>
           </MotiView>

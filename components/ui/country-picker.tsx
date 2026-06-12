@@ -16,7 +16,7 @@ import {
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 
 import { colors } from '@/constants/colors';
 import { countries, type Country, DEFAULT_COUNTRY } from '@/constants/countries';
@@ -67,8 +67,8 @@ export function CountryPicker({ selectedCountry, onSelect }: CountryPickerProps)
         <Text style={[styles.dialCode, { color: textColor }]}>
           {selectedCountry.dialCode}
         </Text>
-        <Ionicons
-          name="chevron-down"
+        <IconSymbol
+          name="chevron.down"
           size={16}
           color={secondaryTextColor}
         />
@@ -85,7 +85,7 @@ export function CountryPicker({ selectedCountry, onSelect }: CountryPickerProps)
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: borderColor }]}>
             <Pressable onPress={() => setIsOpen(false)} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={textColor} />
+              <IconSymbol name="xmark" size={24} color={textColor} />
             </Pressable>
             <Text style={[styles.headerTitle, { color: textColor }]}>
               Select Country
@@ -95,7 +95,7 @@ export function CountryPicker({ selectedCountry, onSelect }: CountryPickerProps)
 
           {/* Search */}
           <View style={[styles.searchContainer, { backgroundColor, borderColor }]}>
-            <Ionicons name="search" size={20} color={secondaryTextColor} />
+            <IconSymbol name="magnifyingglass" size={20} color={secondaryTextColor} />
             <TextInput
               style={[styles.searchInput, { color: textColor }]}
               placeholder="Search country..."
@@ -106,7 +106,7 @@ export function CountryPicker({ selectedCountry, onSelect }: CountryPickerProps)
             />
             {search.length > 0 && (
               <Pressable onPress={() => setSearch('')}>
-                <Ionicons name="close-circle" size={20} color={secondaryTextColor} />
+                <IconSymbol name="xmark.circle" size={20} color={secondaryTextColor} />
               </Pressable>
             )}
           </View>
@@ -138,7 +138,7 @@ export function CountryPicker({ selectedCountry, onSelect }: CountryPickerProps)
                     </Text>
                   </View>
                   {isSelected && (
-                    <Ionicons name="checkmark-circle" size={24} color={colors.primary[500]} />
+                    <IconSymbol name="checkmark.circle.fill" size={24} color={colors.primary[500]} />
                   )}
                 </Pressable>
               );

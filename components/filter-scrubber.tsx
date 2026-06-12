@@ -11,10 +11,10 @@
  * Accepts a generic `filters` array so it works for any screen.
  */
 
-import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import type { IconSymbolName } from '@/components/ui/icon-symbol-mapping';
 import { useCallback, useEffect, useRef } from 'react';
-import { Dimensions, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -28,7 +28,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
-import { colors } from '@/constants/colors';
+import { FrostedSurface } from '@/components/ui/frosted-surface';
+import { brand, colors, platform } from '@/constants/colors';
 import { hapticLight } from '@/lib/haptics';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
@@ -36,7 +37,7 @@ import { hapticLight } from '@/lib/haptics';
 export interface FilterOption {
   key: string;
   label: string;
-  icon: React.ComponentProps<typeof Ionicons>['name'];
+  icon: IconSymbolName;
   color: string;
 }
 
@@ -44,16 +45,16 @@ export interface FilterOption {
 export type FilterType = 'all' | 'outstanding' | 'i_owe' | 'they_owe';
 
 export const FRIEND_FILTERS: FilterOption[] = [
-  { key: 'all',         label: 'Everyone',    icon: 'people-outline',    color: colors.gray[500] },
-  { key: 'outstanding', label: 'Outstanding', icon: 'swap-horizontal',   color: '#3B82F6'        },
-  { key: 'i_owe',       label: 'Paying',      icon: 'arrow-up-circle',   color: colors.error     },
-  { key: 'they_owe',    label: 'Collecting',  icon: 'arrow-down-circle', color: colors.success   },
+  { key: 'all',         label: 'Everyone',    icon: 'person.2',                color: colors.gray[500] },
+  { key: 'outstanding', label: 'Outstanding', icon: 'arrow.left.arrow.right',  color: '#3B82F6'        },
+  { key: 'i_owe',       label: 'Paying',      icon: 'arrow.up.circle',         color: colors.error     },
+  { key: 'they_owe',    label: 'Collecting',  icon: 'arrow.down.circle',       color: colors.success   },
 ];
 
 export const GROUP_FILTERS: FilterOption[] = [
-  { key: 'all',      label: 'All',      icon: 'people-outline',  color: colors.gray[500]   },
-  { key: 'active',   label: 'Active',   icon: 'flash-outline',   color: colors.primary[500] },
-  { key: 'archived', label: 'Archived', icon: 'archive-outline', color: '#EA580C'           },
+  { key: 'all',      label: 'All',      icon: 'person.2',   color: colors.gray[500]   },
+  { key: 'active',   label: 'Active',   icon: 'bolt',       color: colors.primary[500] },
+  { key: 'archived', label: 'Archived', icon: 'archivebox', color: '#EA580C'           },
 ];
 
 export interface FilterScrubberProps {
@@ -67,6 +68,7 @@ export interface FilterScrubberProps {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const { width: SCREEN_W } = Dimensions.get('window');
+const isAndroid = Platform.OS === 'android';
 const COLLAPSED_H = 38;
 const EXPANDED_H  = 56;
 
@@ -143,7 +145,7 @@ function FilterItem({
 
   return (
     <Animated.View style={[styles.filterItem, { width: itemW }, animStyle]}>
-      <Ionicons
+      <IconSymbol
         name={filter.icon}
         size={13}
         color={isActive ? filter.color : colors.gray[400]}
@@ -168,21 +170,29 @@ function ActiveHighlight({
   expanded,
   highlightX,
   itemW,
+  isDark,
 }: {
   expanded: Animated.SharedValue<number>;
   highlightX: Animated.SharedValue<number>;
   itemW: number;
+  isDark: boolean;
 }) {
   const style = useAnimatedStyle(() => ({
     opacity: interpolate(expanded.value, [0.5, 1], [0, 1]),
     transform: [{ translateX: highlightX.value + 4 }],
   }));
 
+  const highlightColor = isAndroid
+    ? isDark
+      ? platform.surfaceContainer.dark
+      : brand.primary[50]
+    : 'rgba(255, 255, 255, 0.18)';
+
   return (
     <Animated.View
       style={[
         styles.highlight,
-        { width: itemW - 8, height: EXPANDED_H - 16, borderRadius: (EXPANDED_H - 16) / 2 },
+        { width: itemW - 8, height: EXPANDED_H - 16, borderRadius: (EXPANDED_H - 16) / 2, backgroundColor: highlightColor },
         style,
       ]}
     />
@@ -305,23 +315,22 @@ export function FilterScrubber({
         <Animated.View
           style={[
             styles.pill,
-            { borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)' },
+            isAndroid ? styles.pillAndroid : styles.pillIOS,
+            !isAndroid && {
+              borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)',
+            },
             pillAnimStyle,
           ]}
         >
-          <BlurView
-            intensity={75}
-            tint={isDark ? 'dark' : 'light'}
+          <FrostedSurface
+            isDark={isDark}
             style={StyleSheet.absoluteFill}
-          />
-          <View
-            style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: isDark ? 'rgba(18,18,24,0.42)' : 'rgba(255,255,255,0.30)' },
-            ]}
+            variant={isAndroid ? 'elevated' : 'flat'}
+            elevation={3}
+            blurIntensity={75}
           />
 
-          <ActiveHighlight expanded={expanded} highlightX={highlightX} itemW={itemW} />
+          <ActiveHighlight expanded={expanded} highlightX={highlightX} itemW={itemW} isDark={isDark} />
 
           <Animated.View style={[styles.dotsLayer, dotsLayerAnimStyle]} pointerEvents="none">
             {filters.map((f, idx) => (
@@ -363,14 +372,18 @@ const styles = StyleSheet.create({
   },
   pill: {
     overflow: 'hidden',
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  pillIOS: {
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
     shadowRadius: 14,
-    elevation: 10,
+  },
+  pillAndroid: {
+    borderWidth: 0,
   },
   dotsLayer: {
     position: 'absolute',
@@ -417,6 +430,5 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     top: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
   },
 });

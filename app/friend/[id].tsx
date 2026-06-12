@@ -6,7 +6,7 @@
  */
 
 import { EditSettlementSheet } from '@/components/edit-settlement-sheet';
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { Avatar } from '@/components/ui/avatar';
 import { FlashList } from '@shopify/flash-list';
@@ -15,7 +15,6 @@ import { MotiView } from 'moti';
 import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -35,6 +34,8 @@ import { useSettlements } from '@/hooks/use-settlements';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { Analytics } from '@/lib/analytics';
 import { FRIEND_EVENTS } from '@/lib/analytics-events';
+import { NativeScreenHeader } from '@/lib/native-header';
+import { showOfflineAlert, showPlatformAlert } from '@/lib/platform-picker';
 import type { FriendTransaction } from '@/types';
 import { CURRENCIES } from '@/types/database';
 
@@ -121,18 +122,10 @@ export default function FriendDetailScreen() {
     setRefreshing(false);
   }, [refresh]);
 
-  const handleBack = () => {
-    router.back();
-  };
-
   const handleAddExpense = () => {
     if (!isOnline) {
       hapticWarning();
-      Alert.alert(
-        'No Connection',
-        'Adding expenses requires an internet connection.',
-        [{ text: 'OK' }]
-      );
+      showOfflineAlert('Adding expenses requires an internet connection.');
       return;
     }
     hapticLight();
@@ -145,11 +138,7 @@ export default function FriendDetailScreen() {
   const handleSettleUp = () => {
     if (!isOnline) {
       hapticWarning();
-      Alert.alert(
-        'No Connection',
-        'Settling up requires an internet connection.',
-        [{ text: 'OK' }]
-      );
+      showOfflineAlert('Settling up requires an internet connection.');
       return;
     }
     hapticLight();
@@ -245,7 +234,7 @@ export default function FriendDetailScreen() {
               {groupBalance.transaction_count} transaction{groupBalance.transaction_count !== 1 ? 's' : ''}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={secondaryTextColor} />
+          <IconSymbol name="chevron.right" size={20} color={secondaryTextColor} />
         </Pressable>
       </MotiView>
     );
@@ -267,11 +256,7 @@ export default function FriendDetailScreen() {
     if (item.type !== 'settlement') return;
     if (!isOnline) {
       hapticWarning();
-      Alert.alert(
-        'No Connection',
-        'Editing settlements requires an internet connection.',
-        [{ text: 'OK' }]
-      );
+      showOfflineAlert('Editing settlements requires an internet connection.');
       return;
     }
     hapticLight();
@@ -307,7 +292,7 @@ export default function FriendDetailScreen() {
       refresh();
     } else {
       hapticWarning();
-      Alert.alert('Error', 'Failed to update settlement. Please try again.');
+      showPlatformAlert('Error', 'Failed to update settlement. Please try again.');
     }
   };
 
@@ -368,8 +353,8 @@ export default function FriendDetailScreen() {
           {item.category_icon ? (
             <Text style={styles.transactionIconEmoji}>{item.category_icon}</Text>
           ) : (
-            <Ionicons
-              name="receipt-outline"
+            <IconSymbol
+              name="doc.text"
               size={18}
               color={isPositive ? colors.success : colors.error}
             />
@@ -392,7 +377,7 @@ export default function FriendDetailScreen() {
             {item.group_type === 'group' && item.group_name && (
               <>
                 <Text style={[styles.transactionDot, { color: secondaryTextColor }]}>•</Text>
-                <Ionicons name="people" size={11} color={secondaryTextColor} />
+                <IconSymbol name="person.2.fill" size={11} color={secondaryTextColor} />
                 <Text style={[styles.transactionGroup, { color: secondaryTextColor }]} numberOfLines={1}>
                   {item.group_name}
                 </Text>
@@ -411,7 +396,7 @@ export default function FriendDetailScreen() {
           </Text>
         </View>
 
-        <Ionicons name="chevron-forward" size={16} color={secondaryTextColor} style={{ marginLeft: 4 }} />
+        <IconSymbol name="chevron.right" size={16} color={secondaryTextColor} style={{ marginLeft: 4 }} />
       </View>
     );
 
@@ -476,7 +461,7 @@ export default function FriendDetailScreen() {
           transition={{ type: 'timing', duration: 900, loop: true, repeatReverse: true }}
         >
           <View style={[styles.settledStateIcon, { backgroundColor: colors.success + '20' }]}>
-            <Ionicons name="checkmark-circle" size={48} color={colors.success} />
+            <IconSymbol name="checkmark.circle.fill" size={48} color={colors.success} />
           </View>
         </MotiView>
 
@@ -525,7 +510,7 @@ export default function FriendDetailScreen() {
   const renderEmptyTransactions = useCallback(() => (
     <View style={[styles.emptyState, { backgroundColor: cardBg }]}>
       <EmptyState
-        icon="wallet-outline"
+        icon="creditcard"
         title="No transactions yet"
         description="Add an expense to start tracking your shared expenses with this friend"
         compact
@@ -562,7 +547,7 @@ export default function FriendDetailScreen() {
             </Text>
             {balance === 0 ? (
               <View style={styles.settledLine}>
-                <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                <IconSymbol name="checkmark.circle.fill" size={14} color={colors.success} />
                 <Text style={[styles.friendBalanceLine, { color: colors.success, marginLeft: 4 }]}>
                   All settled up
                 </Text>
@@ -581,7 +566,7 @@ export default function FriendDetailScreen() {
                 { borderColor: colors.primary[500], opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.95 : 1 }] },
               ]}
             >
-              <Ionicons name="swap-horizontal" size={15} color={colors.primary[500]} />
+              <IconSymbol name="arrow.left.arrow.right" size={15} color={colors.primary[500]} />
               <Text style={[styles.settleUpPillText, { color: colors.primary[500] }]}>Settle</Text>
             </Pressable>
           )}
@@ -621,7 +606,7 @@ export default function FriendDetailScreen() {
               { backgroundColor: colors.primary[500], opacity: pressed ? 0.8 : 1 },
             ]}
           >
-            <Ionicons name="add" size={18} color={colors.white} />
+            <IconSymbol name="plus" size={18} color={colors.white} />
             <Text style={styles.addButtonText}>Add</Text>
           </Pressable>
         </MotiView>
@@ -632,19 +617,12 @@ export default function FriendDetailScreen() {
     groupBalances, handleAddExpense, handleSettleUp, renderGroupCard,
   ]);
 
+  const screenTitle = friend?.user.name || params.name || 'Friend';
+
   if (isLoading && !friend) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={handleBack}
-            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
-          >
-            <Ionicons name="arrow-back" size={24} color={textColor} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: textColor }]}>{params.name || 'Friend'}</Text>
-          <View style={styles.backButton} />
-        </View>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader title={params.name || 'Friend'} />
         <View style={styles.loadingContainer}>
           {/* Friend info skeleton — horizontal */}
           <View style={[styles.friendInfoCard, { backgroundColor: cardBg }]}>
@@ -677,24 +655,15 @@ export default function FriendDetailScreen() {
 
   if (error) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={handleBack}
-            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
-          >
-            <Ionicons name="arrow-back" size={24} color={textColor} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: textColor }]}>Error</Text>
-          <View style={styles.backButton} />
-        </View>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader title="Error" />
         <MotiView
           from={{ opacity: 0, scale: 0.92 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ type: 'spring', damping: 20, stiffness: 200 }}
           style={styles.errorContainer}
         >
-          <Ionicons name="alert-circle" size={48} color={colors.error} />
+          <IconSymbol name="exclamationmark.circle" size={48} color={colors.error} />
           <Text style={[styles.errorText, { color: textColor }]}>{error}</Text>
           <Pressable onPress={refresh}>
             {({ pressed }) => (
@@ -715,20 +684,11 @@ export default function FriendDetailScreen() {
   // Show offline empty state when no cached data available
   if (!isOnline && !isLoading && !friend) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={handleBack}
-            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
-          >
-            <Ionicons name="arrow-back" size={24} color={textColor} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: textColor }]}>{params.name || 'Friend'}</Text>
-          <View style={styles.backButton} />
-        </View>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader title={params.name || 'Friend'} />
         <View style={styles.errorContainer}>
           <EmptyState
-            icon="cloud-offline-outline"
+            icon="icloud.slash"
             title="No cached data"
             description="Connect to the internet to view this friend's details"
           />
@@ -737,25 +697,12 @@ export default function FriendDetailScreen() {
     );
   }
 
-  const friendName = friend?.user.name || params.name || 'Friend';
   const currencySymbol = CURRENCIES[friend?.primary_currency || 'INR']?.symbol || '₹';
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Pressable
-            onPress={handleBack}
-            style={({ pressed }) => [styles.backButton, { opacity: pressed ? 0.6 : 1, transform: [{ scale: pressed ? 0.88 : 1 }] }]}
-          >
-            <Ionicons name="arrow-back" size={24} color={textColor} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: textColor }]} numberOfLines={1}>
-            {friendName}
-          </Text>
-          <View style={styles.backButton} />
-        </View>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <NativeScreenHeader title={screenTitle} />
 
         <FlashList
           data={activityItems}
