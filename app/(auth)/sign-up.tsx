@@ -70,7 +70,9 @@ export default function SignUpScreen() {
   };
 
   const handleGetOtp = async () => {
-posthog.capture('sign_up_completed')
+posthog.capture(
+  'sign_up_completed'
+  );
     if (!validateForm()) return;
 
     setIsLoading(true);
