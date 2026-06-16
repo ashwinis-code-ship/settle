@@ -243,7 +243,9 @@ export default function SettleUpScreen() {
   }, [searchQuery, isSearchMode, searchFriendsWithBalance]);
 
   const handleSelectTarget = (target: SettleTarget) => {
-posthog.capture('settle_up_completed')
+posthog.capture(
+    'settle_up_completed'
+);
     hapticLight();
     
     // Track friend selection
