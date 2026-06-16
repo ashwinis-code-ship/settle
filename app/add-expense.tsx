@@ -211,6 +211,7 @@ export default function AddExpenseScreen() {
 
   // Group selected from sheet
   const handleSelectGroup = useCallback((g: SearchResultGroup) => {
+posthog.capture('add_expense_completed')
     Keyboard.dismiss();
     // Mark selected immediately so onStartClose doesn't trigger router.back().
     hasSelectedTargetRef.current = true;

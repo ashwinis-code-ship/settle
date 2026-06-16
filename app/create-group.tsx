@@ -100,6 +100,7 @@ export default function CreateGroupScreen() {
   }, []);
 
   const handleOpenBottomSheet = () => {
+posthog.capture('create_group_completed')
     bottomSheetRef.current?.expand();
   };
 
